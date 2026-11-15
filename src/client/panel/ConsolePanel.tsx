@@ -6,6 +6,7 @@
 import { useState, type ReactElement } from 'react'
 import { ConsoleTabStrip, type ConsoleTab } from '../components/ConsoleTabStrip.tsx'
 import { CONSOLE_CSS } from '../style.ts'
+import { Approvals } from '../views/Approvals.tsx'
 import { Placeholder } from '../views/Placeholder.tsx'
 import type { Translate } from '../i18n.ts'
 
@@ -21,9 +22,11 @@ const INITIAL_TAB: ConsoleTabId = 'approvals'
 
 export interface ConsolePanelProps {
   t: Translate
+  /** 当前界面语言，用于日期与相对时间的本地化。 */
+  language?: string
 }
 
-export function ConsolePanel({ t }: ConsolePanelProps): ReactElement {
+export function ConsolePanel({ t, language = 'zh' }: ConsolePanelProps): ReactElement {
   const [active, setActive] = useState<ConsoleTabId>(INITIAL_TAB)
 
   const tabs: ConsoleTab[] = [
@@ -40,7 +43,7 @@ export function ConsolePanel({ t }: ConsolePanelProps): ReactElement {
       <style>{CONSOLE_CSS}</style>
       <ConsoleTabStrip tabs={tabs} active={active} onSelect={id => setActive(id as ConsoleTabId)} />
       <div className="pa-console__body" role="tabpanel">
-        {active === 'approvals' ? <span className="pa-console__empty">{t('approvalsEmpty')}</span> : null}
+        {active === 'approvals' ? <Approvals t={t} language={language} /> : null}
         {active === 'tickets' ? <span className="pa-console__empty">{t('ticketsEmpty')}</span> : null}
         {IMPLEMENTED.includes(active) ? null : (
           <Placeholder

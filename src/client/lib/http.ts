@@ -4,9 +4,14 @@
 // 路径、请求头与错误码来自共享契约，不在调用点硬编码。
 
 import {
+  approvalDecidePath,
   REQUEST_HEADER,
   REQUEST_HEADER_VALUE,
   ROUTES,
+  type DecisionFailure,
+  type DecisionRequest,
+  type DecisionResponse,
+  type DecisionSuccess,
   type ErrorResponse,
   type SnapshotResponse,
 } from '../../shared/api.ts'
@@ -30,10 +35,41 @@ export async function fetchSnapshot(): Promise<SnapshotResponse> {
     credentials: 'same-origin',
     headers: { [REQUEST_HEADER]: REQUEST_HEADER_VALUE },
   })
+  return readJson<SnapshotResponse>(response)
+}
+
+/** 提交一次审批决定；成功返回送达方式，失败按错误码抛出。 */
+export async function decideApproval(
+  approvalId: string,
+  request: DecisionRequest,
+): Promise<DecisionSuccess> {
+  const response = await fetch(approvalDecidePath(approvalId), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      [REQUEST_HEADER]: REQUEST_HEADER_VALUE,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+  const payload = await readJson<DecisionResponse>(response)
+  if (payload.ok !== true) throw failure(payload, response.status)
+  return payload
+}
+
+async function readJson<T>(response: Response): Promise<T> {
   const payload: unknown = await response.json().catch(() => undefined)
   if (!response.ok) {
-    const failure = payload as ErrorResponse | undefined
-    throw new ApiError(failure?.code ?? 'http-error', failure?.message ?? `HTTP ${response.status}`, response.status)
+    const failureBody = payload as ErrorResponse | undefined
+    throw new ApiError(
+      failureBody?.code ?? 'http-error',
+      failureBody?.message ?? `HTTP ${response.status}`,
+      response.status,
+    )
   }
-  return payload as SnapshotResponse
+  return payload as T
+}
+
+function failure(body: DecisionFailure, status: number): ApiError {
+  return new ApiError(body.code, body.message, status)
 }

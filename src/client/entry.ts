@@ -37,7 +37,7 @@ export function apply(ctx: ClientContext): void {
             name: 'sidebar.right.pane.tab',
             key: CONSOLE_ID,
             locale: NS,
-            inject: () => ({ t: translate() }),
+            inject: () => ({ t: translate(), language: detectLanguage(ctx.locale.getLocale()) }),
           },
           ConsolePanel,
         ),
