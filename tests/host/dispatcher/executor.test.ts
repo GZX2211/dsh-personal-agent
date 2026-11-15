@@ -141,7 +141,7 @@ describe('executeDispatchAction', () => {
     expect(store.projection().tickets[0]?.stage).toBe('queued')
   })
 
-  it('keeps the dispatch fact when the brief cannot be delivered', async () => {
+  it('does not write the dispatch fact when the append target is gone', async () => {
     seedQueued('append', 'session-ghost')
 
     await expect(
@@ -151,6 +151,23 @@ describe('executeDispatchAction', () => {
         ticket(),
       ),
     ).rejects.toThrow(/no live agent/)
+
+    expect(store.events()).toHaveLength(1)
+    expect(store.projection().tickets[0]?.stage).toBe('queued')
+  })
+
+  it('keeps the dispatch fact when the brief cannot be delivered', async () => {
+    host = createFakeHost({ liveSessionIds: ['session-9'] })
+    host.failNextFollowup('session is archived')
+    seedQueued('append', 'session-9')
+
+    await expect(
+      executeDispatchAction(
+        deps(),
+        { kind: 'start-append', ticketId: TICKET_ID, sessionId: 'session-9' as SessionId },
+        ticket(),
+      ),
+    ).rejects.toThrow('session is archived')
 
     expect(store.projection().tickets[0]?.stage).toBe('running')
     expect(logs.some(message => message.includes('delivery failed'))).toBe(true)

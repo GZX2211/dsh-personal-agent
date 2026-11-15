@@ -24,6 +24,7 @@ export interface FakeSession {
   title?: string
   cwd?: string
   delivered: FakeDelivered[]
+  events: unknown[]
   agent: FakeAgent
 }
 
@@ -41,6 +42,12 @@ export interface FakeHost {
   createCalls: number
   /** 让下一次会话创建抛错，用于验证失败路径。 */
   failNextCreate(message: string): void
+  /** 让下一次投递抛错，用于验证「放行事实已写入、投递失败」。 */
+  failNextFollowup(message: string): void
+  /** 模拟一条会话事件：先记进伪会话日志，再分发给 session/event 监听者。 */
+  emitSessionEvent(sessionId: string, event: unknown): void
+  /** 分发任意 Cordis 事件（agent/created 等）。 */
+  emitEvent(name: string, ...args: unknown[]): void
   createdSessionIds(): string[]
 }
 
@@ -65,18 +72,25 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
   const archivedSessionIds = [...(options.archivedSessionIds ?? [])]
   let createCalls = 0
   let createFailure: string | undefined
+  let followupFailure: string | undefined
   const created: string[] = []
 
   function addSession(sessionId: string): FakeSession {
     const session: FakeSession = {
       sessionId,
       delivered: [],
+      events: [],
       agent: {
         id: sessionId,
         session: { id: sessionId },
         status: 'idle',
         inbox: { nextTurn: [], nextStep: [] },
         followup(message) {
+          if (followupFailure !== undefined) {
+            const failure = followupFailure
+            followupFailure = undefined
+            throw new Error(failure)
+          }
           session.delivered.push({
             requestId: message.id,
             text: message.content.map(block => block.text ?? '').join(''),
@@ -92,6 +106,14 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
 
   for (const sessionId of options.liveSessionIds ?? []) addSession(sessionId)
 
+  const listeners = new Map<string, ((...args: never[]) => unknown)[]>()
+
+  function emit(name: string, ...args: unknown[]): void {
+    for (const listener of listeners.get(name) ?? []) {
+      ;(listener as unknown as (...values: unknown[]) => unknown)(...args)
+    }
+  }
+
   const ctx = {
     logger: {
       warn: (format: string, ...args: unknown[]) => {
@@ -103,7 +125,15 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       effects.push(label)
       return () => dispose?.()
     },
-    on: () => () => {},
+    on: (name: string, listener: (...args: never[]) => unknown) => {
+      const list = listeners.get(name) ?? []
+      list.push(listener)
+      listeners.set(name, list)
+      return () => {
+        const index = list.indexOf(listener)
+        if (index >= 0) list.splice(index, 1)
+      }
+    },
     webServer: {
       getOrigin: () => 'http://127.0.0.1:52810',
       register: () => () => {},
@@ -193,6 +223,18 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
     },
     failNextCreate(message: string) {
       createFailure = message
+    },
+    failNextFollowup(message: string) {
+      followupFailure = message
+    },
+    emitSessionEvent(sessionId: string, event: unknown) {
+      const session = sessions.get(sessionId)
+      if (session === undefined) throw new Error(`fake host has no session ${sessionId}`)
+      session.events.push(event)
+      emit('session/event', { id: sessionId, snapshotEvents: () => [...session.events] }, event)
+    },
+    emitEvent(name: string, ...args: unknown[]) {
+      emit(name, ...args)
     },
     createdSessionIds: () => [...created],
   }

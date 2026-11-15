@@ -48,6 +48,12 @@ export async function executeDispatchAction(
   let directory = ticket.directory
   if (action.kind === 'start-append') {
     sessionId = action.sessionId
+    // 入队后目标会话可能已被归档或销毁。先确认它还有活 Agent，再写放行事实：
+    // 否则工单会停在「进行中」而没有任何执行者，且无法再被调度。
+    const resolved = await deps.ctx.sessionController.resolveAgent(sessionId)
+    if (!('agent' in resolved)) {
+      throw new Error(`append target ${sessionId} has no live agent: ${resolved.error.code}`)
+    }
   } else {
     const worker = await createWorkerSession(deps.ctx, deps.stateDirectory, {
       ticketId: ticket.id,
