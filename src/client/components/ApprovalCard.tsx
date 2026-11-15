@@ -128,8 +128,8 @@ export function ApprovalCard({
           <CardFooter
             current={1}
             total={1}
-            prevLabel={t('approvalExpand')}
-            nextLabel={t('approvalExpand')}
+            prevLabel={t('pagerPrev')}
+            nextLabel={t('pagerNext')}
             feedback={error}
             actions={
               decided ? undefined : (
