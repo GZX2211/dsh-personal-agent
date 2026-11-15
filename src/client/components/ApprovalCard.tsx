@@ -7,12 +7,11 @@ import { useState, type ReactElement } from 'react'
 import type { ApprovalView } from '../../shared/approvals.ts'
 import type { Translate } from '../i18n.ts'
 import { shortTicket, type ApprovalDraft } from '../lib/approvals.ts'
-import { formatTime, riskKey } from '../lib/format.ts'
+import { formatTimestamp, riskKey } from '../lib/format.ts'
 
 export interface ApprovalCardProps {
   t: Translate
   approval: ApprovalView
-  now: number
   language: string
   busy: boolean
   error?: string
@@ -22,7 +21,6 @@ export interface ApprovalCardProps {
 export function ApprovalCard({
   t,
   approval,
-  now,
   language,
   busy,
   error,
@@ -47,7 +45,7 @@ export function ApprovalCard({
           <span>
             {t('approvalTicket')} #{shortTicket(approval.ticketId)}
           </span>
-          <span>{formatTime(t, language, now, approval.createdAt)}</span>
+          <span>{formatTimestamp(language, approval.createdAt)}</span>
         </span>
       </button>
 
@@ -72,12 +70,11 @@ export function ApprovalCard({
           </div>
 
           <label className="pa-approval__note">
-            <span className="pa-approval__section-title">{t('approvalNoteLabel')}</span>
             <textarea
               className="pa-approval__note-input"
               rows={2}
               value={note}
-              placeholder={t('approvalNotePlaceholder')}
+              placeholder={t('approvalAnswerPlaceholder')}
               disabled={busy}
               onChange={event => setNote(event.target.value)}
             />

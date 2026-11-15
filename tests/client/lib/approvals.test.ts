@@ -1,17 +1,14 @@
 // tests/client/lib/approvals.test.ts
 //
-// 审批页纯逻辑：相对时间、决定构造与错误码映射。
+// 审批页纯逻辑：决定构造、短码与错误码映射。
 
 import { describe, expect, it } from 'vitest'
 import type { ApprovalView } from '../../../src/shared/approvals.ts'
 import {
   buildDecision,
   decisionErrorKey,
-  relativeTimeParts,
   shortTicket,
 } from '../../../src/client/lib/approvals.ts'
-import { formatTime } from '../../../src/client/lib/format.ts'
-import { translateFor } from '../../../src/client/i18n.ts'
 
 const APPROVAL: ApprovalView = {
   id: 'a-1',
@@ -24,22 +21,6 @@ const APPROVAL: ApprovalView = {
   requestedBySessionId: 'session-1',
   createdAt: 1_700_000_000_000,
 }
-
-describe('relativeTimeParts', () => {
-  const now = 1_700_000_000_000 + 10 * 24 * 60 * 60 * 1000
-
-  it('uses minutes, hours and days before falling back to an absolute time', () => {
-    expect(relativeTimeParts(now, now - 30_000)).toEqual({ kind: 'relative', unit: 'now', value: 0 })
-    expect(relativeTimeParts(now, now - 5 * 60_000)).toEqual({ kind: 'relative', unit: 'minute', value: 5 })
-    expect(relativeTimeParts(now, now - 3 * 3_600_000)).toEqual({ kind: 'relative', unit: 'hour', value: 3 })
-    expect(relativeTimeParts(now, now - 2 * 86_400_000)).toEqual({ kind: 'relative', unit: 'day', value: 2 })
-    expect(relativeTimeParts(now, now - 8 * 86_400_000)).toEqual({ kind: 'absolute', at: now - 8 * 86_400_000 })
-  })
-
-  it('clamps future timestamps to "now"', () => {
-    expect(relativeTimeParts(1000, 5000)).toEqual({ kind: 'relative', unit: 'now', value: 0 })
-  })
-})
 
 describe('shortTicket', () => {
   it('drops the prefix and keeps six characters', () => {
@@ -76,15 +57,5 @@ describe('decisionErrorKey', () => {
     expect(decisionErrorKey('worker-archived')).toBe('decisionErrorWorkerArchived')
     expect(decisionErrorKey('delivery-failed')).toBe('decisionErrorDeliveryFailed')
     expect(decisionErrorKey('something-else')).toBe('decisionErrorUnknown')
-  })
-})
-
-describe('formatTime', () => {
-  it('renders relative time from the dictionary', () => {
-    const t = translateFor('zh')
-    const now = 1_700_000_000_000
-
-    expect(formatTime(t, 'zh', now + 3 * 60_000, now)).toBe('3 分钟前')
-    expect(formatTime(t, 'zh', now + 500, now)).toBe('刚刚')
   })
 })

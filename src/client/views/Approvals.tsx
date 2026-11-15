@@ -23,7 +23,6 @@ export function Approvals({ t, language }: ApprovalsProps): ReactElement {
   const [notice, setNotice] = useState<string>()
 
   const pending = (snapshot?.approvals ?? []).filter(approval => approval.decidedAt === undefined)
-  const now = Date.now()
 
   const submit = async (approval: ApprovalView, draft: ApprovalDraft): Promise<void> => {
     const decision = buildDecision(approval, draft)
@@ -63,7 +62,6 @@ export function Approvals({ t, language }: ApprovalsProps): ReactElement {
             key={approval.id}
             t={t}
             approval={approval}
-            now={now}
             language={language}
             busy={busyId === approval.id}
             error={errors[approval.id] === undefined || errors[approval.id] === '' ? undefined : errors[approval.id]}

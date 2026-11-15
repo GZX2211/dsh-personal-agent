@@ -44,7 +44,7 @@ export function ConsolePanel({ t, language = 'zh' }: ConsolePanelProps): ReactEl
       <ConsoleTabStrip tabs={tabs} active={active} onSelect={id => setActive(id as ConsoleTabId)} />
       <div className="pa-console__body" role="tabpanel">
         {active === 'approvals' ? <Approvals t={t} language={language} /> : null}
-        {active === 'tickets' ? <span className="pa-console__empty">{t('ticketsEmpty')}</span> : null}
+        {active === 'tickets' ? <span className="pa-console__empty">{t('ticketsEmptyAll')}</span> : null}
         {IMPLEMENTED.includes(active) ? null : (
           <Placeholder
             title={tabs.find(tab => tab.id === active)?.label ?? t('notAvailable')}

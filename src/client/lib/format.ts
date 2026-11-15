@@ -1,25 +1,23 @@
 // src/client/lib/format.ts
 //
-// 展示层纯格式化：相对时间与风险标签，文案全部来自词典。
+// 展示层纯格式化：卡片时间与风险标签。文案全部来自词典。
 
 import type { ApprovalView } from '../../shared/approvals.ts'
-import type { Dict, Translate } from '../i18n.ts'
-import { relativeTimeParts } from './approvals.ts'
+import type { Dict } from '../i18n.ts'
 
-/** 相对时间文本；超过一周回落到本地化绝对时间。 */
-export function formatTime(t: Translate, language: string, now: number, at: number): string {
-  const parts = relativeTimeParts(now, at)
-  if (parts.kind === 'absolute') return new Date(at).toLocaleString(language)
-  switch (parts.unit) {
-    case 'now':
-      return t('timeNow')
-    case 'minute':
-      return t('timeMinutesAgo').replace('{n}', String(parts.value))
-    case 'hour':
-      return t('timeHoursAgo').replace('{n}', String(parts.value))
-    case 'day':
-      return t('timeDaysAgo').replace('{n}', String(parts.value))
-  }
+/**
+ * 卡片头部的绝对时间：`11月12日 00:22` / `Nov 12, 00:22`。
+ *
+ * 用 24 小时制，避免同一列卡片里出现上午/下午两套宽度。
+ */
+export function formatTimestamp(language: string, at: number): string {
+  return new Intl.DateTimeFormat(language.length > 0 ? language : 'en', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(at)
 }
 
 export function riskKey(risk: NonNullable<ApprovalView['risk']>): keyof Dict {
