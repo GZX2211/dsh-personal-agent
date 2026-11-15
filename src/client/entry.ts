@@ -2,6 +2,10 @@
 //
 // Client 半区插件入口：声明右侧栏标签页类型、注册正文与标签条标题，
 // 并把「点会话 / 点文件」这两个跨域动作注入面板。
+//
+// 只有标签页类型注册表、slot 与 locale 是硬依赖（缺了面板就没有意义）；
+// 跳会话与开文件是可选能力，用 ctx.get 取服务、取不到就退化为无操作——
+// 两个能力缺失不该让整个面板不加载。
 
 import type { ConsoleActions } from './actions.ts'
 import type { ClientContext } from './context.ts'
@@ -14,12 +18,22 @@ import { ConsolePanel } from './panel/ConsolePanel.tsx'
 
 export const name = 'dsh-personal-agent'
 
-/** 需要的浏览器服务：标签页类型注册表、正文 slot、文案、会话与右侧栏。 */
-export const inject = ['slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'sessions']
+/** 需要的浏览器服务：标签页类型注册表、正文 slot 与文案。 */
+export const inject = ['slots', 'locale', 'sidebarRightTabs']
 
-/** 只用到 `openSession` 一个方法；服务未挂载时按「点了没反应」降级。 */
+/** 工作区导航面：只用到 `openSession`。 */
 interface WorkspaceNavigation {
   openSession?: (target: string) => void
+}
+
+/** 右侧栏导航面：只用到 `openResource`。 */
+interface SidebarNavigation {
+  openResource?: (address: string) => void
+}
+
+/** 会话列表服务：只读 `list.getSnapshot()` 里的展示名。 */
+interface SessionListService {
+  list?: { getSnapshot?: () => unknown }
 }
 
 export function apply(ctx: ClientContext): void {
@@ -32,9 +46,16 @@ export function apply(ctx: ClientContext): void {
       const workspace = ctx.get('uiWorkspace') as WorkspaceNavigation | undefined
       workspace?.openSession?.(sessionId)
     },
-    openFile: path => ctx.sidebarRight.openResource(absoluteFileAddress(path)),
+    openFile: path => {
+      const sidebar = ctx.get('sidebarRight') as SidebarNavigation | undefined
+      sidebar?.openResource?.(absoluteFileAddress(path))
+    },
     // 面板自己的标签状态由 ConsolePanel 覆盖。
-    showTickets: () => undefined,    sessionTitle: sessionId => sessionTitleOf(ctx.sessions.list.getSnapshot(), sessionId),
+    showTickets: () => undefined,
+    sessionTitle: sessionId => {
+      const sessions = ctx.get('sessions') as SessionListService | undefined
+      return sessionTitleOf(sessions?.list?.getSnapshot?.(), sessionId)
+    },
   }
 
   ctx.effect(
