@@ -634,6 +634,24 @@ describe('project', () => {
     expect(ended.tickets[0]).not.toHaveProperty('interrupted')
   })
 
+  it('carries the brief fields into the ticket view', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223', {
+        context: '用户原话：今晚发',
+        constraints: ['不要改数据库', '不要动灰度开关'],
+        expectedOutput: '生产返回 200',
+      }),
+    ])
+
+    expect(projection.tickets[0]).toEqual(
+      expect.objectContaining({
+        context: '用户原话：今晚发',
+        constraints: ['不要改数据库', '不要动灰度开关'],
+        expectedOutput: '生产返回 200',
+      }),
+    )
+  })
+
   it('ignores interruption events for tickets that were never queued', () => {
     const projection = project([
       interruptedEvent(1, 't-ghost0000'),

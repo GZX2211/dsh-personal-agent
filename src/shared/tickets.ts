@@ -31,6 +31,12 @@ export interface TicketView {
   /** 进行中但 worker 回合被中断：仍占执行槽位，等下一次唤醒继续。 */
   interrupted?: boolean
   goal: string
+  /** 背景与用户原话摘录；派发简报与 P3 搜索都用它。 */
+  context?: string
+  /** 约束与禁止事项。 */
+  constraints?: string[]
+  /** 验收标准。 */
+  expectedOutput?: string
   /** 放行后绑定的执行会话；待处理时不存在。 */
   workerSessionId?: string
   /** 工单工作目录；未指定时为 `<state>/work/<ticketId>`。 */
