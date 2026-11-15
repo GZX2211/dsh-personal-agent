@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Personal agent",
+    "description": "Adds a control console to the right sidebar: a router session dispatches tasks to worker sessions, and a worker stops for your approval whenever it needs a decision.",
+    "detail": "docs/DETAIL.md"
+  }
+}
