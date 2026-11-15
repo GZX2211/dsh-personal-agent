@@ -34,8 +34,7 @@ export function apply(ctx: ClientContext): void {
     },
     openFile: path => ctx.sidebarRight.openResource(absoluteFileAddress(path)),
     // 面板自己的标签状态由 ConsolePanel 覆盖。
-    showTickets: () => undefined,
-    sessionTitle: sessionId => sessionTitleOf(ctx.sessions.list.getSnapshot(), sessionId),
+    showTickets: () => undefined,    sessionTitle: sessionId => sessionTitleOf(ctx.sessions.list.getSnapshot(), sessionId),
   }
 
   ctx.effect(

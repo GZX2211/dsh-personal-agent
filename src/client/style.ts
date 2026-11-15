@@ -293,9 +293,14 @@ export const CONSOLE_CSS = `
 .pa-card[data-collapsed] .pa-card__header {
   padding-bottom: 14px;
 }
-/* 无交互的行卡片（工单）：没有页脚，靠底部内边距收口。 */
-.pa-card--static {
+/* 无页脚的卡片（工单）：没有页脚可收口，靠底部内边距补回来。 */
+.pa-card--footerless {
   padding-bottom: 16px;
+}
+/* 从审批卡跳过来的工单：描边强调，不改变尺寸。 */
+.pa-card[data-focused] {
+  outline: 1px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
 }
 
 /* ── 卡片头部（官方 .header / .eyebrow + 本插件的时间与折叠） ───────── */
@@ -334,6 +339,13 @@ export const CONSOLE_CSS = `
 }
 .pa-card__link:hover {
   color: var(--dsw-alias-state-business-primary);
+}
+/* eyebrow 里的普通文本（工单短码与标题）：同样单行截断。 */
+.pa-card__eyebrow-text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pa-card__header-actions {
   display: flex;

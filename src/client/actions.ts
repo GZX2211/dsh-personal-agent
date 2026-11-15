@@ -8,8 +8,8 @@ export interface ConsoleActions {
   openSession(sessionId: string): void
   /** 在右侧栏打开一个文件（绝对路径）。 */
   openFile(path: string): void
-  /** 切到工单页。 */
-  showTickets(): void
+  /** 切到工单页，并把这一单放到视野里。 */
+  showTickets(ticketId: string): void
   /** 会话的展示名；宿主还没投影出标题时返回 undefined，卡片回退到短码。 */
   sessionTitle(sessionId: string): string | undefined
 }

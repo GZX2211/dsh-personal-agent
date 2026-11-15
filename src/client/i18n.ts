@@ -22,6 +22,7 @@ export const zh = {
   helpTitle: '这个面板能做什么',
   helpBodyPending: '「待审批」只列出还在等你的请求：选一个选项、写一句话，或直接跳过。',
   helpBodyDecided: '「已通过」列出已经处理过的请求，点开可以看到当时的决定与时间。',
+  helpBodyTickets: '「进行中」包含阻塞中与已中断的工单：它们仍占着执行槽位。',
   helpBodySearch: '搜索会同时匹配题干、选项、附件与工单信息，并与上方的胶囊取交集。',
   helpClose: '知道了',
 
@@ -107,6 +108,7 @@ export const en: Dict = {
   helpTitle: 'What this panel does',
   helpBodyPending: 'Pending lists the requests still waiting on you: pick an option, type an answer, or skip.',
   helpBodyDecided: 'Approved lists the requests you already handled; open one to see the decision and its time.',
+  helpBodyTickets: 'Running includes blocked and interrupted tickets: they still hold an execution slot.',
   helpBodySearch: 'Search matches the question, options, attachments and ticket details, and narrows the capsule above.',
   helpClose: 'Got it',
 

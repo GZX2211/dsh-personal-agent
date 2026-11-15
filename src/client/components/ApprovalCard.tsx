@@ -70,7 +70,7 @@ export function ApprovalCard({
               {`${t('approvalRequester')}\uFF1A`}
               {requester}
             </button>
-            <button type="button" className="pa-card__link" onClick={() => actions.showTickets()}>
+            <button type="button" className="pa-card__link" onClick={() => actions.showTickets(approval.ticketId)}>
               {`${t('approvalTicket')}\uFF1A`}
               {ticketTitle}
             </button>

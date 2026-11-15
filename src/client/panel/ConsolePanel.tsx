@@ -14,6 +14,7 @@ import { useSnapshot } from '../hooks/useSnapshot.ts'
 import { CONSOLE_CSS } from '../style.ts'
 import { Approvals } from '../views/Approvals.tsx'
 import { Placeholder } from '../views/Placeholder.tsx'
+import { Tickets } from '../views/Tickets.tsx'
 import type { Translate } from '../i18n.ts'
 
 export type ConsoleTabId = 'overview' | 'approvals' | 'tickets' | 'events' | 'sources' | 'settings'
@@ -36,11 +37,19 @@ export interface ConsolePanelProps {
 
 export function ConsolePanel({ t, language = 'zh', actions = NO_ACTIONS }: ConsolePanelProps): ReactElement {
   const [active, setActive] = useState<ConsoleTabId>(INITIAL_TAB)
+  /** 从审批卡点过来的工单：切页后要能一眼看到它。 */
+  const [focusedTicket, setFocusedTicket] = useState<string>()
   const { snapshot, error, refresh } = useSnapshot()
 
   // 「关联工单」要跳工单页：那是这一层自己的状态，所以在这里覆盖注入的实现。
   const merged = useMemo<ConsoleActions>(
-    () => ({ ...actions, showTickets: () => setActive('tickets') }),
+    () => ({
+      ...actions,
+      showTickets: ticketId => {
+        setFocusedTicket(ticketId)
+        setActive('tickets')
+      },
+    }),
     [actions],
   )
 
@@ -68,7 +77,9 @@ export function ConsolePanel({ t, language = 'zh', actions = NO_ACTIONS }: Conso
             actions={merged}
           />
         ) : null}
-        {active === 'tickets' ? <span className="pa-console__empty">{t('ticketsEmptyAll')}</span> : null}
+        {active === 'tickets' ? (
+          <Tickets t={t} language={language} snapshot={snapshot} focusTicketId={focusedTicket} />
+        ) : null}
         {IMPLEMENTED.includes(active) ? null : (
           <Placeholder
             title={tabs.find(tab => tab.id === active)?.label ?? t('notAvailable')}
