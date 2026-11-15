@@ -7,7 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   executeDispatchAction,
   ticketDeliveryRequestId,
@@ -171,5 +171,45 @@ describe('executeDispatchAction', () => {
 
     expect(store.projection().tickets[0]?.stage).toBe('running')
     expect(logs.some(message => message.includes('delivery failed'))).toBe(true)
+  })
+
+  it('prepares the worker after the dispatch fact and before the brief', async () => {
+    const order: string[] = []
+    host = createFakeHost({
+      onFollowup: () => {
+        order.push('deliver')
+      },
+    })
+    seedQueued()
+
+    await executeDispatchAction(
+      {
+        ...deps(),
+        onWorkerReady: async sessionId => {
+          const dispatched = store.events().filter(event => event.type === 'task/dispatched').length
+          order.push(`ready:${dispatched}:${sessionId === 'session-1'}`)
+        },
+      },
+      { kind: 'start-dispatch', ticketId: TICKET_ID },
+      ticket(),
+    )
+
+    expect(order).toEqual(['ready:1:true', 'deliver'])
+  })
+
+  it('does not prepare a worker when the session cannot be created', async () => {
+    host.failNextCreate('session controller is unavailable')
+    seedQueued()
+    const ready = vi.fn()
+
+    await expect(
+      executeDispatchAction(
+        { ...deps(), onWorkerReady: ready },
+        { kind: 'start-dispatch', ticketId: TICKET_ID },
+        ticket(),
+      ),
+    ).rejects.toThrow('session controller is unavailable')
+
+    expect(ready).not.toHaveBeenCalled()
   })
 })

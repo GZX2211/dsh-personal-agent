@@ -732,3 +732,14 @@ MVP 先用**状态目录本身**（`$DSH_HOME/state/personal-agent`）：路由�
 ### 16.10 仍留给 P3 的 UI 事项
 
 `interrupted` 副标签、审批/工单卡片、三/四胶囊过滤、搜索、徽标与轮询均未在本期实现；`/snapshot` 已提供所需字段（含 `context/constraints/expectedOutput` 与 `interrupted`）。
+
+### 16.11 装饰时序修复（P2 验收发现）
+
+**问题**：worker agent 在 `task/dispatched` 写入之前就由 `sessionController.create` 创建并发布 `agent/created`。`agent/created` 监听器按账本判断角色时，工单还没有绑定该会话，于是 worker 的提示词 section 与 `pa_approval_submit` 都没有装上；router 因为在身份已知后显式补装饰而不受影响。
+
+**修复**：
+
+1. 放行事实写入之后、简报投递之前调用 `onWorkerReady(sessionId)`：解析活 agent 并补装饰，保证 worker 第一步就能看到自己的提示词与审批工具；
+2. 插件重载时对仍存活的 worker agent 按账本绑定补装饰（`decorateLiveWorkerSessions`，只读 `ctx.agents.list()`，不唤醒冷会话）。
+
+**回归证据**：`tests/integration/ticket-flow.test.ts` 模拟「create 即发布 agent/created」的真实时序并断言 worker 在简报投递前已具备工具与 section；`collab/scr/check-host.mjs` 第 18–20 项用构建产物复现同一路径。

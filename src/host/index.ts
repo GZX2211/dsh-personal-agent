@@ -5,6 +5,7 @@
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import { API_PREFIX } from '../shared/api.ts'
 import { healPendingApprovals } from './approvals/heal.ts'
 import { ResolverRegistry } from './approvals/resolvers.ts'
@@ -12,7 +13,7 @@ import { createApprovalDecider } from './approvals/service.ts'
 import { createConsoleHandler } from './console-api/server.ts'
 import type { HostContext } from './context.ts'
 import { createScheduler } from './dispatcher/scheduler.ts'
-import { createAgentDecorator } from './sessions/decorate.ts'
+import { createAgentDecorator, decorateLiveWorkerSessions } from './sessions/decorate.ts'
 import { registerWorkerObserver } from './sessions/observer.ts'
 import { ensureRouterSession } from './sessions/router.ts'
 import { resolveStateDirectory } from './state/directory.ts'
@@ -30,6 +31,7 @@ export const inject = [
   'sessionPersistence',
   'tools',
   'systemPrompt',
+  'agents',
 ]
 
 /** 执行槽位默认值（方案 §5.3）。 */
@@ -77,10 +79,20 @@ export function apply(ctx: HostContext, config?: Config): void {
   let routerSessionId: string | undefined
   let disposeObserver: (() => void) | undefined
   let disposeDecorator: (() => void) | undefined
+  let prepareWorker: ((sessionId: SessionId) => Promise<void>) | undefined
 
   // 账本与 kv 就绪后装配有状态的服务：调度器、回合观察、角色装饰。
   const ready = Promise.all([ledger, identities]).then(([store, kv]) => {
-    const scheduler = createScheduler({ ctx, store, stateDirectory: stateDir, maxWorkers, log: message => logWarning(ctx, message) })
+    const scheduler = createScheduler({
+      ctx,
+      store,
+      stateDirectory: stateDir,
+      maxWorkers,
+      onWorkerReady: async sessionId => {
+        await prepareWorker?.(sessionId)
+      },
+      log: message => logWarning(ctx, message),
+    })
     const decorator = createAgentDecorator({
       ctx,
       store,
@@ -97,6 +109,15 @@ export function apply(ctx: HostContext, config?: Config): void {
       scheduler,
       log: message => logWarning(ctx, message),
     })
+    // 放行后补装饰：worker agent 在 task/dispatched 之前就已创建，创建钩子认不出它。
+    prepareWorker = async sessionId => {
+      try {
+        const resolved = await ctx.sessionController.resolveAgent(sessionId)
+        if ('agent' in resolved) decorator.decorate(resolved.agent)
+      } catch (error) {
+        logWarning(ctx, `worker decoration failed for ${sessionId}: ${describe(error)}`)
+      }
+    }
     return { store, kv, scheduler, decorator }
   })
   void ready.catch((error: unknown) => logWarning(ctx, `services unavailable: ${describe(error)}`))
@@ -124,13 +145,15 @@ export function apply(ctx: HostContext, config?: Config): void {
     }
   }, 'personal-agent: console api')
 
-  // 启动收尾：恢复/创建路由会话 → 装饰 router agent → 消化重启前遗留的队列。
+  // 启动收尾：恢复/创建路由会话 → 装饰 router 与活着的 worker → 消化重启前遗留的队列。
   void ready
-    .then(async ({ kv, scheduler, decorator }) => {
+    .then(async ({ store, kv, scheduler, decorator }) => {
       const session = await ensureRouterSession(ctx, stateDir, kv)
       routerSessionId = session.sessionId
       const resolved = await ctx.sessionController.resolveAgent(session.sessionId)
       if ('agent' in resolved) decorator.decorate(resolved.agent)
+      // 重载后活着的 worker 不再发 agent/created，按账本绑定补装饰。
+      decorateLiveWorkerSessions({ ctx, store, decorator, log: message => logWarning(ctx, message) })
       await scheduler.trigger('startup')
     })
     .catch((error: unknown) => {

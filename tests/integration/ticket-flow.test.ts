@@ -6,7 +6,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ResolverRegistry } from '../../src/host/approvals/resolvers.ts'
@@ -35,17 +35,21 @@ beforeEach(async () => {
   host = createFakeHost({
     liveSessionIds: [ROUTER_SESSION],
     visibleTools: ['pwsh', 'write', 'present', 'ask_user_question'],
-    onFollowup: () => {
-      // worker 会话被创建后立刻发布它的 agent（真实宿主的 create 会这样做）。
-      const worker = [...host.sessions.keys()].find(sessionId => sessionId !== ROUTER_SESSION)
-      if (worker !== undefined) {
-        host.emitEvent('agent/created', { agent: host.sessions.get(worker)?.agent, source: 'fresh' })
-      }
-    },
+    // 真实宿主：sessionController.create 在返回前就发布 agent/created。
+    emitAgentCreatedOnCreate: true,
   })
   resolvers = new ResolverRegistry()
-  scheduler = createScheduler({ ctx: host.ctx, store, stateDirectory: directory, maxWorkers: 5 })
   decider = createApprovalDecider({ ctx: host.ctx, store, resolvers, now: () => CLOCK })
+  let prepareWorker: ((sessionId: SessionId) => Promise<void>) | undefined
+  scheduler = createScheduler({
+    ctx: host.ctx,
+    store,
+    stateDirectory: directory,
+    maxWorkers: 5,
+    onWorkerReady: async sessionId => {
+      await prepareWorker?.(sessionId)
+    },
+  })
   const decorator = createAgentDecorator({
     ctx: host.ctx,
     store,
@@ -54,6 +58,10 @@ beforeEach(async () => {
     maxWorkers: 5,
     currentRouterSessionId: () => ROUTER_SESSION,
   })
+  prepareWorker = async sessionId => {
+    const resolved = await host.ctx.sessionController.resolveAgent(sessionId)
+    if ('agent' in resolved) decorator.decorate(resolved.agent)
+  }
   disposeDecorator = decorator.dispose
   disposeObserver = registerWorkerObserver({ ctx: host.ctx, store, scheduler })
   host.emitEvent('agent/created', { agent: host.sessions.get(ROUTER_SESSION)?.agent, source: 'fresh' })
@@ -135,7 +143,9 @@ describe('ticket flow', () => {
     const workerSessionId = routed.sessionId ?? ''
     const brief = agent(workerSessionId).inbox.nextTurn
     expect(brief).toHaveLength(1)
+    // 装饰必须早于简报投递：worker 第一步就要看到自己的提示词与审批工具。
     expect(agent(workerSessionId).toolNames).toEqual(['pa_approval_submit'])
+    expect(agent(workerSessionId).sections).toHaveLength(1)
 
     // A2：worker 提交审批并阻塞。
     const controller = new AbortController()

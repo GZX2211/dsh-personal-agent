@@ -73,6 +73,7 @@ function makeAgent(sessionId) {
     inbox: { nextTurn: [], nextStep: [] },
     delivered: [],
     toolNames: [],
+    toolImpls: new Map(),
     sections: [],
     restrictions: [],
     disposed: false,
@@ -87,6 +88,7 @@ function makeAgent(sessionId) {
       tools: {
         register: definition => {
           agent.toolNames.push(definition.name)
+          agent.toolImpls.set(definition.name, definition)
           return () => {}
         },
         restrict: filter => {
@@ -169,7 +171,9 @@ function makeHost() {
       create: async () => {
         created += 1
         const sessionId = `session-${created}`
-        addSession(sessionId)
+        const session = addSession(sessionId)
+        // 真实宿主在 create 返回前就发布 agent/created；此时账本里还没有工单绑定。
+        emit('agent/created', { agent: session.agent, source: 'fresh' })
         return { sessionId }
       },
       rename: async request => {
@@ -188,6 +192,10 @@ function makeHost() {
         if (session) session.cwd = path
         return path
       },
+    },
+    agents: {
+      list: () => [...sessions.values()].map(session => session.agent),
+      get: sessionId => sessions.get(sessionId)?.agent,
     },
     sessionPersistence: {
       flush: async () => undefined,
@@ -396,6 +404,39 @@ try {
 
   const retired = await call(route, { url: '/personal-agent/api/dev/p0', headers: sameOrigin })
   check('P0 dev routes are gone', retired.status === 404 && retired.json?.code === 'not-found', retired.json)
+
+  // 复现真实时序：worker agent 在 task/dispatched 之前发布，放行后必须补装饰。
+  const routeTool = routerAgent?.toolImpls?.get('pa_task_route')
+  if (routeTool === undefined) throw new Error('router tool pa_task_route was not registered')
+  const routed = await routeTool.execute(
+    { action: 'dispatch', title: '验收：需要审批', goal: '需要审批的任务' },
+    {
+      signal: new AbortController().signal,
+      agent: routerAgent,
+      callId: 'call-1',
+      rootCallId: 'call-1',
+      name: 'pa_task_route',
+      arguments: {},
+      token: Symbol('call'),
+    },
+  )
+  const dispatchedWorker = host.sessions.get(routed.sessionId)
+  check(
+    'pa_task_route dispatches a worker session',
+    routed.status === 'running' && dispatchedWorker !== undefined,
+    routed,
+  )
+  check(
+    'new worker is decorated before the brief is delivered',
+    dispatchedWorker?.agent.toolNames.join(',') === 'pa_approval_submit' &&
+      dispatchedWorker?.agent.sections.length === 1,
+    { tools: dispatchedWorker?.agent.toolNames, sections: dispatchedWorker?.agent.sections.length },
+  )
+  check(
+    'the brief reaches the decorated worker',
+    (dispatchedWorker?.agent.delivered[0]?.content?.[0]?.text ?? '').includes('目标：需要审批的任务'),
+    dispatchedWorker?.agent.delivered.length,
+  )
 } finally {
   await rm(stateDir, { recursive: true, force: true })
   console.log(`\n${ok.length} passed, ${fail.length} failed`)

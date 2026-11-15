@@ -17,6 +17,8 @@ export interface SchedulerOptions {
   stateDirectory: string
   /** 执行槽位上限（方案 §5.3，默认 5）。 */
   maxWorkers: number
+  /** 放行后、投递前的准备钩子（用于给新建 worker 装角色能力）。 */
+  onWorkerReady?: (sessionId: SessionId) => Promise<void> | void
   log?: (message: string) => void
 }
 
@@ -40,7 +42,13 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     const ticket = options.store.projection().tickets.find(item => item.id === action.ticketId)
     if (ticket === undefined) throw new Error(`ticket ${action.ticketId} disappeared from the projection`)
     return executeDispatchAction(
-      { ctx: options.ctx, stateDirectory: options.stateDirectory, store: options.store, log },
+      {
+        ctx: options.ctx,
+        stateDirectory: options.stateDirectory,
+        store: options.store,
+        ...(options.onWorkerReady === undefined ? {} : { onWorkerReady: options.onWorkerReady }),
+        log,
+      },
       action,
       ticket,
     )

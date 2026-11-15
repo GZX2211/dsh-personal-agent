@@ -1,7 +1,7 @@
 # dsh-personal-agent 交接备忘
 
 > 自包含交接文档：不依赖任何对话上下文，读完即可继续开发。
-> 状态：**P2 工具与会话已交付**（2026-11-15），下一步 P3 UI；真实链路的 A1–A4 待你在 GUI 里跑一遍，A5 待重启验证。
+> 状态：**P2 工具与会话已交付，并修复验收发现的 worker 装饰时序问题（0.2.1）**（2026-11-15），下一步 P3 UI；A1–A4 需重跑，A5 待重启验证。
 > 本文属临时协作文档（`collab/md/`），不进 `docs/`，不需要英文版。
 
 ---
@@ -41,7 +41,7 @@ $pnpm='C:\Users\GZX\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnpm\bin\
 # 类型检查
 & $node .\node_modules\typescript\bin\tsc --noEmit
 
-# 单元 + 集成测试（230 项）
+# 单元 + 集成测试（235 项）
 & $node .\node_modules\vitest\vitest.mjs run
 
 # 构建：先 tsdown（host ESM → lib/index.js，client CJS → lib/client.body.js），再包外壳成 lib/client.js
@@ -50,7 +50,7 @@ Remove-Item .\lib -Recurse -Force
 & $node .\scripts\wrap-client.mjs
 
 # 本地伪 ctx 冒烟（不碰真实 profile）
-& $node .\collab\scr\check-host.mjs      # 17 项：装配/守卫/账本重放/角色装饰/决定端点
+& $node .\collab\scr\check-host.mjs      # 20 项：装配/守卫/账本重放/角色装饰/决定端点/worker 装饰时序
 & $node .\collab\scr\check-client.mjs    # 外壳形状、tab 与两个 slot、无自动打开残留
 & $node .\collab\scr\read-session.mjs <session.v4.jsonl.zstd>
 ```
@@ -218,3 +218,33 @@ scripts/wrap-client.mjs        把 CJS 产物包成 window.__ModuleLoader__.load
 | 伪 ctx 冒烟 | `check-host.mjs` **17/17**：装配、router/worker 装饰、守卫、重放、快照、决定（not-found/405/非法下标/followup 成功 + 消息送达 + 状态迁移）、`/dev` 404 |
 | 真实宿主 | `set_plugin` 关→开后 `/health` 200；`/snapshot` 空投影；`POST /approvals/a-ghost/decide` → 404 not-found；`kv.json` 已建立、`router-session.json` 已删除、置顶会话未变 |
 | 未验证 | A1–A4 需 GUI 里真实对话；A5 需重启桌面端；A6 需真实归档 worker 会话 |
+
+---
+
+## 10. 验收修复记录（0.2.1，2026-11-15）
+
+### 10.1 症状
+
+P2 验收时 router 提示词与工具正常，worker 既没有提示词 section 也没有 `pa_approval_submit`，导致「需要审批」的验收无法完成；但同一工单的派发、简报投递、回合汇报与自动关闭都正常（账本 `t-9c20e78bca` 可证）。
+
+### 10.2 根因
+
+worker agent 由 `sessionController.create` 创建，而真实宿主在 create 返回**之前**就发布 `agent/created`；`task/dispatched`（携带 workerSessionId）是 create 之后才写入的。装饰器的 `agent/created` 监听器此时用账本判断角色，`roleForSession` 找不到绑定 → 跳过装饰。router 不受影响是因为 `ensureRouterSession` 返回后显式调用了 `decorator.decorate()`。
+
+第二个隐患：插件重载会释放上一实例的 `agent.ctx` 装饰，但已存活的 worker agent 不会再发 `agent/created`，因此重载后活 worker 也会失去能力。
+
+### 10.3 修复
+
+- 执行器新增 `onWorkerReady(sessionId)`：在 `task/dispatched` 写入之后、简报投递之前解析活 agent 并补装饰（`src/host/dispatcher/executor.ts`、`scheduler.ts`）。
+- 启动时 `decorateLiveWorkerSessions()` 按账本里所有 `workerSessionId` 给仍存活的 agent 补装饰；只调 `ctx.agents.list()`，不唤醒冷会话（`src/host/sessions/decorate.ts`、`index.ts`）。
+- `inject` 增加 `agents` 服务。
+
+### 10.4 回归防线
+
+- 集成测试的伪宿主现在用 `emitAgentCreatedOnCreate: true` 复现「create 即发布」的真实时序，并断言 worker 在简报投递前已有工具与 section。
+- 执行器单测锁定顺序：`ready` 在 `task/dispatched` 之后、投递之前；创建失败不调用 ready。
+- `check-host.mjs` 新增 3 项：真实调用 `pa_task_route` → worker 会话创建 → 装饰先于简报。
+
+### 10.5 重跑验收
+
+请再跑一次第三项（需要审批的任务）。预期：worker 会话日志的系统提示词里出现「个人代理的执行会话」段落，工具列表含 `pa_approval_submit`；提交审批后 `/snapshot` 出现待审批，决定应返回 `transport: inline` 或 `followup`。

@@ -56,6 +56,38 @@ export interface AgentDecorator {
   dispose(): void
 }
 
+/**
+ * 插件重载后，已经在运行的 worker agent 不会再发 `agent/created`，
+ * 上一实例的装饰也已随插件卸载释放。按账本里的 worker 绑定，给活着的 agent 补装饰。
+ *
+ * 只读 `ctx.agents.list()`，不会为了让会话可装饰而唤醒冷会话；冷会话将来被唤醒时
+ * 会重新发 `agent/created`，那时账本绑定已存在，监听器即可完成装饰。
+ */
+export function decorateLiveWorkerSessions(options: {
+  ctx: HostContext
+  store: EventStore
+  decorator: AgentDecorator
+  log?: (message: string) => void
+}): number {
+  const workerSessionIds = new Set<string>()
+  for (const ticket of options.store.projection().tickets) {
+    if (ticket.workerSessionId !== undefined) workerSessionIds.add(ticket.workerSessionId)
+  }
+  if (workerSessionIds.size === 0) return 0
+
+  let decorated = 0
+  for (const agent of options.ctx.agents.list()) {
+    if (!workerSessionIds.has(agent.session.id)) continue
+    try {
+      options.decorator.decorate(agent)
+      decorated += 1
+    } catch (error) {
+      options.log?.(`failed to decorate live worker ${agent.session.id}: ${describe(error)}`)
+    }
+  }
+  return decorated
+}
+
 export function createAgentDecorator(options: AgentDecoratorOptions): AgentDecorator {
   const decorated = new Map<string, () => void>()
 

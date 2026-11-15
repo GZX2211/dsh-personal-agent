@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ResolverRegistry } from '../../../src/host/approvals/resolvers.ts'
 import type { Scheduler } from '../../../src/host/dispatcher/scheduler.ts'
-import { createAgentDecorator, roleForSession } from '../../../src/host/sessions/decorate.ts'
+import { createAgentDecorator, decorateLiveWorkerSessions, roleForSession } from '../../../src/host/sessions/decorate.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
 import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
 
@@ -165,6 +165,53 @@ describe('createAgentDecorator', () => {
     emitCreated('session-router')
 
     expect(host.sessions.get('session-router')?.agent.restrictions).toEqual([])
+    decorator.dispose()
+  })
+})
+
+describe('decorateLiveWorkerSessions', () => {
+  it('decorates a live worker whose agent/created has already happened', () => {
+    seedWorkerTicket()
+    const decorator = makeDecorator()
+
+    const count = decorateLiveWorkerSessions({
+      ctx: host.ctx,
+      store,
+      decorator,
+      log: message => logs.push(message),
+    })
+
+    const agent = host.sessions.get(WORKER_SESSION)?.agent
+    expect(count).toBe(1)
+    expect(agent?.toolNames).toEqual(['pa_approval_submit'])
+    expect(agent?.sections).toHaveLength(1)
+    decorator.dispose()
+  })
+
+  it('leaves live sessions that no ticket binds', () => {
+    const decorator = makeDecorator()
+
+    const count = decorateLiveWorkerSessions({ ctx: host.ctx, store, decorator })
+
+    expect(count).toBe(0)
+    expect(host.sessions.get(WORKER_SESSION)?.agent.sections).toEqual([])
+    decorator.dispose()
+  })
+
+  it('re-decorates a worker whose ticket has already ended', () => {
+    seedWorkerTicket()
+    store.append({
+      type: 'task/closed',
+      actor: 'system',
+      correlationId: WORKER_TICKET,
+      payload: { ticketId: WORKER_TICKET, outcome: 'completed' },
+    })
+    const decorator = makeDecorator()
+
+    const count = decorateLiveWorkerSessions({ ctx: host.ctx, store, decorator })
+
+    expect(count).toBe(1)
+    expect(host.sessions.get(WORKER_SESSION)?.agent.toolNames).toEqual(['pa_approval_submit'])
     decorator.dispose()
   })
 })

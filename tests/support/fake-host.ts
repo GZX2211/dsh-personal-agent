@@ -82,6 +82,8 @@ export interface FakeHostOptions {
   onFollowup?: (sessionId: string, requestId: string) => void
   /** 全局可见工具名：角色装饰的 restrict 只会裁剪这里的名字。 */
   visibleTools?: string[]
+  /** `sessionController.create` 是否像真实宿主一样，在返回前发布 agent/created。 */
+  emitAgentCreatedOnCreate?: boolean
 }
 
 export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
@@ -223,8 +225,11 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
           throw new Error(message)
         }
         const sessionId = `session-${createCalls}`
-        addSession(sessionId)
+        const session = addSession(sessionId)
         created.push(sessionId)
+        if (options.emitAgentCreatedOnCreate === true) {
+          emit('agent/created', { agent: session.agent, source: 'fresh' })
+        }
         return { sessionId }
       },
       rename: async (request: { sessionId: string; title: string }) => {
@@ -258,6 +263,10 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
           [Symbol.asyncDispose]: async () => undefined,
         }
       },
+    },
+    agents: {
+      list: () => [...sessions.values()].map(session => session.agent),
+      get: (sessionId: string) => sessions.get(sessionId)?.agent,
     },
     tools: {
       register: (definition: { name: string }) => {

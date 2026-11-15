@@ -17,6 +17,14 @@ export interface DispatchDependencies {
   ctx: HostContext
   stateDirectory: string
   store: EventStore
+  /**
+   * 放行事实写完后、简报投递前调用。
+   *
+   * worker agent 在 `task/dispatched` 之前就已创建并发布 `agent/created`，此刻账本
+   * 还没绑定它，装饰器无法按工单识别角色；必须在这里补一次装饰，否则 worker 会
+   * 带着默认提示词与工具跑第一步。
+   */
+  onWorkerReady?: (sessionId: SessionId) => Promise<void> | void
   log?: (message: string) => void
 }
 
@@ -77,6 +85,9 @@ export async function executeDispatchAction(
       ...(directory === undefined ? {} : { directory }),
     },
   })
+
+  // 账本已经确认放行，worker 的会话身份也已可用：先装上角色能力，再投递简报。
+  await deps.onWorkerReady?.(sessionId)
 
   const text = formatTaskBrief(
     {
