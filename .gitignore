@@ -1,7 +1,8 @@
 # 依赖与构建产物
 # 插件以「本地目录链接」方式装进 profile，宿主直接读工作区里的产物；构建产物不入库，克隆后先构建。
 node_modules/
-lib/
+# 只忽略仓库根的构建目录：写成 `lib/` 会连带忽略源码目录 src/client/lib/。
+/lib/
 *.tsbuildinfo
 
 # 临时与系统文件

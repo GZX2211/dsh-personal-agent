@@ -29,8 +29,7 @@
       "inject": [
         "slots",
         "locale",
-        "sidebarRightTabs",
-        "sidebarRight"
+        "sidebarRightTabs"
       ]
     },
     "manifestVersion": 1

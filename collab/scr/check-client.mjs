@@ -40,7 +40,7 @@ console.log('exports:', Object.keys(exports).sort().join(', '))
 if (typeof exports.apply !== 'function') throw new Error('client half exports no apply()')
 console.log('inject:', JSON.stringify(exports.inject))
 
-const seen = { tabs: [], slots: [], opened: [], effects: [], beacons: [] }
+const seen = { tabs: [], slots: [], effects: [] }
 const fakeCtx = {
   locale: { getLocale: () => ({ active: 'zh', locales: [], revision: 0 }) },
   effect: (fn, label) => {
@@ -65,23 +65,16 @@ const fakeCtx = {
       return () => {}
     },
   },
-  sidebarRight: {
-    openTab: kind => {
-      seen.opened.push(kind)
-    },
-  },
 }
 
-// 上报走 fetch；Node 里相对 URL 会 reject，代码本身按静默处理，这里只是别让它炸。
-globalThis.fetch = () => Promise.reject(new Error('offline'))
-globalThis.location = { href: 'http://127.0.0.1:52810/', origin: 'http://127.0.0.1:52810' }
-
 exports.apply(fakeCtx)
-await new Promise(resolve => setTimeout(resolve, 1800))
 
-console.log('effects:', seen.effects)
+console.log('effects:', JSON.stringify(seen.effects))
 console.log('tab types:', seen.tabs.map(tab => `${tab.id}/${tab.kind}`))
 console.log('guide entries:', JSON.stringify(seen.tabs.map(tab => tab.guide)))
 console.log('slot bodies:', seen.slots.map(slot => `${slot.options.name}#${slot.options.key}`))
-console.log('opened tabs:', seen.opened)
 console.log('tab title (zh):', seen.tabs[0]?.title(''))
+
+if (seen.effects.some(label => label.includes('auto open'))) throw new Error('P0 auto-open effect is still registered')
+if (seen.tabs.length !== 1) throw new Error('console tab type is not registered')
+if (seen.slots.length !== 2) throw new Error('console body and tab title are not both registered')

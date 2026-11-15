@@ -1,7 +1,10 @@
 // src/shared/api.ts
 //
-// 同源 HTTP 契约：路径前缀、自定义请求头、健康检查与开发期冒烟的响应形状。
+// 同源 HTTP 契约：路径前缀、自定义请求头、健康检查与总控台快照的响应形状。
 // Host 与 Client 共用，调用点不得硬编码这些字面量。
+
+import type { ApprovalView } from './approvals.ts'
+import type { TicketView } from './tickets.ts'
 
 /** 插件 HTTP 面挂载前缀；Host 以 prefix 路由注册，Client 以此为唯一网络入口。 */
 export const API_PREFIX = '/personal-agent/api'
@@ -18,9 +21,7 @@ export const REQUEST_HEADER_VALUE = '1'
 /** 各端点的绝对路径（含前缀）。 */
 export const ROUTES = {
   health: `${API_PREFIX}/health`,
-  devState: `${API_PREFIX}/dev/state`,
-  devBeacon: `${API_PREFIX}/dev/beacon`,
-  devP0: `${API_PREFIX}/dev/p0`,
+  snapshot: `${API_PREFIX}/snapshot`,
 } as const
 
 /** 稳定错误码：客户端按码分支，不吞错。 */
@@ -50,42 +51,28 @@ export interface HealthResponse {
   uptimeMs: number
 }
 
-/** 浏览器侧上报的一条开发期事实，用于在无浏览器控制时确认面板真的挂载了。 */
-export interface BeaconRecord {
-  at: number
-  event: string
-  detail?: unknown
+/** 工单各阶段计数，`total` 是全部工单数而不是某阶段数。 */
+export interface TicketStats {
+  queued: number
+  running: number
+  blocked: number
+  ended: number
+  total: number
 }
 
-/**
- * 一次请求的观测记录（开发期诊断）。
- *
- * 没有浏览器控制时，"浏览器到底发了什么" 只能靠服务端自己记下来：同源守卫的
- * 每个拒绝分支都对应一个真实的、难以猜测的客户端差异。
- */
-export interface ObservedRequest {
-  at: number
-  method: string
-  path: string
-  host?: string
-  origin?: string
-  referer?: string
-  requestHeader?: string
-  /** 分派结论：`ok` / `health` / 具体错误码。 */
-  verdict: string
-  status: number
+export interface ApprovalStats {
+  pending: number
+  decided: number
 }
 
-/** 开发期冒烟的一步结果；失败不影响后续步骤，便于一次调用看到全部通道。 */
-export interface SmokeStep {
-  name: string
-  ok: boolean
-  detail?: unknown
-  error?: string
+export interface SnapshotStats {
+  tickets: TicketStats
+  approvals: ApprovalStats
 }
 
-export interface SmokeReport {
-  ranAt: number
-  takenMs: number
-  steps: SmokeStep[]
+/** 总控台一次刷新所需的全部派生状态；作废审批不出现在任何列表里。 */
+export interface SnapshotResponse {
+  tickets: TicketView[]
+  approvals: ApprovalView[]
+  stats: SnapshotStats
 }
