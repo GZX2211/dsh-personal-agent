@@ -18,6 +18,8 @@ const KEY_FIELDS: Record<EventType, readonly string[]> = {
   'decision/recorded': ['action', 'inferred', 'ticketId', 'reason'],
   'task/queued': ['ticketId'],
   'task/dispatched': ['ticketId'],
+  'task/interrupted': ['ticketId', 'turn', 'reason'],
+  'task/resumed': ['ticketId', 'turn'],
   'task/reported': ['ticketId', 'status', 'summary'],
   'task/closed': ['ticketId'],
   'approval/pending': ['approvalId'],

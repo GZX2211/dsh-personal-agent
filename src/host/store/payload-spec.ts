@@ -15,6 +15,7 @@ import {
   EVENT_TYPES,
   REPORT_STATUSES,
   SIGNAL_KINDS,
+  TASK_INTERRUPT_REASONS,
   TASK_MODES,
   type EventType,
 } from '../../shared/events.ts'
@@ -84,8 +85,20 @@ const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
     },
     optional: { directory: { type: 'string' } },
   },
-  [EVENT_TYPES.taskReported]: {
+  [EVENT_TYPES.taskInterrupted]: {
     required: {
+      ticketId: { type: 'string' },
+      turn: { type: 'number' },
+      reason: { type: 'enum', values: TASK_INTERRUPT_REASONS },
+    },
+  },
+  [EVENT_TYPES.taskResumed]: {
+    required: {
+      ticketId: { type: 'string' },
+      turn: { type: 'number' },
+    },
+  },
+  [EVENT_TYPES.taskReported]: {    required: {
       ticketId: { type: 'string' },
       summary: { type: 'string' },
       status: { type: 'enum', values: REPORT_STATUSES },

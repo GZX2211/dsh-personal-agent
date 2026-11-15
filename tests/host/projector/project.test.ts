@@ -12,8 +12,10 @@ import type {
   L2Event,
   TaskClosedPayload,
   TaskDispatchedPayload,
+  TaskInterruptedPayload,
   TaskQueuedPayload,
   TaskReportedPayload,
+  TaskResumedPayload,
 } from '../../../src/shared/events.ts'
 import { project } from '../../../src/host/projector/project.ts'
 
@@ -73,8 +75,30 @@ function dispatchedEvent(
   )
 }
 
-function reportedEvent(
+function interruptedEvent(
   seq: number,
+  ticketId: string,
+  payload: Partial<TaskInterruptedPayload> = {},
+  extra: EnvelopeExtra = {},
+): L2Event {
+  return event(
+    seq,
+    'task/interrupted',
+    { ticketId, turn: 1, reason: 'turn-aborted', ...payload },
+    { actor: 'system', ...extra },
+  )
+}
+
+function resumedEvent(
+  seq: number,
+  ticketId: string,
+  payload: Partial<TaskResumedPayload> = {},
+  extra: EnvelopeExtra = {},
+): L2Event {
+  return event(seq, 'task/resumed', { ticketId, turn: 2, ...payload }, { actor: 'system', ...extra })
+}
+
+function reportedEvent(  seq: number,
   ticketId: string,
   payload: Partial<TaskReportedPayload> = {},
   extra: EnvelopeExtra = {},
@@ -529,5 +553,93 @@ describe('project', () => {
       }),
     ])
     expect(projection.stats.approvals).toEqual({ pending: 0, decided: 1 })
+  })
+
+  it('marks a running ticket interrupted after an aborted turn', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      interruptedEvent(3, 't-aaa1112223', { turn: 2 }),
+    ])
+
+    expect(projection.tickets).toEqual([expect.objectContaining({ stage: 'running', interrupted: true })])
+    expect(projection.stats.tickets.running).toBe(1)
+  })
+
+  it('clears the interrupted mark when the worker resumes', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      interruptedEvent(3, 't-aaa1112223'),
+      resumedEvent(4, 't-aaa1112223', { turn: 3 }),
+    ])
+
+    expect(projection.tickets).toEqual([expect.objectContaining({ stage: 'running' })])
+    expect(projection.tickets[0]).not.toHaveProperty('interrupted')
+  })
+
+  it('clears the interrupted mark when the ticket is dispatched again', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      interruptedEvent(3, 't-aaa1112223'),
+      dispatchedEvent(4, 't-aaa1112223', { workerSessionId: 'session-worker-2' }),
+    ])
+
+    expect(projection.tickets[0]).toEqual(expect.objectContaining({ stage: 'running' }))
+    expect(projection.tickets[0]).not.toHaveProperty('interrupted')
+  })
+
+  it('clears the interrupted mark when an approval decision is delivered', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      interruptedEvent(3, 't-aaa1112223'),
+      pendingEvent(4, 'a-1', 't-aaa1112223'),
+      decidedEvent(5, 'a-1'),
+    ])
+
+    expect(projection.tickets).toEqual([expect.objectContaining({ stage: 'running' })])
+    expect(projection.tickets[0]).not.toHaveProperty('interrupted')
+  })
+
+  it('clears the interrupted mark when the turn reports', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      interruptedEvent(3, 't-aaa1112223'),
+      reportedEvent(4, 't-aaa1112223', { summary: '被中断后仍被叫停' }),
+    ])
+
+    expect(projection.tickets[0]).not.toHaveProperty('interrupted')
+  })
+
+  it('never shows interrupted on blocked or ended tickets', () => {
+    const blocked = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      interruptedEvent(3, 't-aaa1112223'),
+      pendingEvent(4, 'a-1', 't-aaa1112223'),
+    ])
+    const ended = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      interruptedEvent(3, 't-aaa1112223'),
+      closedEvent(4, 't-aaa1112223', { outcome: 'completed' }),
+    ])
+
+    expect(blocked.tickets[0]).toEqual(expect.objectContaining({ stage: 'blocked' }))
+    expect(blocked.tickets[0]).not.toHaveProperty('interrupted')
+    expect(ended.tickets[0]).toEqual(expect.objectContaining({ stage: 'ended' }))
+    expect(ended.tickets[0]).not.toHaveProperty('interrupted')
+  })
+
+  it('ignores interruption events for tickets that were never queued', () => {
+    const projection = project([
+      interruptedEvent(1, 't-ghost0000'),
+      resumedEvent(2, 't-ghost0000'),
+    ])
+
+    expect(projection.tickets).toEqual([])
   })
 })

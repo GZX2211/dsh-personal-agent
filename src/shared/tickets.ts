@@ -28,6 +28,8 @@ export interface TicketView {
   stage: TicketStage
   /** 仍停在待处理时给出原因；已放行时不存在。 */
   queueReason?: QueueReason
+  /** 进行中但 worker 回合被中断：仍占执行槽位，等下一次唤醒继续。 */
+  interrupted?: boolean
   goal: string
   /** 放行后绑定的执行会话；待处理时不存在。 */
   workerSessionId?: string

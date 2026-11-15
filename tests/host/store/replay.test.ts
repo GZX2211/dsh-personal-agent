@@ -95,6 +95,8 @@ function fullLedger(): L2Event[] {
       reason: 'worker-archived',
       discardedAt: 1_700_000_000_009,
     }),
+    eventAt(10, 'task/interrupted', { ticketId: TICKET_ID, turn: 2, reason: 'turn-aborted' }),
+    eventAt(11, 'task/resumed', { ticketId: TICKET_ID, turn: 3 }),
   ]
 }
 
@@ -239,7 +241,7 @@ describe('replayLedger', () => {
     const result = replayLedger(ledgerBytes(...ledger.map(event => encodeLedgerLine(event))))
 
     expect(result.events).toEqual(ledger)
-    expect(result.lastSeq).toBe(9)
+    expect(result.lastSeq).toBe(11)
     expect(result.warnings).toEqual([])
   })
 

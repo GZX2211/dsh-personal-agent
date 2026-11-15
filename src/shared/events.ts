@@ -18,6 +18,8 @@ export const EVENT_TYPES = {
   decisionRecorded: 'decision/recorded',
   taskQueued: 'task/queued',
   taskDispatched: 'task/dispatched',
+  taskInterrupted: 'task/interrupted',
+  taskResumed: 'task/resumed',
   taskReported: 'task/reported',
   taskClosed: 'task/closed',
   approvalPending: 'approval/pending',
@@ -131,6 +133,23 @@ export interface TaskDispatchedPayload {
   directory?: string
 }
 
+/** worker 回合被中断的原因；MVP 只有「用户停止回合」一种。 */
+export const TASK_INTERRUPT_REASONS = ['turn-aborted'] as const
+
+export type TaskInterruptReason = (typeof TASK_INTERRUPT_REASONS)[number]
+
+/** 执行会话的 sessionId 走信封字段，payload 只带工单域与回合。 */
+export interface TaskInterruptedPayload {
+  ticketId: string
+  turn: number
+  reason: TaskInterruptReason
+}
+
+export interface TaskResumedPayload {
+  ticketId: string
+  turn: number
+}
+
 export interface TaskReportedPayload {
   ticketId: string
   summary: string
@@ -173,6 +192,8 @@ export type SignalReceivedEvent = EventEnvelope<typeof EVENT_TYPES.signalReceive
 export type DecisionRecordedEvent = EventEnvelope<typeof EVENT_TYPES.decisionRecorded, DecisionRecordedPayload>
 export type TaskQueuedEvent = EventEnvelope<typeof EVENT_TYPES.taskQueued, TaskQueuedPayload>
 export type TaskDispatchedEvent = EventEnvelope<typeof EVENT_TYPES.taskDispatched, TaskDispatchedPayload>
+export type TaskInterruptedEvent = EventEnvelope<typeof EVENT_TYPES.taskInterrupted, TaskInterruptedPayload>
+export type TaskResumedEvent = EventEnvelope<typeof EVENT_TYPES.taskResumed, TaskResumedPayload>
 export type TaskReportedEvent = EventEnvelope<typeof EVENT_TYPES.taskReported, TaskReportedPayload>
 export type TaskClosedEvent = EventEnvelope<typeof EVENT_TYPES.taskClosed, TaskClosedPayload>
 export type ApprovalPendingEvent = EventEnvelope<typeof EVENT_TYPES.approvalPending, ApprovalPendingPayload>
@@ -185,6 +206,8 @@ export type L2Event =
   | DecisionRecordedEvent
   | TaskQueuedEvent
   | TaskDispatchedEvent
+  | TaskInterruptedEvent
+  | TaskResumedEvent
   | TaskReportedEvent
   | TaskClosedEvent
   | ApprovalPendingEvent

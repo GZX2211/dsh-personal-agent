@@ -49,6 +49,8 @@ interface TicketAccumulator {
   updatedAt: number
   queuedSeq: number
   dispatched: boolean
+  /** worker 回合被中断、尚未被任何后续事实清除；仍算进行中并占槽位。 */
+  interrupted: boolean
   endedAt?: number
   outcome?: TicketOutcome
   report?: string
@@ -130,6 +132,7 @@ function applyEvent(
           updatedAt: event.time,
           queuedSeq: event.seq,
           dispatched: false,
+          interrupted: false,
         })
         return
       }
@@ -147,8 +150,23 @@ function applyEvent(
       const ticket = tickets.get(event.payload.ticketId)
       if (ticket === undefined) return
       ticket.dispatched = true
+      ticket.interrupted = false
       ticket.workerSessionId = event.payload.workerSessionId
       if (event.payload.directory !== undefined) ticket.directory = event.payload.directory
+      ticket.updatedAt = latest(ticket.updatedAt, event.time)
+      return
+    }
+    case 'task/interrupted': {
+      const ticket = tickets.get(event.payload.ticketId)
+      if (ticket === undefined) return
+      ticket.interrupted = true
+      ticket.updatedAt = latest(ticket.updatedAt, event.time)
+      return
+    }
+    case 'task/resumed': {
+      const ticket = tickets.get(event.payload.ticketId)
+      if (ticket === undefined) return
+      ticket.interrupted = false
       ticket.updatedAt = latest(ticket.updatedAt, event.time)
       return
     }
@@ -156,6 +174,7 @@ function applyEvent(
       const ticket = tickets.get(event.payload.ticketId)
       if (ticket === undefined) return
       ticket.report = event.payload.summary
+      ticket.interrupted = false
       ticket.updatedAt = latest(ticket.updatedAt, event.time)
       return
     }
@@ -167,6 +186,7 @@ function applyEvent(
         ticket.endedAt = event.time
         ticket.outcome = event.payload.outcome
       }
+      ticket.interrupted = false
       ticket.updatedAt = latest(ticket.updatedAt, event.time)
       return
     }
@@ -192,6 +212,9 @@ function applyEvent(
       if (approval === undefined || approval.discarded) return
       approval.decidedAt = event.payload.decidedAt
       approval.decision = { ...event.payload.decision, transport: event.payload.transport }
+      // 决定送达后 worker 会被唤醒继续，下一次 turn/start 之前也不该再显示「已中断」。
+      const ticket = tickets.get(approval.ticketId)
+      if (ticket !== undefined) ticket.interrupted = false
       return
     }
     case 'approval/discarded': {
@@ -219,6 +242,8 @@ function toTicketView(ticket: TicketAccumulator, pendingTickets: ReadonlySet<str
   }
   // 排队原因只对仍在待处理的工单有意义；放行后它解释不了任何现状。
   if (view.stage === 'queued' && ticket.queueReason !== undefined) view.queueReason = ticket.queueReason
+  // 中断只修饰「进行中」：待处理不可能中断，阻塞中与已结束各有更准确的状态。
+  if (view.stage === 'running' && ticket.interrupted) view.interrupted = true
   if (ticket.workerSessionId !== undefined) view.workerSessionId = ticket.workerSessionId
   if (ticket.directory !== undefined) view.directory = ticket.directory
   if (ticket.endedAt !== undefined) view.endedAt = ticket.endedAt
