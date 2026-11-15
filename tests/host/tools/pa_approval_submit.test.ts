@@ -12,12 +12,14 @@ import { ResolverRegistry } from '../../../src/host/approvals/resolvers.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
 import {
   createApprovalSubmitTool,
+  resolveAttachments,
   type ApprovalSubmitArgs,
 } from '../../../src/host/tools/pa_approval_submit/index.ts'
 import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
 
 const TICKET_ID = 't-abcdef1234'
 const WORKER_SESSION = 'session-1'
+const WORK_DIRECTORY = join('D:\\', 'pa-work', TICKET_ID)
 
 let directory: string
 let store: EventStore
@@ -25,7 +27,6 @@ let host: FakeHost
 let resolvers: ResolverRegistry
 
 const BASE_ARGS: ApprovalSubmitArgs = {
-  title: '要发布吗',
   question: '发布到生产会立刻影响用户。',
   options: [
     { label: '发布', description: '立刻上线' },
@@ -61,12 +62,18 @@ function execution(signal: AbortSignal, sessionId = WORKER_SESSION): ToolRunCont
   } as unknown as ToolRunContext
 }
 
-function seedRunningTicket(): void {
+function seedRunningTicket(ticketDirectory?: string): void {
   store.append({
     type: 'task/queued',
     actor: 'router',
     correlationId: TICKET_ID,
-    payload: { ticketId: TICKET_ID, title: '发布新版本', goal: '把 v2 发布到生产', mode: 'dispatch' },
+    payload: {
+      ticketId: TICKET_ID,
+      title: '发布新版本',
+      goal: '把 v2 发布到生产',
+      mode: 'dispatch',
+      ...(ticketDirectory === undefined ? {} : { directory: ticketDirectory }),
+    },
   })
   store.append({
     type: 'task/dispatched',
@@ -85,6 +92,32 @@ async function waitForPending(): Promise<string> {
   throw new Error('approval/pending was never written')
 }
 
+function pendingPayload(): Record<string, unknown> {
+  const event = store.events().find(item => item.type === 'approval/pending')
+  if (event === undefined) throw new Error('approval/pending was never written')
+  return event.payload as unknown as Record<string, unknown>
+}
+
+describe('resolveAttachments', () => {
+  it('returns nothing when the worker sent no attachments', () => {
+    expect(resolveAttachments(undefined, WORK_DIRECTORY)).toEqual([])
+    expect(resolveAttachments([], WORK_DIRECTORY)).toEqual([])
+  })
+
+  it('resolves parent segments and keeps absolute paths untouched', () => {
+    expect(resolveAttachments(['../outside.md'], WORK_DIRECTORY)).toEqual([
+      join(WORK_DIRECTORY, '..', 'outside.md'),
+    ])
+    expect(resolveAttachments(['/tmp/abs.md'], WORK_DIRECTORY)).toEqual(['/tmp/abs.md'])
+  })
+
+  it('accepts exactly MAX_ATTACHMENTS entries', () => {
+    const paths = Array.from({ length: 20 }, (_, index) => join(WORK_DIRECTORY, `${index}.md`))
+
+    expect(resolveAttachments(paths, WORK_DIRECTORY)).toHaveLength(20)
+  })
+})
+
 describe('pa_approval_submit', () => {
   it('blocks until a decision is delivered and returns it', async () => {
     seedRunningTicket()
@@ -97,7 +130,7 @@ describe('pa_approval_submit', () => {
     expect(resolver).toBeDefined()
 
     await resolver?.deliver({
-      decision: { kind: 'selected', index: 1, label: '等等', note: '先别发', fields: { window: '今晚' } },
+      decision: { kind: 'selected', index: 1, label: '等等', note: '先别发' },
       decidedAt: 1_700_000_000_000,
     })
     const result = await pending
@@ -106,15 +139,14 @@ describe('pa_approval_submit', () => {
       approvalId,
       decision: { kind: 'selected', index: 1, label: '等等' },
       note: '先别发',
-      fields: { window: '今晚' },
       decidedAt: 1_700_000_000_000,
     })
     expect(resolvers.find(approvalId)).toBeUndefined()
     expect(store.events().filter(event => event.type === 'approval/pending')).toHaveLength(1)
   })
 
-  it('writes the submitted question with options, fields and risk', async () => {
-    seedRunningTicket()
+  it('writes the submitted question with options, risk and attachments', async () => {
+    seedRunningTicket(WORK_DIRECTORY)
     const tool = makeTool()
     const controller = new AbortController()
 
@@ -122,26 +154,82 @@ describe('pa_approval_submit', () => {
       {
         ...BASE_ARGS,
         risk: 'high',
-        fields: [{ key: 'window', label: '发布时间', type: 'text', required: true }],
+        attachments: ['notes.md', join(WORK_DIRECTORY, 'report.html')],
       },
       execution(controller.signal),
     ) as Promise<Record<string, unknown>>
-    const approvalId = await waitForPending()
-    const payload = store.events().find(event => event.type === 'approval/pending')?.payload
+    await waitForPending()
 
-    expect(payload).toMatchObject({
-      approvalId,
+    expect(pendingPayload()).toMatchObject({
       ticketId: TICKET_ID,
-      title: '要发布吗',
       question: '发布到生产会立刻影响用户。',
       options: BASE_ARGS.options,
-      fields: [{ key: 'window', label: '发布时间', type: 'text', required: true }],
       risk: 'high',
       requestedBySessionId: WORKER_SESSION,
     })
+    expect(pendingPayload()).not.toHaveProperty('title')
 
     controller.abort()
     await expect(pending).rejects.toMatchObject({ code: 'approval-cancelled' })
+  })
+
+  it('resolves relative attachments against the ticket directory', async () => {
+    seedRunningTicket(WORK_DIRECTORY)
+    const tool = makeTool()
+    const controller = new AbortController()
+
+    const pending = tool.execute(
+      { ...BASE_ARGS, attachments: [' notes.md ', 'notes.md', join(WORK_DIRECTORY, 'a.html')] },
+      execution(controller.signal),
+    ) as Promise<Record<string, unknown>>
+    await waitForPending()
+
+    expect(pendingPayload().attachments).toEqual([
+      join(WORK_DIRECTORY, 'notes.md'),
+      join(WORK_DIRECTORY, 'a.html'),
+    ])
+
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'approval-cancelled' })
+  })
+
+  it('rejects a relative attachment when the ticket has no directory', async () => {
+    seedRunningTicket()
+    const tool = makeTool()
+
+    await expect(
+      tool.execute(
+        { ...BASE_ARGS, attachments: ['notes.md'] },
+        execution(new AbortController().signal),
+      ),
+    ).rejects.toMatchObject({ code: 'invalid-arguments' })
+    expect(store.events().filter(event => event.type === 'approval/pending')).toEqual([])
+  })
+
+  it('rejects malformed attachments before writing anything', async () => {
+    seedRunningTicket(WORK_DIRECTORY)
+    const tool = makeTool()
+    const signal = new AbortController().signal
+
+    await expect(
+      tool.execute({ ...BASE_ARGS, attachments: [42] }, execution(signal)),
+    ).rejects.toMatchObject({ code: 'invalid-arguments' })
+    await expect(
+      tool.execute({ ...BASE_ARGS, attachments: ['   '] }, execution(signal)),
+    ).rejects.toMatchObject({ code: 'invalid-arguments' })
+    await expect(
+      tool.execute({ ...BASE_ARGS, attachments: 'notes.md' }, execution(signal)),
+    ).rejects.toMatchObject({ code: 'invalid-arguments' })
+    await expect(
+      tool.execute(
+        {
+          ...BASE_ARGS,
+          attachments: Array.from({ length: 21 }, (_, index) => join(WORK_DIRECTORY, `${index}.md`)),
+        },
+        execution(signal),
+      ),
+    ).rejects.toMatchObject({ code: 'invalid-arguments' })
+    expect(store.events().filter(event => event.type === 'approval/pending')).toEqual([])
   })
 
   it('returns a skipped decision', async () => {
@@ -229,30 +317,5 @@ describe('pa_approval_submit', () => {
       ),
     ).rejects.toMatchObject({ code: 'invalid-arguments' })
     expect(store.events().filter(event => event.type === 'approval/pending')).toEqual([])
-  })
-
-  it('rejects duplicate field keys and unknown field types', async () => {
-    seedRunningTicket()
-    const tool = makeTool()
-    const signal = new AbortController().signal
-
-    await expect(
-      tool.execute(
-        {
-          ...BASE_ARGS,
-          fields: [
-            { key: 'window', label: '时间', type: 'text' },
-            { key: 'window', label: '重复', type: 'text' },
-          ],
-        },
-        execution(signal),
-      ),
-    ).rejects.toMatchObject({ code: 'invalid-arguments' })
-    await expect(
-      tool.execute(
-        { ...BASE_ARGS, fields: [{ key: 'window', label: '时间', type: 'date' }] },
-        execution(signal),
-      ),
-    ).rejects.toMatchObject({ code: 'invalid-arguments' })
   })
 })

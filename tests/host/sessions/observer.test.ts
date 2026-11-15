@@ -72,7 +72,6 @@ function seedPendingApproval(): void {
     payload: {
       approvalId: 'a-1',
       ticketId: TICKET_ID,
-      title: '要发布吗',
       question: '发布到生产会立刻影响用户。',
       options: [{ label: '发布', description: '立刻上线' }],
       requestedBySessionId: WORKER_SESSION,

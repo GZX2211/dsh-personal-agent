@@ -57,7 +57,7 @@ function seedTicket(ticketId: string, options: { closed?: boolean } = {}): void 
   }
 }
 
-function seedApproval(approvalId: string, ticketId: string, decided: boolean): void {
+function seedApproval(approvalId: string, ticketId: string, decided: boolean, question = '发布到生产会立刻影响用户。'): void {
   store.append({
     type: 'approval/pending',
     actor: 'worker',
@@ -65,8 +65,7 @@ function seedApproval(approvalId: string, ticketId: string, decided: boolean): v
     payload: {
       approvalId,
       ticketId,
-      title: '要发布吗',
-      question: '发布到生产会立刻影响用户。',
+      question,
       options: [{ label: '发布', description: '上线' }],
       requestedBySessionId: `session-${ticketId}`,
     },
@@ -133,6 +132,20 @@ describe('pa_ledger_query', () => {
     expect(ended.text).not.toContain('#aaa111')
   })
 
+  it('previews the first line of a long question', async () => {
+    seedTicket(TICKET_A, { closed: true })
+    seedApproval('a-long', TICKET_A, false, `${'很长的题干'.repeat(8)}\n第二行不该出现`)
+    const tool = createLedgerQueryTool({ store })
+
+    const result = (await tool.execute({ scope: 'approvals', filter: 'active' }, {} as never)) as {
+      text: string
+    }
+
+    expect(result.text).toContain('很长的题干')
+    expect(result.text).toContain('…')
+    expect(result.text).not.toContain('第二行')
+  })
+
   it('reports pending and decided approvals separately', async () => {
     seedTicket(TICKET_A, { closed: true })
     seedApproval('a-open', TICKET_A, false)
@@ -149,8 +162,7 @@ describe('pa_ledger_query', () => {
     expect(decided.text).toContain('#a-done')
   })
 
-  it('queries both scopes and marks truncated results', async () => {
-    seedTicket(TICKET_A)
+  it('queries both scopes and marks truncated results', async () => {    seedTicket(TICKET_A)
     seedTicket(TICKET_B)
     const tool = createLedgerQueryTool({ store })
 

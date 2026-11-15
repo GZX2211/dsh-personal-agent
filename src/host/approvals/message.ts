@@ -16,9 +16,6 @@ export function formatApprovalDelivery(approval: ApprovalView, decision: Approva
     lines.push('', `补充说明：${decision.note.trim()}`)
   }
 
-  const fields = formatFields(approval, decision)
-  if (fields.length > 0) lines.push('', '填写字段：', ...fields)
-
   lines.push(
     '',
     '提醒：你先前提交该审批的工具调用已结束（若期间进程重启，其结果为「未知」）。',
@@ -33,15 +30,4 @@ function decisionLine(approval: ApprovalView, decision: ApprovalDecision): strin
   }
   const label = decision.label ?? approval.options[decision.index ?? -1]?.label ?? ''
   return `决定：${label}（option ${decision.index ?? 0}）`
-}
-
-function formatFields(approval: ApprovalView, decision: ApprovalDecision): string[] {
-  const values = decision.fields
-  if (values === undefined) return []
-  const labels = new Map(approval.fields.map(field => [field.key, field.label]))
-  const ordered = [
-    ...approval.fields.map(field => field.key).filter(key => key in values),
-    ...Object.keys(values).filter(key => !labels.has(key)),
-  ]
-  return ordered.map(key => `- ${labels.get(key) ?? key}: ${String(values[key])}`)
 }

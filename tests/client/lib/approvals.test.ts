@@ -1,13 +1,12 @@
 // tests/client/lib/approvals.test.ts
 //
-// 审批页纯逻辑：相对时间、必填校验、决定构造与错误码映射。
+// 审批页纯逻辑：相对时间、决定构造与错误码映射。
 
 import { describe, expect, it } from 'vitest'
 import type { ApprovalView } from '../../../src/shared/approvals.ts'
 import {
   buildDecision,
   decisionErrorKey,
-  missingRequiredFields,
   relativeTimeParts,
   shortTicket,
 } from '../../../src/client/lib/approvals.ts'
@@ -17,16 +16,10 @@ import { translateFor } from '../../../src/client/i18n.ts'
 const APPROVAL: ApprovalView = {
   id: 'a-1',
   ticketId: 't-7380b609ef',
-  title: '测试审批',
   question: '是否继续？',
   options: [
     { label: '批准', description: '继续' },
     { label: '拒绝', description: '停止' },
-  ],
-  fields: [
-    { key: 'window', label: '时间', type: 'text', required: true },
-    { key: 'count', label: '数量', type: 'number' },
-    { key: 'urgent', label: '紧急', type: 'boolean' },
   ],
   requestedBySessionId: 'session-1',
   createdAt: 1_700_000_000_000,
@@ -54,47 +47,26 @@ describe('shortTicket', () => {
   })
 })
 
-describe('missingRequiredFields', () => {
-  it('detects missing and blank required values but accepts false', () => {
-    expect(missingRequiredFields(APPROVAL, {})).toEqual([expect.objectContaining({ key: 'window' })])
-    expect(missingRequiredFields(APPROVAL, { window: '   ' })).toHaveLength(1)
-    expect(
-      missingRequiredFields(APPROVAL, { window: '今晚', count: '', urgent: false }),
-    ).toEqual([])
-  })
-})
-
 describe('buildDecision', () => {
-  it('builds a selected decision with converted fields and trimmed note', () => {
-    expect(
-      buildDecision(APPROVAL, {
-        optionIndex: 0,
-        note: '  继续  ',
-        fields: { window: ' 今晚 ', count: ' 3 ', urgent: true },
-      }),
-    ).toEqual({
+  it('builds a selected decision with a trimmed note', () => {
+    expect(buildDecision(APPROVAL, { optionIndex: 0, note: '  继续  ' })).toEqual({
       kind: 'selected',
       index: 0,
       note: '继续',
-      fields: { window: '今晚', count: 3, urgent: true },
     })
   })
 
   it('builds a skipped decision without an option', () => {
-    expect(buildDecision(APPROVAL, { note: '', fields: { window: '今晚' } })).toEqual({
+    expect(buildDecision(APPROVAL, { note: '' })).toEqual({ kind: 'skipped' })
+    expect(buildDecision(APPROVAL, { note: '  由你决定  ' })).toEqual({
       kind: 'skipped',
-      fields: { window: '今晚' },
+      note: '由你决定',
     })
   })
 
-  it('rejects an incomplete decision', () => {
-    expect(buildDecision(APPROVAL, { optionIndex: 0, note: '', fields: {} })).toBeUndefined()
-    expect(
-      buildDecision(APPROVAL, { optionIndex: 0, note: '', fields: { window: '今晚', count: 'abc' } }),
-    ).toBeUndefined()
-    expect(
-      buildDecision(APPROVAL, { optionIndex: 5, note: '', fields: { window: '今晚' } }),
-    ).toBeUndefined()
+  it('rejects an out-of-range option index', () => {
+    expect(buildDecision(APPROVAL, { optionIndex: 5, note: '' })).toBeUndefined()
+    expect(buildDecision(APPROVAL, { optionIndex: -1, note: '' })).toBeUndefined()
   })
 })
 

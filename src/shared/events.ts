@@ -5,7 +5,6 @@
 
 import type {
   ApprovalDecision,
-  ApprovalField,
   ApprovalOption,
   ApprovalRisk,
   ApprovalTransport,
@@ -165,10 +164,10 @@ export interface TaskClosedPayload {
 export interface ApprovalPendingPayload {
   approvalId: string
   ticketId: string
-  title: string
   question: string
   options: ApprovalOption[]
-  fields?: ApprovalField[]
+  /** worker 带上的文件，绝对路径；只读展示。 */
+  attachments?: string[]
   risk?: ApprovalRisk
   requestedBySessionId: string
 }

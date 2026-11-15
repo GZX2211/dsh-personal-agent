@@ -75,16 +75,15 @@ function fullLedger(): L2Event[] {
     eventAt(5, 'approval/pending', {
       approvalId: 'a-1',
       ticketId: TICKET_ID,
-      title: '要发布吗',
       question: '发布到生产会立刻影响用户。',
       options: [{ label: '发布', description: '立刻上线' }],
-      fields: [{ key: 'window', label: '发布时间', type: 'text', required: true }],
+      attachments: ['D:/pa-work/t-abcdef1234/notes.md'],
       risk: 'high',
       requestedBySessionId: 'session-worker-1',
     }),
     eventAt(6, 'approval/decided', {
       approvalId: 'a-1',
-      decision: { kind: 'selected', index: 0, label: '发布', fields: { window: '今晚' } },
+      decision: { kind: 'selected', index: 0, label: '发布', note: '今晚发' },
       decidedAt: 1_700_000_000_006,
       transport: 'inline',
     }),
@@ -252,6 +251,14 @@ describe('replayLedger', () => {
 
     expect(result.events).toHaveLength(1)
     expect(result.warnings).toEqual([])
+  })
+
+  it('rejects a malformed attachments list', () => {
+    const pending = fullLedger().find(event => event.type === 'approval/pending')
+    if (pending === undefined) throw new Error('approval/pending missing')
+    const broken = { ...pending, seq: 1, payload: { ...pending.payload, attachments: 'notes.md' } }
+
+    expect(() => replayLedger(ledgerBytes(`${JSON.stringify(broken)}\n`))).toThrow(/payload.attachments/i)
   })
 
   it('rejects an out-of-enum value in a known payload', () => {

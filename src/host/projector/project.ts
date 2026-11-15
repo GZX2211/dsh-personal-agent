@@ -62,10 +62,9 @@ interface TicketAccumulator {
 interface ApprovalAccumulator {
   id: string
   ticketId: string
-  title: string
   question: string
   options: ApprovalView['options']
-  fields: ApprovalView['fields']
+  attachments?: string[]
   risk?: ApprovalRisk
   requestedBySessionId: string
   createdAt: number
@@ -204,10 +203,9 @@ function applyEvent(
       approvals.set(event.payload.approvalId, {
         id: event.payload.approvalId,
         ticketId: event.payload.ticketId,
-        title: event.payload.title,
         question: event.payload.question,
         options: event.payload.options,
-        fields: event.payload.fields ?? [],
+        attachments: event.payload.attachments,
         risk: event.payload.risk,
         requestedBySessionId: event.payload.requestedBySessionId,
         createdAt: event.time,
@@ -274,12 +272,13 @@ function toApprovalView(approval: ApprovalAccumulator): ApprovalView {
   const view: ApprovalView = {
     id: approval.id,
     ticketId: approval.ticketId,
-    title: approval.title,
     question: approval.question,
     options: approval.options,
-    fields: approval.fields,
     requestedBySessionId: approval.requestedBySessionId,
     createdAt: approval.createdAt,
+  }
+  if (approval.attachments !== undefined && approval.attachments.length > 0) {
+    view.attachments = approval.attachments
   }
   if (approval.risk !== undefined) view.risk = approval.risk
   if (approval.decidedAt !== undefined) view.decidedAt = approval.decidedAt

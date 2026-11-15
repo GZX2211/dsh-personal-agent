@@ -5,7 +5,6 @@
 
 import {
   APPROVAL_DECISION_KINDS,
-  APPROVAL_FIELD_TYPES,
   APPROVAL_RISKS,
   APPROVAL_TRANSPORTS,
 } from '../../shared/approvals.ts'
@@ -28,7 +27,6 @@ type FieldRule =
   | { type: 'enum'; values: readonly string[] }
   | { type: 'strings' }
   | { type: 'options' }
-  | { type: 'fields' }
   | { type: 'decision' }
 
 interface PayloadSpec {
@@ -115,12 +113,11 @@ const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
     required: {
       approvalId: { type: 'string' },
       ticketId: { type: 'string' },
-      title: { type: 'string' },
       question: { type: 'string' },
       options: { type: 'options' },
       requestedBySessionId: { type: 'string' },
     },
-    optional: { fields: { type: 'fields' }, risk: { type: 'enum', values: APPROVAL_RISKS } },
+    optional: { attachments: { type: 'strings' }, risk: { type: 'enum', values: APPROVAL_RISKS } },
   },
   [EVENT_TYPES.approvalDecided]: {
     required: {
@@ -171,8 +168,6 @@ function matches(value: unknown, rule: FieldRule): boolean {
         value.length > 0 &&
         value.every(option => isRecord(option) && typeof option.label === 'string' && typeof option.description === 'string')
       )
-    case 'fields':
-      return Array.isArray(value) && value.every(isApprovalField)
     case 'decision':
       return isApprovalDecisionRecord(value)
   }
@@ -186,8 +181,6 @@ function expectation(rule: FieldRule): string {
       return 'must be an array of strings'
     case 'options':
       return 'must be a non-empty array of { label, description }'
-    case 'fields':
-      return 'must be an array of { key, label, type }'
     case 'decision':
       return 'must be an approval decision'
     default:
@@ -195,26 +188,18 @@ function expectation(rule: FieldRule): string {
   }
 }
 
-function isApprovalField(value: unknown): boolean {
-  if (!isRecord(value)) return false
-  if (typeof value.key !== 'string' || typeof value.label !== 'string') return false
-  if (!isOneOf(value.type, APPROVAL_FIELD_TYPES)) return false
-  return value.required === undefined || typeof value.required === 'boolean'
-}
-
-/** 运行时判别一份决定记录；启动自愈读取 tool/result 的 meta 时复用。 */
+/**
+ * 运行时判别一份决定记录；启动自愈读取 tool/result 的 meta 时复用。
+ *
+ * 旧版决定记录里的 `fields` 已退役：这里不校验也不拒绝，读到时直接忽略——
+ * 账本行不会被重写，把已退役字段当错误会让历史账本在升级后变成「损坏」。
+ */
 export function isApprovalDecisionRecord(value: unknown): boolean {
   if (!isRecord(value)) return false
   if (!isOneOf(value.kind, APPROVAL_DECISION_KINDS)) return false
   if (value.index !== undefined && !Number.isInteger(value.index)) return false
   if (value.label !== undefined && typeof value.label !== 'string') return false
   if (value.note !== undefined && typeof value.note !== 'string') return false
-  if (value.fields !== undefined) {
-    if (!isRecord(value.fields)) return false
-    for (const field of Object.values(value.fields)) {
-      if (typeof field !== 'string' && typeof field !== 'number' && typeof field !== 'boolean') return false
-    }
-  }
   // 选中的决定必须带下标：没有下标既解释不了选中了什么，也无法回放给 worker。
   return value.kind === 'skipped' || Number.isInteger(value.index)
 }

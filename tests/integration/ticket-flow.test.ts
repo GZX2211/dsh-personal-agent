@@ -153,13 +153,12 @@ describe('ticket flow', () => {
       workerSessionId,
       'pa_approval_submit',
       {
-        title: '要发布吗',
         question: '发布到生产会立刻影响用户。',
         options: [
           { label: '发布', description: '立刻上线' },
           { label: '等等', description: '继续观察' },
         ],
-        fields: [{ key: 'window', label: '发布时间', type: 'text', required: true }],
+        attachments: ['D:/pa-work/notes.md'],
         risk: 'high',
       },
       controller.signal,
@@ -168,7 +167,7 @@ describe('ticket flow', () => {
     waitForEvent('approval/pending')
     const approval = store.projection().approvals[0]
     if (approval === undefined) throw new Error('approval was not projected')
-    expect(approval.title).toBe('要发布吗')
+    expect(approval.attachments).toEqual(['D:/pa-work/notes.md'])
     expect(store.projection().tickets[0]?.stage).toBe('blocked')
 
     // A3：人决定 → inline 送达 → 工具继续。
@@ -176,7 +175,6 @@ describe('ticket flow', () => {
       kind: 'selected',
       index: 0,
       note: '现在就发',
-      fields: { window: '今晚' },
     })
     expect(decided).toEqual({ status: 200, body: { ok: true, transport: 'inline' } })
     await expect(approvalPromise).resolves.toMatchObject({

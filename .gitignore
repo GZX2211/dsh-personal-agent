@@ -9,3 +9,7 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# 样式比对用的参考图与从 app.asar 取出的官方源码副本：本地参考，不入库
+collab/img/
+collab/scr/ref/

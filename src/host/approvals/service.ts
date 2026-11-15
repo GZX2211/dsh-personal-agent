@@ -141,28 +141,8 @@ export function parseDecisionRequest(approval: ApprovalView, request: unknown): 
     if (raw.note.trim().length > 0) decision.note = raw.note.trim()
   }
 
-  if (raw.fields !== undefined) {
-    if (typeof raw.fields !== 'object' || raw.fields === null || Array.isArray(raw.fields)) {
-      throw new DecisionInputError('fields 必须是对象')
-    }
-    const values: Record<string, string | number | boolean> = {}
-    for (const [key, value] of Object.entries(raw.fields)) {
-      if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
-        throw new DecisionInputError(`fields.${key} 必须是字符串、数字或布尔值`)
-      }
-      values[key] = value
-    }
-    if (Object.keys(values).length > 0) decision.fields = values
-  }
-
-  for (const field of approval.fields) {
-    if (field.required !== true) continue
-    const value = decision.fields?.[field.key]
-    if (value === undefined || (typeof value === 'string' && value.trim().length === 0)) {
-      throw new DecisionInputError(`必填字段缺失：${field.label}（${field.key}）`)
-    }
-  }
-
+  // 未知键（例如旧客户端仍提交的 fields）不参与决定，也不报错：
+  // 一次合法的选择不应该因为多带了一个已退役字段而失败。
   return decision
 }
 

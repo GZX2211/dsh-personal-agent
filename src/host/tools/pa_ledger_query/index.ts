@@ -141,7 +141,14 @@ function approvalLine(approval: ApprovalView): string {
       : approval.decision.kind === 'skipped'
         ? '（跳过）'
         : `（${approval.decision.label ?? ''}）`
-  return `#${approval.id} ${state}${decision} ${approval.title}（工单 #${shortTicketId(approval.ticketId)}）`
+  return `#${approval.id} ${state}${decision} ${questionPreview(approval.question)}（工单 #${shortTicketId(approval.ticketId)}）`
+}
+
+/** 题干可能很长：查询结果只给第一行、最多 24 字，够认出是哪一条。 */
+function questionPreview(question: string): string {
+  const line = question.split('\n')[0]?.trim() ?? ''
+  const characters = [...line]
+  return characters.length > 24 ? `${characters.slice(0, 24).join('')}…` : line
 }
 
 function stageLabel(stage: TicketStage): string {

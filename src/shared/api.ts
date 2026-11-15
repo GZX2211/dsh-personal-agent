@@ -98,13 +98,12 @@ export const DECISION_ERROR_CODES = {
 
 export type DecisionErrorCode = (typeof DECISION_ERROR_CODES)[keyof typeof DECISION_ERROR_CODES]
 
-/** 提交决定：选中一个选项，或跳过让 worker 自行决定。 */
+/** 提交决定：选中一个选项或跳过，可带自由文本回答。 */
 export interface DecisionRequest {
   kind: 'selected' | 'skipped'
   /** `selected` 必填：选项下标。 */
   index?: number
   note?: string
-  fields?: Record<string, string | number | boolean>
 }
 
 export interface DecisionSuccess {

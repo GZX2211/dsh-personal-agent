@@ -1,8 +1,8 @@
 // src/client/lib/approvals.ts
 //
-// 审批页的纯逻辑：相对时间、必填校验、决定构造与错误码映射。不碰 React 与网络。
+// 审批页的纯逻辑：相对时间、决定构造与错误码映射。不碰 React 与网络。
 
-import type { ApprovalField, ApprovalView } from '../../shared/approvals.ts'
+import type { ApprovalView } from '../../shared/approvals.ts'
 import type { DecisionRequest } from '../../shared/api.ts'
 
 export type RelativeTimeParts =
@@ -27,53 +27,21 @@ export function shortTicket(ticketId: string): string {
   return ticketId.replace(/^t-/, '').slice(0, 6)
 }
 
-/** 返回尚未填写的必填字段；空字符串视为未填。 */
-export function missingRequiredFields(
-  approval: ApprovalView,
-  values: Readonly<Record<string, string | boolean>>,
-): ApprovalField[] {
-  return approval.fields.filter(field => {
-    if (field.required !== true) return false
-    const value = values[field.key]
-    if (value === undefined) return true
-    return typeof value === 'string' ? value.trim().length === 0 : false
-  })
-}
-
 export interface ApprovalDraft {
+  /** 「输入你的答案」里的人类回答；未选选项时它就是唯一的回答。 */
   optionIndex?: number
   note: string
-  fields: Readonly<Record<string, string | boolean>>
 }
 
-/** 构造提交体；缺少必填字段、未选项或数字非法时返回 undefined。 */
+/**
+ * 构造提交体；未选选项时按「跳过」提交，选项下标非法时返回 undefined。
+ *
+ * 空白备注直接丢弃：账本里不该出现一个只剩空白的 note。
+ */
 export function buildDecision(approval: ApprovalView, draft: ApprovalDraft): DecisionRequest | undefined {
-  if (missingRequiredFields(approval, draft.fields).length > 0) return undefined
-
-  const fields: Record<string, string | number | boolean> = {}
-  for (const field of approval.fields) {
-    const raw = draft.fields[field.key]
-    if (raw === undefined) continue
-    if (field.type === 'boolean') {
-      fields[field.key] = raw === true
-      continue
-    }
-    const text = String(raw).trim()
-    if (text.length === 0) continue
-    if (field.type === 'number') {
-      const numeric = Number(text)
-      if (!Number.isFinite(numeric)) return undefined
-      fields[field.key] = numeric
-      continue
-    }
-    fields[field.key] = text
-  }
-
   const note = draft.note.trim()
-  const extras = {
-    ...(note.length === 0 ? {} : { note }),
-    ...(Object.keys(fields).length === 0 ? {} : { fields }),
-  }
+  const extras = note.length === 0 ? {} : { note }
+
   if (draft.optionIndex === undefined) return { kind: 'skipped', ...extras }
   if (!Number.isInteger(draft.optionIndex) || draft.optionIndex < 0 || draft.optionIndex >= approval.options.length) {
     return undefined

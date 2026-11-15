@@ -51,7 +51,6 @@ function seedPending(): void {
     payload: {
       approvalId: 'a-1',
       ticketId: TICKET_ID,
-      title: '要发布吗',
       question: '发布到生产会立刻影响用户。',
       options: [{ label: '发布', description: '立刻上线' }],
       requestedBySessionId: WORKER_SESSION,
@@ -141,7 +140,6 @@ describe('healPendingApprovals', () => {
       payload: {
         approvalId: 'a-missing',
         ticketId: 't-missing001',
-        title: '另一个审批',
         question: '会话已经不在了。',
         options: [{ label: '好', description: '确认' }],
         requestedBySessionId: 'session-missing',

@@ -3,14 +3,16 @@
 // worker 的审批工具：写入 approval/pending 后**阻塞**等待人的决定。
 // 决定先送达本工具，工具确认已收到（acknowledge）之后，服务端才写
 // approval/decided —— 这是「先送达、后记账」的实现位置（方案 §6.2）。
+//
+// 人的回答只有两种：选一个选项或跳过，外加自由文本 `note`。附件是 worker
+// 在这时带上的文件（人只读），因此在这里归一成绝对路径，卡片才能直接打开。
 
+import { isAbsolute, join } from 'node:path'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import {
-  APPROVAL_FIELD_TYPES,
   APPROVAL_RISKS,
-  type ApprovalField,
   type ApprovalOption,
   type ApprovalRisk,
 } from '../../../shared/approvals.ts'
@@ -25,6 +27,9 @@ import type { HostContext } from '../../context.ts'
 import type { EventStore } from '../../store/event-store.ts'
 
 export const APPROVAL_SUBMIT_TOOL_NAME = 'pa_approval_submit'
+
+/** 一次审批能带的文件上限：够说明产物，又不会让卡片变成文件列表。 */
+export const MAX_ATTACHMENTS = 20
 
 export interface ApprovalSubmitDependencies {
   ctx: HostContext
@@ -46,24 +51,20 @@ export class ApprovalSubmitError extends HarnessError {
 }
 
 export interface ApprovalSubmitArgs {
-  title: string
   question: string
   options: ApprovalOption[]
-  fields?: ApprovalField[]
+  /** 相对路径按工单工作目录解析；绝对路径原样保留。 */
+  attachments?: string[]
   risk?: ApprovalRisk
   ticketId?: string
 }
 
 export function parseApprovalSubmitArgs(raw: unknown): ApprovalSubmitArgs {
   if (!isRecord(raw)) throw new ApprovalSubmitError('参数必须是一个对象', 'invalid-arguments')
-  const title = requiredText(raw.title, 'title')
-  if ([...title].length > 40) {
-    throw new ApprovalSubmitError(`title 最多 40 个字符（当前 ${[...title].length} 个）`, 'invalid-arguments')
-  }
   const question = requiredText(raw.question, 'question')
   const options = parseOptions(raw.options)
-  const args: ApprovalSubmitArgs = { title, question, options }
-  if (raw.fields !== undefined) args.fields = parseFields(raw.fields)
+  const args: ApprovalSubmitArgs = { question, options }
+  if (raw.attachments !== undefined) args.attachments = parseAttachments(raw.attachments)
   if (raw.risk !== undefined) {
     if (!APPROVAL_RISKS.includes(raw.risk as ApprovalRisk)) {
       throw new ApprovalSubmitError(`risk 必须是 ${APPROVAL_RISKS.join('、')} 之一`, 'invalid-arguments')
@@ -78,14 +79,14 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
   return {
     name: APPROVAL_SUBMIT_TOOL_NAME,
     description:
-      '需要人类决定时使用：提交一个审批并等待决定。调用会一直阻塞到有人处理，返回决定内容后按决定继续。',
+      '需要人类决定时使用：提交一个审批并等待决定。调用会一直阻塞到有人处理，返回决定内容后按决定继续。'
+      + '如果有让人看/改的文件，用 attachments 一起交上去。',
     parameters: {
       type: 'object',
       additionalProperties: false,
-      required: ['title', 'question', 'options'],
+      required: ['question', 'options'],
       properties: {
-        title: { type: 'string', minLength: 1, maxLength: 40, description: '一句话：要批准什么。' },
-        question: { type: 'string', minLength: 1, description: '详细说明：背景、每个选项的含义与后果。' },
+        question: { type: 'string', minLength: 1, description: '要人决定的事：背景、每个选项的含义与后果。' },
         options: {
           type: 'array',
           minItems: 2,
@@ -101,20 +102,11 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
           },
           description: '2 到 4 个选项。',
         },
-        fields: {
+        attachments: {
           type: 'array',
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['key', 'label', 'type'],
-            properties: {
-              key: { type: 'string', minLength: 1 },
-              label: { type: 'string', minLength: 1 },
-              type: { type: 'string', enum: ['text', 'textarea', 'number', 'boolean'] },
-              required: { type: 'boolean' },
-            },
-          },
-          description: '需要人填写的字段。',
+          maxItems: MAX_ATTACHMENTS,
+          items: { type: 'string', minLength: 1 },
+          description: '随审批附上的文件路径：相对路径按工单工作目录解析，人可在右侧栏打开查看。',
         },
         risk: { type: 'string', enum: ['low', 'medium', 'high'], description: '风险等级，供审批页排序与强调。' },
         ticketId: { type: 'string', description: '缺省取当前会话绑定的进行中工单。' },
@@ -137,7 +129,6 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
             },
           },
           note: { type: 'string' },
-          fields: { type: 'object' },
           decidedAt: { type: 'number' },
         },
       },
@@ -160,7 +151,6 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
             index?: number
             label?: string
             note?: string
-            fields?: Record<string, string | number | boolean>
           }
         }
         const decision = result.decision
@@ -172,7 +162,6 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
             ...(decision.index === undefined ? {} : { index: decision.index }),
             ...(decision.label === undefined ? {} : { label: decision.label }),
             ...(decision.note === undefined ? {} : { note: decision.note }),
-            ...(decision.fields === undefined ? {} : { fields: decision.fields }),
           },
         }
       },
@@ -187,6 +176,7 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
       if (ticket === undefined) {
         throw new ApprovalSubmitError('当前会话没有进行中的工单', 'no-active-ticket')
       }
+      const attachments = resolveAttachments(args.attachments, ticket.directory)
 
       const approvalId = createApprovalId()
       const resolver = deps.resolvers.create(approvalId)
@@ -198,11 +188,10 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
         payload: {
           approvalId,
           ticketId: ticket.id,
-          title: args.title,
           question: args.question,
           options: args.options,
           requestedBySessionId: sessionId,
-          ...(args.fields === undefined ? {} : { fields: args.fields }),
+          ...(attachments.length === 0 ? {} : { attachments }),
           ...(args.risk === undefined ? {} : { risk: args.risk }),
         },
       })
@@ -228,7 +217,7 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
 }
 
 function toResult(approvalId: string, delivery: ApprovalDelivery): Record<string, unknown> {
-  const { kind, index, label, note, fields } = delivery.decision
+  const { kind, index, label, note } = delivery.decision
   return {
     approvalId,
     decision:
@@ -236,7 +225,6 @@ function toResult(approvalId: string, delivery: ApprovalDelivery): Record<string
         ? { kind, index, label }
         : { kind: 'skipped' },
     ...(note === undefined ? {} : { note }),
-    ...(fields === undefined ? {} : { fields }),
     decidedAt: delivery.decidedAt,
   }
 }
@@ -246,7 +234,7 @@ function findActiveTicket(
   deps: ApprovalSubmitDependencies,
   ticketId: string | undefined,
   sessionId: SessionId,
-): { id: string } | undefined {
+): { id: string; directory?: string } | undefined {
   return deps.store
     .projection()
     .tickets.find(
@@ -257,12 +245,42 @@ function findActiveTicket(
     )
 }
 
+/**
+ * 把 worker 给的附件归一成绝对路径。
+ *
+ * 相对路径只相对于工单工作目录才有意义，而只有 Host 知道那个目录；
+ * 解析不了就当场失败，而不是留给卡片去猜一个打不开的地址。
+ */
+export function resolveAttachments(
+  attachments: readonly string[] | undefined,
+  directory: string | undefined,
+): string[] {
+  if (attachments === undefined) return []
+  const resolved: string[] = []
+  const seen = new Set<string>()
+  for (const attachment of attachments) {
+    const path = attachment.trim()
+    const absolute = isAbsolute(path) ? path : directory === undefined ? undefined : join(directory, path)
+    if (absolute === undefined) {
+      throw new ApprovalSubmitError(
+        `附件 ${path} 是相对路径，但该工单没有工作目录；请给出绝对路径`,
+        'invalid-arguments',
+      )
+    }
+    // 归一之后再查重：同一文件的绝对与相对写法只保留一次。
+    if (seen.has(absolute)) continue
+    seen.add(absolute)
+    resolved.push(absolute)
+  }
+  return resolved
+}
+
 function waitForDelivery(resolver: PendingResolver, signal: AbortSignal): Promise<ApprovalDelivery> {
   if (signal.aborted) {
     resolver.cancel()
     return Promise.reject(new ApprovalCancelledError())
   }
-  return new Promise<ApprovalDelivery>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const onAbort = (): void => {
       resolver.cancel()
       reject(new ApprovalCancelledError())
@@ -295,40 +313,14 @@ function parseOptions(value: unknown): ApprovalOption[] {
   })
 }
 
-function parseFields(value: unknown): ApprovalField[] {
+function parseAttachments(value: unknown): string[] {
   if (!Array.isArray(value)) {
-    throw new ApprovalSubmitError('fields 必须是数组', 'invalid-arguments')
+    throw new ApprovalSubmitError('attachments 必须是字符串数组', 'invalid-arguments')
   }
-  const seen = new Set<string>()
-  return value.map((field, index) => {
-    if (!isRecord(field)) {
-      throw new ApprovalSubmitError(`fields[${index}] 必须是对象`, 'invalid-arguments')
-    }
-    const key = requiredText(field.key, `fields[${index}].key`)
-    if (seen.has(key)) {
-      throw new ApprovalSubmitError(`fields[${index}].key 重复：${key}`, 'invalid-arguments')
-    }
-    seen.add(key)
-    const label = requiredText(field.label, `fields[${index}].label`)
-    if (!APPROVAL_FIELD_TYPES.includes(field.type as (typeof APPROVAL_FIELD_TYPES)[number])) {
-      throw new ApprovalSubmitError(
-        `fields[${index}].type 必须是 ${APPROVAL_FIELD_TYPES.join('、')} 之一`,
-        'invalid-arguments',
-      )
-    }
-    const parsed: ApprovalField = {
-      key,
-      label,
-      type: field.type as ApprovalField['type'],
-    }
-    if (field.required !== undefined) {
-      if (typeof field.required !== 'boolean') {
-        throw new ApprovalSubmitError(`fields[${index}].required 必须是布尔值`, 'invalid-arguments')
-      }
-      parsed.required = field.required
-    }
-    return parsed
-  })
+  if (value.length > MAX_ATTACHMENTS) {
+    throw new ApprovalSubmitError(`attachments 最多 ${MAX_ATTACHMENTS} 个`, 'invalid-arguments')
+  }
+  return value.map((item, index) => requiredText(item, `attachments[${index}]`))
 }
 
 function requiredText(value: unknown, field: string): string {

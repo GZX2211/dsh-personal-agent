@@ -138,7 +138,6 @@ function pendingEvent(
     {
       approvalId,
       ticketId,
-      title: '要发布吗',
       question: '发布到生产会立刻影响用户。',
       options: [
         { label: '发布', description: '立刻上线' },
@@ -255,7 +254,7 @@ describe('project', () => {
       dispatchedEvent(2, 't-aaa1112223'),
       pendingEvent(3, 'a-1', 't-aaa1112223'),
       decidedEvent(4, 'a-1', {
-        decision: { kind: 'selected', index: 1, label: '等等', note: '先别发', fields: { window: '今晚' } },
+        decision: { kind: 'selected', index: 1, label: '等等', note: '先别发' },
         decidedAt: BASE_TIME + 4,
         transport: 'followup',
       }),
@@ -266,7 +265,7 @@ describe('project', () => {
       expect.objectContaining({
         id: 'a-1',
         decidedAt: BASE_TIME + 4,
-        decision: { kind: 'selected', index: 1, label: '等等', note: '先别发', fields: { window: '今晚' }, transport: 'followup' },
+        decision: { kind: 'selected', index: 1, label: '等等', note: '先别发', transport: 'followup' },
       }),
     ])
     expect(projection.stats.approvals).toEqual({ pending: 0, decided: 1 })
@@ -505,7 +504,7 @@ describe('project', () => {
     expect(projection.tickets[0]).not.toHaveProperty('report')
   })
 
-  it('carries approval fields, risk and requester into the view', () => {
+  it('carries approval attachments, risk and requester into the view', () => {
     const projection = project([
       queuedEvent(1, 't-aaa1112223'),
       dispatchedEvent(2, 't-aaa1112223'),
@@ -515,7 +514,7 @@ describe('project', () => {
         't-aaa1112223',
         {
           risk: 'high',
-          fields: [{ key: 'window', label: '发布时间', type: 'text', required: true }],
+          attachments: ['D:/pa-work/t-aaa1112223/notes.md'],
         },
       ),
     ])
@@ -524,18 +523,42 @@ describe('project', () => {
       {
         id: 'a-1',
         ticketId: 't-aaa1112223',
-        title: '要发布吗',
         question: '发布到生产会立刻影响用户。',
         options: [
           { label: '发布', description: '立刻上线' },
           { label: '等等', description: '继续观察' },
         ],
-        fields: [{ key: 'window', label: '发布时间', type: 'text', required: true }],
+        attachments: ['D:/pa-work/t-aaa1112223/notes.md'],
         risk: 'high',
         requestedBySessionId: 'session-t-aaa1112223',
         createdAt: BASE_TIME + 3,
       },
     ])
+  })
+
+  it('ignores retired payload fields such as title and fields', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      event(3, 'approval/pending', {
+        approvalId: 'a-1',
+        ticketId: 't-aaa1112223',
+        title: '已退役的标题',
+        question: '发布到生产会立刻影响用户。',
+        options: [{ label: '发布', description: '立刻上线' }],
+        fields: [{ key: 'window', label: '发布时间', type: 'text' }],
+        requestedBySessionId: 'session-t-aaa1112223',
+      }),
+    ])
+
+    expect(projection.approvals[0]).toEqual({
+      id: 'a-1',
+      ticketId: 't-aaa1112223',
+      question: '发布到生产会立刻影响用户。',
+      options: [{ label: '发布', description: '立刻上线' }],
+      requestedBySessionId: 'session-t-aaa1112223',
+      createdAt: BASE_TIME + 3,
+    })
   })
 
   it('records a skipped decision without an option index', () => {
