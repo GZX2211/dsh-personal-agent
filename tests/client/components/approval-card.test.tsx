@@ -88,6 +88,14 @@ describe('ApprovalCard 已通过', () => {
     expect(html).not.toContain('提交')
   })
 
+  it('keeps the collapsed question full width, outside the header actions', () => {
+    const html = render(decided)
+
+    // 题干必须在头部之后：放进头部左侧列就会被右侧的状态/时间/箭头挤窄。
+    expect(html.indexOf('pa-card__collapsed-title')).toBeGreaterThan(html.indexOf('</header>'))
+    expect(html).not.toContain('pa-card__options')
+  })
+
   it('states the decision time rather than the request time', () => {
     expect(render(decided)).toContain('00:23')
   })

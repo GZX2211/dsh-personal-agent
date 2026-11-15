@@ -70,8 +70,6 @@ export function ApprovalCard({
             {requester}
           </button>
         }
-        title={collapsed ? approval.question : undefined}
-        titleId={titleId}
         time={formatTimestamp(language, shownAt)}
         badge={
           decided ? (
@@ -82,6 +80,14 @@ export function ApprovalCard({
         onToggle={() => setCollapsed(current => !current)}
         toggleLabel={t(collapsed ? 'approvalExpand' : 'approvalCollapse')}
       />
+
+      {collapsed ? (
+        <div className="pa-card__body">
+          <h2 className="pa-card__collapsed-title" id={titleId}>
+            {approval.question}
+          </h2>
+        </div>
+      ) : null}
 
       {collapsed ? null : (
         <>

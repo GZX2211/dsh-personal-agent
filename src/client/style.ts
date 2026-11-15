@@ -30,11 +30,11 @@ export const CONSOLE_CSS = `
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
-  gap: 0 28px;
-  align-items: stretch;
-  box-sizing: border-box;
-  min-height: 36px;
-  padding: 0 14px;
+  gap: 0 32px;?
+  align-items: stretch;?
+  box-sizing: border-box;?
+  min-height: 38px;?
+  padding: 0 16px;
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
 }
 .pa-console__tab {
@@ -86,7 +86,7 @@ export const CONSOLE_CSS = `
   min-height: 0;
 }
 .pa-console__empty {
-  padding: 20px 14px;
+  padding: 20px 16px;
   color: var(--dsw-alias-label-tertiary);
   font-size: 13px;
   line-height: 20px;
@@ -96,7 +96,7 @@ export const CONSOLE_CSS = `
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px 14px;
+  padding: 12px 16px;?
   font-size: 13px;
   line-height: 20px;
   color: var(--dsw-alias-label-secondary);
@@ -111,9 +111,9 @@ export const CONSOLE_CSS = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  flex: 0 0 auto;
-  padding: 8px 14px;
+  gap: 8px;?
+  flex: 0 0 auto;?
+  padding: 8px 16px;
 }
 .pa-filterbar__capsules {
   display: flex;
@@ -252,7 +252,7 @@ export const CONSOLE_CSS = `
   gap: 8px;
   box-sizing: border-box;
   min-height: 0;
-  padding: 4px 14px 14px;
+  padding: 4px 16px 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -261,7 +261,7 @@ export const CONSOLE_CSS = `
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
-  margin: 0 14px 8px;
+  margin: 0 16px 8px;
   padding: 6px 10px;
   border: 0.5px solid var(--dsw-alias-state-error-primary);
   border-radius: var(--dsw-radius-sm);
@@ -280,10 +280,10 @@ export const CONSOLE_CSS = `
 }
 .pa-notice {
   margin: 0;
-  padding: 0 14px 8px;
-  color: var(--dsw-alias-state-business-primary);
-  font-size: 12px;
-  line-height: 16px;
+  padding: 0 16px 8px;?
+  color: var(--dsw-alias-state-business-primary);?
+  font-size: 12px;?
+  line-height: 16px;?
 }
 
 /* ── 卡片外壳 ───────────────────────────────────────────────────────── */
@@ -314,15 +314,9 @@ export const CONSOLE_CSS = `
   justify-content: space-between;
   gap: 8px;
 }
-.pa-card__heading {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
 .pa-card__meta {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -366,7 +360,7 @@ export const CONSOLE_CSS = `
   line-height: 16px;
   white-space: nowrap;
 }
-/* 折叠态题干：与正文同字号，两行截断。 */
+/* 折叠态题干：跨满整宽（与工单卡正文同结构），两行截断。 */
 .pa-card__collapsed-title {
   display: -webkit-box;
   margin: 0;
