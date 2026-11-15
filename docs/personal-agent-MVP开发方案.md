@@ -657,3 +657,78 @@ MVP 先用**状态目录本身**（`$DSH_HOME/state/personal-agent`）：路由�
 | 13 | 待处理来源 | Router 不感知并发，入队即待处理，由调度器放行 |
 | 14 | 搜索范围 | 每条记录的全部业务字段 |
 | 15 | 文档双语 | 开发期仅中文，后期统一补 `.en.md`；UI 文案仍双语 |
+
+---
+
+## 16. P2 实施修订（P2 完成后追加，不改动上文）
+
+本节记录 P2（工具与会话）实施中与上文不同的决定与新增契约。上文条款继续有效，冲突处按本节执行。
+
+### 16.1 提示词改为随包分发的 `prompts/*.md`（修订 §12）
+
+`src/host/prompts/` **不再**存放提示词正文；改为仓库根 `prompts/{shared,router,worker}.md`，并在 `package.json` 的 `files` 中随包分发。加载器从模块位置向上找到包根后读取，源码运行与 `lib/` 产物运行走同一条路径（与 SuperAgent 的做法一致）。
+
+书写约定：一句一行，便于 diff；同段各行拼接时中文不插空格、拉丁句末补空格；空行保留为段落。后续要做提示词覆盖与版本记录时，内置文本始终是基线，用户只存增量。
+
+### 16.2 新增 `task/interrupted` 与 `task/resumed` 事件（修订 §3.1、§5.1、§11）
+
+`turn/end` 的 `aborted`（用户停止）与 `interrupted`（重启合成收尾）现在会记账，而不是"无新事件"：
+
+| type | payload | 语义 |
+|---|---|---|
+| `task/interrupted` | `{ ticketId, turn, reason: 'turn-aborted' \| 'turn-interrupted' }` | worker 回合没跑完，工单仍进行中 |
+| `task/resumed` | `{ ticketId, turn }` | 下一次 `turn/start`，中断状态解除 |
+
+投影在 `TicketView` 增加 `interrupted?: boolean`，**仅在进行中时可见**，作为副标签（与"阻塞中"同级），不新增胶囊、不改变槽位账（仍占执行槽位）。`task/dispatched`、`task/reported`、`task/closed`、`approval/decided` 均清除中断；有待审批时 `blocked` 优先，不写中断事件。
+
+### 16.3 汇报摘要取会话日志（细化 §3.1）
+
+`task/reported.summary` 取 worker 回合最后一条**非中断**的 `assistant/message` 文本，截断到 200 字；没有文本就不写 `task/reported`，只写 `task/closed`。不新增汇报工具。
+
+### 16.4 `turn/end` 原因映射（细化 §5.1、§11）
+
+| 原因 | 处理 |
+|---|---|
+| `completed` | `task/reported{status:'done'}`（有文本时）+ `task/closed{outcome:'completed'}` |
+| `error` / `max-tokens` | `task/closed{outcome:'failed'}`（有文本时先写 failed 汇报） |
+| `aborted` / `interrupted` | `task/interrupted`，工单保持进行中 |
+| `blocked` / `forked` | 只记日志，不写工单事实 |
+
+有未决审批时回合结束不关闭工单（保持阻塞，等决定）。
+
+### 16.5 新增运行时依赖 `@deepseek-ai/dsh-system-prompt`（补充 §2.3）
+
+角色装饰用 `ctx.systemPrompt.section()` 注册提示词；该包加入 peerDependencies（`^0.2.2-rc.1`）与 devDependencies（`0.2.2-rc.3`）。`inject` 同时声明 `systemPrompt`。
+
+### 16.6 技术元数据落到 `kv.json`（细化 §2.2、§7.1）
+
+新增状态文件 `<state>/kv.json`（允许改写的技术元数据侧车，原子替换、损坏降级并告警）。router 会话身份存在键 `router.session`；P1 的 `router-session.json` 在启动时迁移后删除。
+
+### 16.7 调度器执行语义（细化 §5.4）
+
+- 每轮只执行计划中的第一个动作，成功后再重新计算；失败即停并留待下一次触发（不在一轮里跳过失败项）。
+- 触发点：`task/queued` 后、任一 worker `turn/end`、工单结束、插件启动重放后。
+- 重入用"进行中标记 + 尾部重跑"，不并行开两轮。
+- 追加在写 `task/dispatched` **之前**校验目标会话仍有活 Agent；没有则不写放行事实，工单留在待处理。
+
+### 16.8 决定端点的响应与错误码（细化 §9.4）
+
+`POST /personal-agent/api/approvals/:id/decide` 的失败码与 HTTP 状态：
+
+| code | 状态 | 含义 |
+|---|---|---|
+| `not-found` | 404 | 审批不存在或已作废 |
+| `already-decided` | 409 | 已处理过，不重复送达 |
+| `worker-archived` | 409 | 目标会话已归档：已写 `approval/discarded`，不产生决策 |
+| `delivery-failed` | 502 | 送达失败：不写 `approval/decided`，条目回退待审批 |
+| `invalid-decision` | 400 | 选项下标/必填字段/结构不合法（新增码） |
+
+成功响应 `{ ok: true, transport: 'inline' | 'followup' }`。
+
+### 16.9 工具结果携带决定，供启动自愈使用（细化 §6.4）
+
+`pa_approval_submit` 的 `presentationMeta` 把 `{ approvalId, decision, decidedAt }` 持久化进 `tool/result.meta`。启动自愈只读 worker 会话日志，按 `approvalId` 找到该 meta 后补写 `approval/decided{recovered:true, transport:'inline'}`；找不到或形状不合法就保持待审批，不猜。
+
+### 16.10 仍留给 P3 的 UI 事项
+
+`interrupted` 副标签、审批/工单卡片、三/四胶囊过滤、搜索、徽标与轮询均未在本期实现；`/snapshot` 已提供所需字段（含 `context/constraints/expectedOutput` 与 `interrupted`）。

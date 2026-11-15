@@ -1,14 +1,14 @@
 # dsh-personal-agent 交接备忘
 
 > 自包含交接文档：不依赖任何对话上下文，读完即可继续开发。
-> 状态：**P1 数据层已验收**（2026-11-15），下一步是 P2 工具与会话。
+> 状态：**P2 工具与会话已交付**（2026-11-15），下一步 P3 UI；真实链路的 A1–A4 待你在 GUI 里跑一遍，A5 待重启验证。
 > 本文属临时协作文档（`collab/md/`），不进 `docs/`，不需要英文版。
 
 ---
 
 ## 0. 一句话现状
 
-`dsh-personal-agent` 是一个已安装到 `desktop` profile、正在运行的 DSH 插件：右侧栏有「总控台」面板（六个标签页，四个暂未开放）。宿主侧打通同源 HTTP、路由会话置顶、工单执行会话与投递、阻塞工具四条通道（P0 已验证）。P1 完成了数据层：**append-only JSONL 账本**（seq 分配 / fsync / eventId 幂等 / 启动重放 / 尾部残行截断）、**纯投影**（工单阶段、审批两态、统计）与 `GET /snapshot`；`/dev/*`、客户端 beacon 与自动打开已全部删除。业务（派发/审批/调度/工具）尚未实现。
+`dsh-personal-agent` 已安装到 `desktop` profile 并运行：右侧栏「总控台」面板（审批/工单两页仍为空态）。P1 完成 append-only JSONL 账本、纯投影与 `/snapshot`；P2 完成了**可用闭环的宿主侧**：router 有 `pa_task_route`/`pa_ledger_query`，worker 有阻塞式 `pa_approval_submit`；调度器按槽位放行、回合结束自动汇报并关闭工单、用户停止回合标记「已中断」、审批决定三支路与启动自愈、`POST /approvals/:id/decide`。UI 渲染仍是 P3。
 
 ---
 
@@ -20,7 +20,7 @@
 | DSH 运行版本 | 0.2.2-rc.3（Desktop：`D:\dsh\resources\app.asar\dsh`） |
 | profile | `desktop` → `C:\Users\GZX\.dsh\profiles\desktop` |
 | GUI | `http://127.0.0.1:52810`（页面需认证 cookie；插件自己的路由不走该认证） |
-| 插件状态目录 | `C:\Users\GZX\.dsh\state\personal-agent`（`events.jsonl`、`router-session.json`、`work/<ticketId>/`） |
+| 插件状态目录 | `C:\Users\GZX\.dsh\state\personal-agent`（`events.jsonl`、`kv.json`、`work/<ticketId>/`） |
 | 插件 entryId | `include:personal-agent`（patch 行 id `personal-agent`，包名 `dsh-personal-agent`） |
 | 安装方式 | 本地目录链接（`plugin_manager install_bundle` 指向仓库绝对路径） |
 
@@ -41,7 +41,7 @@ $pnpm='C:\Users\GZX\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnpm\bin\
 # 类型检查
 & $node .\node_modules\typescript\bin\tsc --noEmit
 
-# 单元测试（vitest，78 项）
+# 单元 + 集成测试（230 项）
 & $node .\node_modules\vitest\vitest.mjs run
 
 # 构建：先 tsdown（host ESM → lib/index.js，client CJS → lib/client.body.js），再包外壳成 lib/client.js
@@ -50,9 +50,9 @@ Remove-Item .\lib -Recurse -Force
 & $node .\scripts\wrap-client.mjs
 
 # 本地伪 ctx 冒烟（不碰真实 profile）
-& $node .\collab\scr\check-host.mjs      # 13 项：装配/守卫/账本重放/快照/405/404
+& $node .\collab\scr\check-host.mjs      # 17 项：装配/守卫/账本重放/角色装饰/决定端点
 & $node .\collab\scr\check-client.mjs    # 外壳形状、tab 与两个 slot、无自动打开残留
-& $node .\collab\scr\read-session.mjs <session.v4.jsonl.zstd>   # 读会话日志（只解首帧，见 §5.9）
+& $node .\collab\scr\read-session.mjs <session.v4.jsonl.zstd>
 ```
 
 重载与生效规则（**重要**）：
@@ -60,7 +60,7 @@ Remove-Item .\lib -Recurse -Force
 | 改动 | 生效方式 |
 |---|---|
 | Host 半区 | `plugin_manager` `set_plugin` target `include:personal-agent` → `false` 再 `true`，即加载新代码（无需重启） |
-| Client 半区 | 构建后**必须刷新页面**（没有 `dev:web` 重建推送时不保证重放）；标签标题已单独注册，不必关掉标签重开 |
+| Client 半区 | 构建后**必须刷新页面**；标签标题已单独注册，不必关掉标签重开 |
 | 已安装包再 `install_bundle` | 会报 `already-installed`；改动走 `set_plugin` 关→开 |
 
 线上探针（同源 HTTP，除 `/health` 外都要求自定义头 + Origin/Referer）：
@@ -68,9 +68,10 @@ Remove-Item .\lib -Recurse -Force
 ```powershell
 $u='http://127.0.0.1:52810/personal-agent/api'
 $h=@{ 'x-personal-agent-request'='1'; 'origin'='http://127.0.0.1:52810' }
-(Invoke-WebRequest "$u/health" -UseBasicParsing).Content                    # 免鉴权
-(Invoke-WebRequest "$u/snapshot" -Headers $h -UseBasicParsing).Content      # 账本投影
-(Invoke-WebRequest "$u/snapshot" -UseBasicParsing -SkipHttpErrorCheck)      # 应 403
+(Invoke-WebRequest "$u/health" -UseBasicParsing).Content
+(Invoke-WebRequest "$u/snapshot" -Headers $h -UseBasicParsing).Content
+# 决定（需真实 approvalId）
+Invoke-WebRequest "$u/approvals/<id>/decide" -Method Post -Headers ($h+@{'content-type'='application/json'}) -Body '{"kind":"selected","index":0}' -UseBasicParsing
 ```
 
 ---
@@ -78,53 +79,58 @@ $h=@{ 'x-personal-agent-request'='1'; 'origin'='http://127.0.0.1:52810' }
 ## 3. 代码地图
 
 ```
-src/shared/api.ts              契约：路径/自定义头/错误码/health 与 snapshot 响应类型（禁止运行时 import）
-src/shared/events.ts           9 类 L2 事件、payload、EventDraft（seq/eventId/time 由账本补齐）
-src/shared/tickets.ts          派生阶段、排队原因、结束原因、TicketView
+prompts/{shared,router,worker}.md  随包分发的提示词（一句一行；package.json files 含 prompts）
+src/shared/api.ts              契约：路径/头/错误码/health+snapshot+决定响应类型
+src/shared/events.ts           11 类 L2 事件（含 task/interrupted、task/resumed）、payload、EventDraft
+src/shared/tickets.ts          派生阶段、排队原因、结束原因、TicketView（含 interrupted/context/约束/验收）
 src/shared/approvals.ts        两态视图、决定/选项/可填字段、ApprovalView
-src/host/index.ts              插件入口：打开账本（异步）+ 挂 HTTP 面 + 启动时确保路由会话
-src/host/context.ts            仅类型：import type 各 DSH 包，让 ctx.<service> 有类型
+src/host/index.ts              插件入口：账本+kv、调度器、观察、装饰、自愈、HTTP 面、启动调度
 src/host/console-api/guard.ts  同源校验（自定义头 + Origin/Referer）
-src/host/console-api/server.ts 路径分派：/health、/snapshot、405/404/500
-src/host/store/event-store.ts  **唯一写入口**：seq 分配、fsync、eventId 幂等、打开时重放、写失败回滚
-src/host/store/ledger-format.ts 行编解码、重放、尾部残行、序号校验、LedgerCorruptionError
-src/host/store/payload-spec.ts 9 类事件的运行时载荷契约（新增字段必须可选）
+src/host/console-api/server.ts 路径分派：/health、/snapshot、/approvals/:id/decide、405/404/500
+src/host/store/event-store.ts  唯一写入口：seq、fsync、eventId 幂等、重放、写失败回滚
+src/host/store/ledger-format.ts 行编解码、重放、尾部残行、连号校验、LedgerCorruptionError
+src/host/store/payload-spec.ts 11 类事件运行时载荷契约 + 决定记录判别（自愈复用）
 src/host/store/event-id.ts     eventId 派生：每类事件的关键字段表
+src/host/store/kv-store.ts     kv.json：原子替换、损坏降级、串行写入
 src/host/projector/project.ts  纯函数 project(events) → { tickets, approvals, stats }
-src/host/sessions/message.ts   投递消息构造（source.kind='dsh-personal-agent'，深冻结，幂等 id）
-src/host/sessions/delivery.ts  followup + sessionPersistence.flush，幂等范围=本进程 inbox
-src/host/sessions/router.ts    路由会话：工作区 + 会话 + rename + pinSession，身份落 router-session.json
-src/host/sessions/worker.ts    执行会话：工作区「个人代理 · 工单」+ workingDirectory.set(工单目录) + 标题
-src/host/tickets/ids.ts        createTicketId（t-<10hex>）/ shortTicketId（前 6 位）
-src/host/state/directory.ts    状态目录解析（DSH_HOME 或 ~/.dsh）+ 幂等建目录
-src/client/entry.ts            注册标签类型、正文、标题（P1 已删自动打开）
-src/client/context.ts          仅类型：slots / locale / sidebarRightTabs
-src/client/definition.ts       标签类型声明（id/kind/title/guide）
-src/client/panel/ConsolePanel.tsx   总控台正文：标签条 + 六页（审批/工单仍为空态）
-src/client/components/ConsoleTabStrip.tsx  标签条（role=tablist/tab + aria-selected）
-src/client/components/ConsoleTabTitle.tsx  标签条上的标题（sidebar.right.pane.tab.title）
-src/client/views/Placeholder.tsx     「暂未开放」占位
-src/client/views/Manager.tsx         能力管理页占位（非 MVP 范围，暂未接线）
-src/client/lib/http.ts               唯一网络边界（fetchSnapshot + ApiError）
-src/client/i18n.ts                   双语文案 + Text/Translate/detectLanguage
-src/client/style.ts                  面板 CSS（宿主 token，字符串注入）
-tests/host/store/*                   账本：eventId、重放故障注入、EventStore 文件语义
-tests/host/projector/project.test.ts 投影：24 项
-tests/host/console-api/server.test.ts 协议层：9 项
-collab/scr/check-*.mjs               伪 ctx 冒烟脚本
-scripts/wrap-client.mjs              把 CJS 产物包成 window.__ModuleLoader__.load({id, factory})
-tsdown.config.ts                     两段构建（host esm / client cjs，产物后缀统一 .js）
-cordis.patch.yml                     insert 一行：id personal-agent → 包名
-locale/{zh,en}.json                  Plugin Manager 展示（meta.title/description/detail）
-docs/DETAIL.md                       插件详情页文档
+src/host/dispatcher/plan.ts    planDispatch / predictQueueReason（纯函数）
+src/host/dispatcher/brief.ts   任务简报与追加简报文本
+src/host/dispatcher/executor.ts 建会话 → 写 task/dispatched → 投递简报（追加先校验活 agent）
+src/host/dispatcher/scheduler.ts 单动作重规划、失败即停、重入保护 + 尾部重跑
+src/host/sessions/router.ts    路由会话身份（kv）+ 迁移旧 router-session.json
+src/host/sessions/worker.ts    执行会话：工单工作区 + workingDirectory.set + 标题
+src/host/sessions/delivery.ts  followup + flush；幂等范围=本进程 inbox
+src/host/sessions/message.ts   投递消息构造（source.kind='dsh-personal-agent'）
+src/host/sessions/history.ts   汇报摘要（最后一条完整 assistant 文本，200 字）
+src/host/sessions/log-reader.ts 读会话持久化事件（按页），自愈使用
+src/host/sessions/observer.ts  回合边界 → reported/closed/interrupted/resumed
+src/host/sessions/decorate.ts  agent/created 角色装饰：提示词 section + 工具 + restrict
+src/host/approvals/ids.ts      createApprovalId（a-<10hex>）
+src/host/approvals/resolvers.ts 阻塞工具登记表（先送达、等 ack）
+src/host/approvals/message.ts  决定消息模板（§6.5）
+src/host/approvals/service.ts  决定三支路（discard / inline / followup）
+src/host/approvals/heal.ts     启动自愈：读 tool/result.meta 补写 decided
+src/host/tools/pa_task_route/  入队工具（参数收窄、失败码、触发调度）
+src/host/tools/pa_approval_submit/ 阻塞审批工具（presentationMeta 供自愈）
+src/host/tools/pa_ledger_query/ 只读紧凑文本查询
+src/host/tickets/ids.ts        createTicketId / shortTicketId
+src/host/state/directory.ts    状态目录解析 + 幂等建目录
+src/client/entry.ts            注册标签类型、正文、标题（无自动打开）
+src/client/lib/http.ts         唯一网络边界（fetchSnapshot + ApiError）
+src/client/panel/ConsolePanel.tsx   总控台正文（审批/工单仍为空态）
+tests/host/**                  单测（镜像 src）
+tests/integration/ticket-flow.test.ts  A1–A4 链路 + A7 容量释放
+tests/support/fake-host.ts     伪宿主（会话、投递、agent ctx、事件分发）
+collab/scr/check-*.mjs         伪 ctx 冒烟
+scripts/wrap-client.mjs        把 CJS 产物包成 window.__ModuleLoader__.load({id, factory})
 ```
 
 文档：
 
-- `docs/personal-agent-MVP开发方案.md` — **实现契约**（§1 验收 A1–A9、§3 数据模型、§5 调度、§6 审批、§7 会话、§8 工具、§9 HTTP、§10 UI、§12 目录、§15 P0 修订、附录 A 决策 15 条）
+- `docs/personal-agent-MVP开发方案.md` — 实现契约；**§16 是 P2 实施修订（追加）**，与上文冲突处按 §16
 - `docs/personal-agent-架构设计方案.md` — 全局蓝图（未来视图）
 - `docs/archive/` — P0 验收报告已归档，按仓库规则不阅读
-- `DSL.md` — 右侧栏设计参考（容器分区与卡片结构）
+- `DSL.md` — 右侧栏设计参考
 
 ---
 
@@ -132,89 +138,83 @@ docs/DETAIL.md                       插件详情页文档
 
 | 事项 | 约定 |
 |---|---|
-| 命名 | 插件名「个人代理 / Personal agent」；右侧栏标签与面板名「总控台 / Console」；面板内**不再有标题与说明** |
-| 左栏 | 工作区「个人代理」（内含会话「个人代理 · 路由」，已置顶）；工作区「个人代理 · 工单」（内含每个工单一个会话） |
-| 工单会话标题 | `<任务名> · 工单 #<6 位短码>`（名称在前，左栏截断后仍能认出任务） |
+| 命名 | 插件名「个人代理 / Personal agent」；右侧栏标签与面板名「总控台 / Console」；面板内不再有标题与说明 |
+| 左栏 | 工作区「个人代理」（会话「个人代理 · 路由」已置顶）；工作区「个人代理 · 工单」（每工单一个会话） |
+| 工单会话标题 | `<任务名> · 工单 #<6 位短码>` |
 | 标签页 | 概览/审批/工单/事件/来源/设置；默认落在「审批」；四个未实现页显示「暂未开放」 |
-| 标签条样式 | 与宿主会话视图标签一致：13px/500、间距 32px、行高 38px、左内边距 16px、底线 `--dsw-alias-border-l3` 0.5px、选中项 `--dsw-alias-state-business-primary` + 2px 圆角下划线；徽标为上标 |
 | 审批 | 两态（待审批/已通过），先送达后记账，崩溃回退待审批；作废条目任何胶囊都不显示 |
-| 工单 | 无 status 字段，阶段派生（待处理/进行中/阻塞中/已结束）；路由不感知并发，入队由调度器放行 |
-| 账本 | append-only JSONL；seq 严格连号；eventId 幂等；尾部残行截断并告警；未知事件类型跳过并告警；完整行损坏拒绝启动 |
-| 列表顺序 | 工单按 `createdAt` 升序（入队序）；审批：待审批按 `createdAt` 升序在前，已通过按 `decidedAt` 降序在后 |
-| 权限 | MVP 不显式设权限档，跟随 profile 默认 `danger-full-access`（记为显式风险） |
+| 工单 | 无 status 字段；胶囊：待处理/进行中/已结束/全部；阻塞中与**已中断**都是进行中的副标签 |
+| 账本 | append-only JSONL；seq 严格连号；eventId 幂等；尾部残行截断并告警；未知类型跳过并告警；损坏行拒绝启动 |
+| 列表顺序 | 工单按 `createdAt` 升序；审批：待审批按 `createdAt` 升序在前，已通过按 `decidedAt` 降序在后 |
+| 提示词 | 随包 `prompts/*.md`，一句一行；版本/覆盖留待后续，内置文本是基线 |
+| 权限 | MVP 不显式设权限档，跟随 profile 默认 `danger-full-access`（显式风险） |
 | 搜索/筛选 | P3 再做 |
 
 ---
 
-## 5. 运行时契约与坑（P0+P1 实测）
+## 5. 运行时契约与坑（P0–P2 实测）
 
-1. **右侧栏标签类型**：`ctx.sidebarRightTabs.register({ id, kind, title, guide })`；正文注册在 `sidebar.right.pane.tab`，key = `definition.id`；标题注册在 `sidebar.right.pane.tab.title`。
-   - **坑**：宿主对已打开的标签使用「打开那一刻捕获的文本」，只改 `title()` 不会刷新已开标签——必须注册标题 slot。
-2. **导航**：`ctx.sidebarRight.openTab(kind)`；页面上没有选中会话时会抛错（P0 的自动打开曾带重试，P1 已删除该脚手架）。
-3. **HTTP**：`ctx.webServer.register({ kind:'prefix', path:'/personal-agent/api', handler(req,res) })`，Node 原生 `req/res`。`getOrigin()` 给出 `http://127.0.0.1:52810`。
-   - 页面本身要认证 cookie，但 prefix 路由不受该认证约束：安全边界靠自己（回环 + 自定义头 + Origin/Referer）。
-4. **会话创建**：`ctx.sessionController.create({ workspaceId })` 或 `{ cwd }`，**两者不能同时给**（会报 "accepts workspaceId or cwd, not both"）。要「工作区 + 子目录」就用 `ctx.workingDirectory.set(agent, path)`，它会在会话里留一条 `working-directory/change` 与一条 `working-directory` 来源的 user 消息。
-5. **置顶**：`ctx.workspaceRegistry.pinSession(sessionId)`；读回证据在 `C:\Users\GZX\.dsh\storages\workspace.json` 的 `global.pinnedSessionIds`。
-6. **投递**：`agent.followup(freeze 后的 user 消息)` + `ctx.sessionPersistence.flush()`；幂等靠消息 id（本插件 `pa-delivery:<requestId>`）。跨进程幂等需扫持久化历史（P2 做）。
-7. **工具**：`ctx.tools.register({ name, description, parameters, output: { schema, render }, execute })`；**不声明 `timeoutMs` 就没有期限**（超时策略包无全局配置，逐工具生效）。实测 65 秒阻塞不被裁剪。
-8. **重启收尾**：`dsh-agent-loop` 恢复会话时用 `interruptedTurnClosers` 补合成 `tool/result`（`TOOL_OUTCOME_UNKNOWN` / `TOOL_NOT_STARTED`）+ `step/end` + `turn/end{interrupted}`，日志始终平衡。
-9. **会话日志**：`%DSH_HOME%\sessions\<转义后的 cwd>\<session-id>\session.v4.jsonl.zstd`，是**追加的多个 zstd 帧**，`zstdDecompressSync` 只解出第一帧（= 只有 header）。要读全量用 `ctx.sessionPersistence.open(id,'read')` + `handle.read(offset,n)`。
-10. **运行时能 import DSH 包**：链接安装的插件在宿主里 `await import('@deepseek-ai/dsh-llm')` 成功（探针 68 个导出）。P2 可直接用 `freezeMessage`/`MessageId`，退役自写深冻结。
-11. **平台版本**：`@deepseek-ai/cordis` 4.1.0，其余 `0.2.2-rc.3`；peer 范围 `^0.2.2-rc.1`，`engines.dsh` 同锁。
-12. **HMR**：`hmr` 行已启用；链接包的构建产物变化会在下一次重组（`set_plugin` 关→开）时被替换加载。
-13. **账本写路径**：`EventStore.append` 同步执行「派生 eventId → 查重 → 分配 seq → `writeSync` 单行 → `fsyncSync` → 改内存」。同步 fsync 会阻塞事件循环（毫秒级），MVP 接受；写失败会把文件截回写入前长度，回滚也失败时后续 append 一律拒绝（只允许重启修复）。
-14. **账本读路径**：`replayLedger` 是纯函数（输入 Buffer），严格连号：断号/重复 seq → `LedgerCorruptionError`（带行号）；尾部无换行的残行 → 告警并截断到最后一条完整行；重复 eventId → 告警跳过；未知事件类型 → 告警跳过但**仍占用 seq**（下次 append 从最大 seq 续号）。
-15. **契约升级纪律**：`payload-spec` 的必填字段不能后加——旧账本行不会重写；新增字段必须可选，否则升级后历史账本会判为损坏。新增事件类型要同时登记 `KEY_FIELDS`（event-id.ts）与 `PAYLOAD_SPECS`。
-16. **投影语义**：阶段由事件序列派生（`task/closed` 终态优先；`blocked` 需已 dispatched 且有未决审批）；`updatedAt` 取最大值（时钟回拨不回退）；作废审批从所有列表与统计剔除；`task/reported` 只是汇报，结束必须由 `task/closed` 表达。
-17. **快照与错误**：`/snapshot` 直接返回投影（无 `ok` 包装）；账本打不开时返回 500 `internal`（带原因），**不会**返回空快照冒充正常。
-
----
-
-## 6. P0 脚手架清理（P1 已完成）
-
-| 已删除 | 内容 |
-|---|---|
-| `src/host/dev/smoke.ts`（整份） | `/dev/p0`、`/dev/state`、`/dev/beacon`、`pa_smoke_block`、请求观测、`summarizeSession` |
-| `src/client/lib/dev-beacon.ts`（整份） | 面板上报通道 |
-| `src/client/entry.ts` 自动打开 effect | 首次挂载自动 `openTab`（含 `OPEN_RETRY_DELAYS`） |
-| `src/shared/api.ts` 开发期契约 | `BeaconRecord`/`ObservedRequest`/`SmokeStep`/`SmokeReport` 与 `ROUTES.dev*` |
-| 客户端服务依赖 | `entry.inject` 与 `package.json` 的 `dsh.client.inject` 去掉 `sidebarRight` |
-
-冒烟脚本已改写：`check-host.mjs` 改为 13 项 P1 校验（含真实账本重放 → `/snapshot`），`check-client.mjs` 断言无自动打开残留。
-
-**遗留（尚未清理，待你点头）**：`state/personal-agent/work/t-*` 两个冒烟目录 + 两个「冒烟：通道验证 · 工单 #…」会话。
+1. **右侧栏标签类型**：`ctx.sidebarRightTabs.register({ id, kind, title, guide })`；正文 `sidebar.right.pane.tab`（key=definition.id）；标题 `sidebar.right.pane.tab.title`（不注册则已开标签不刷新）。
+2. **导航**：`ctx.sidebarRight.openTab(kind)`；没有选中会话时会抛错（P0 自动打开已删除）。
+3. **HTTP**：`ctx.webServer.register({ kind:'prefix', path, handler(req,res) })`；prefix 路由不受页面认证约束，安全边界靠自己（回环 + 自定义头 + Origin/Referer）。
+4. **会话创建**：`sessionController.create({ workspaceId })` 或 `{ cwd }` 二选一；"工作区 + 子目录"用 `workingDirectory.set(agent, path)`。
+5. **置顶**：`workspaceRegistry.pinSession(id)`；证据在 `storages/workspace.json` 的 `global.pinnedSessionIds`。
+6. **投递**：`agent.followup(frozen user message)` + `sessionPersistence.flush()`；消息 id=`pa-delivery:<requestId>`，进程内按 inbox 去重。
+7. **工具**：`ctx.tools.register(def)`；不声明 `timeoutMs` 就没有期限；**scoped 工具**注册在 `agent.ctx` 上，不会出现在全局工具表。
+8. **重启收尾**：`dsh-agent-loop` 用 `interruptedTurnClosers` 补合成 `tool/result` + `turn/end{interrupted}`，日志平衡；观察者据此写 `task/interrupted{reason:'turn-interrupted'}`。
+9. **会话日志**：追加的多个 zstd 帧；读全量必须走 `sessionPersistence.open(id,'read')` + `handle.read(offset,n)`（`sessions/log-reader.ts`）。
+10. **运行时 import DSH 包可行**：本插件已运行时使用 `@deepseek-ai/dsh-llm`（HarnessError）与 `dsh-tools` 类型；peer 版本跟随运行版本。
+11. **`agent/created`**：payload `{ agent, source, signal? }`，serial 模式；`agent.ctx` 上注册的作用域贡献在 agent 销毁时卸载；根 ctx 监听所有 agent。**创建监听器不得 await 自己的销毁或 `whenIdle()`**。
+12. **`turn/end` 原因**：实际枚举是 `completed | error | aborted | blocked | interrupted | max-tokens | forked`（不是 `failed`）。映射见方案 §16.4。
+13. **`tool/result` 持久化 `meta`**：`output.presentationMeta(args, value)` 的返回值落在 `tool/result.data.meta`，自愈靠它恢复决定。
+14. **`systemPrompt.section`**：`{ name, order, text }`，作用域注册通过 `agent.ctx`；第一方 section 在 0~10000 稀疏分配，我们用 900。
+15. **`tools.restrict({ deny })`**：未知名字会抛错；必须先与 `agent.ctx.tools.definitions(agent)` 求交集，工具清单随部署变化。
+16. **账本写路径**：同步「派生 id → 查重 → 分配 seq → writeSync → fsyncSync → 改内存」；写失败截回原长度，回滚失败拒绝后续 append。
+17. **账本读路径**：严格连号；尾部残行截断；重复 eventId 跳过；未知类型跳过但占 seq。
+18. **契约升级纪律**：payload 新字段必须可选；新事件类型要同时登记 `KEY_FIELDS` 与 `PAYLOAD_SPECS`。
+19. **投影语义**：closed 终态优先；blocked 需已 dispatched；updatedAt 取最大值；作废审批全列表剔除；reported 不等于结束。
+20. **决定顺序**：先读 pending → 校验决定 → 归档则 discarded → 有 resolver 则 inline（等 ack）→ 否则 followup 投递 → 成功后才写 decided。
+21. **kv**：`kv.json` 原子替换；损坏降级为空并告警；旧 `router-session.json` 迁移后删除。
+22. **调度器**：单动作重规划、失败即停、进行中标记 + 尾部重跑；追加前校验目标会话有活 Agent。
+23. **装饰幂等**：同一 agent 只装饰一次；`agent/disposed` 与插件卸载都会释放；启动时对已存在的 router agent 显式补装饰。
 
 ---
 
-## 7. 下一步 P2（工具与会话）
+## 6. 脚手架清理（P1 已完成，P2 无新增脚手架）
 
-1. `src/host/dispatcher/`：纯函数 `planDispatch(queue, workers, capacity) → Action[]`（先 append 后 dispatch，FIFO，`maxWorkers: 5`）+ 执行器（建会话 → 写 `task/dispatched` → 投递简报）。
-2. `src/host/tools/pa_task_route/`：入队（写 `task/queued`）后触发调度；失败码 `invalid-append-target` / `invalid-directory`。
-3. `src/host/tools/pa_approval_submit/`：提交审批（写 `approval/pending`）并阻塞等待；失败码 `no-active-ticket` / `invalid-options` / `approval-cancelled`。
-4. `src/host/approvals/`：决定三支路（inline resolve / followup 投递 / worker 已归档则 discarded）、`POST /approvals/:id/decide`、送达消息模板、启动自愈（读 worker 会话日志找 `tool/result`）。
-5. `src/host/prompts/` + `agent/created` 装饰：router/worker 提示词 section、工具装配与 `tools.restrict()`；`pa_ledger_query` 只读查询。
-6. 技术元数据 `kv`：router 身份从 `router-session.json` 迁入账本 kv（可改写），删除旧文件与 `readRecord/writeRecord`。
-7. 用真实账本走 A1–A4；A5 需要重启桌面端。
+`/dev/*`、beacon、自动打开、`pa_smoke_block`、开发期 api 类型均已删除。冒烟脚本改为真实装配校验（17 项）。冒烟遗留的两个工单目录与会话已由用户手动清理。
+
+---
+
+## 7. 下一步 P3（UI）
+
+1. `src/client/hooks/useSnapshot.ts`：面板可见时 2s 轮询、失败退避 10s、连接状态；用 `client/lib/http.ts` 的 `fetchSnapshot`。
+2. 审批页：待审批/已通过/全部三胶囊；卡片折叠/展开、选项、备注、可填字段、跳过 + 提交（POST decide，按错误码显示文案）；只读态。
+3. 工单页：待处理/进行中/已结束/全部；阶段徽标 + 「阻塞中」/「已中断」副标签 + 排队原因 + 汇报摘要。
+4. 搜索（§10.5 haystack）与胶囊过滤交集；`lib/filter.ts` 纯函数 + 测试。
+5. 头部按钮/徽标、i18n 补全、面板样式；`interrupted` 副标签文案（zh/en）。
+6. A9 搜索验收。
 
 ---
 
 ## 8. 未决问题
 
-1. **路由会话的工作区目录**：现在是状态目录（自包含）。方案原文写「用户根目录」（好处：路由会话能直接读用户项目；代价：在用户既有工作区里多一个会话）。MVP 期间保持状态目录，改只需换 `ensureRouterSession` 的入参。
-2. **冒烟产生的两个工单目录与两个会话**是否清理（见 §6 遗留）。
-3. **审批/工单列表排序**：P1 固定为「工单入队序升序；审批待审在前升序、已通过按决定时间降序」。P3 做 UI 时可再按风险或时间调整。
-4. **深色主题与窄宽度**下的面板观感未验证（无浏览器控制），P3 用宿主 token 细化时一起看。
-5. **重启后中断收尾**未实测（需要重启桌面端）；P2/A5 会自然覆盖。
+1. **A1–A4 真实链路待跑**：需要一个「用户在 router 会话提任务」的回合。建议在 GUI 的「个人代理 · 路由」里发：`把当前状态整理成一句话，先不要派工单`（验证直接回复），再发：`在 D:\tmp\pa-smoke 建一个 hello.txt，内容写 P2 OK`（验证派发→执行→结束）；需要审批时说「发布前问我一次」。
+2. **A5 待重启**：重启桌面端后，pending 审批应仍在；点确认走 followup。
+3. **A6 归档分支**：单测覆盖；真实归档需要手动归档 worker 会话后点确认。
+4. **深色主题与窄宽度**未验证，P3 一起看。
+5. **提示词版本控制**：当前只有内置 md；覆盖层 + 版本记录（参考 SuperAgent）留待后续，方案 §16.1 已留好结构。
+6. **`maxWorkers` UI**：只在 Config 里，无界面（MVP 约定）。
 
 ---
 
-## 9. P1 验收证据（2026-11-15）
+## 9. P2 验收证据（2026-11-15）
 
 | 项 | 证据 |
 |---|---|
-| 单元测试 | `vitest run`：5 个文件、**78 项全绿**（store 45、projector 24、console-api 9） |
+| 测试 | `vitest run`：**23 文件 / 230 项全绿**（含集成 A1–A4、A7 两条链路） |
 | 类型检查 | `tsc --noEmit` 无输出 |
-| 构建 | `tsdown` 产出 `lib/index.js`（32.2 kB）+ `lib/client.js`（8.6 kB 外壳） |
-| 伪 ctx 冒烟 | `check-host.mjs` **13/13**（装配、守卫、账本重放、快照、405、404）；`check-client.mjs` 通过（1 tab + 2 slot，无自动打开） |
-| 真实宿主 | `set_plugin` 关→开后：`/health` 200；`/snapshot` 200 空投影；无自定义头 403 `missing-request-header`；`/dev/state` 404；`state/personal-agent/events.jsonl` 已创建（0 字节）；`workspace.json` 仍只有 1 个置顶会话、`router-session.json` 未变（未重复建会话） |
-| 待用户动作 | Client 半区有改动（删 beacon/自动打开），需**刷新页面**加载新 bundle；之后面板不再自动弹出，从指南卡片或标签栏打开 |
+| 构建 | tsdown 产出 `lib/index.js` + `lib/client.js` |
+| 伪 ctx 冒烟 | `check-host.mjs` **17/17**：装配、router/worker 装饰、守卫、重放、快照、决定（not-found/405/非法下标/followup 成功 + 消息送达 + 状态迁移）、`/dev` 404 |
+| 真实宿主 | `set_plugin` 关→开后 `/health` 200；`/snapshot` 空投影；`POST /approvals/a-ghost/decide` → 404 not-found；`kv.json` 已建立、`router-session.json` 已删除、置顶会话未变 |
+| 未验证 | A1–A4 需 GUI 里真实对话；A5 需重启桌面端；A6 需真实归档 worker 会话 |
