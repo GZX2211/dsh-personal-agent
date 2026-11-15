@@ -133,8 +133,8 @@ export interface TaskDispatchedPayload {
   directory?: string
 }
 
-/** worker 回合被中断的原因；MVP 只有「用户停止回合」一种。 */
-export const TASK_INTERRUPT_REASONS = ['turn-aborted'] as const
+/** worker 回合被中断的原因：用户停止，或进程重启后的合成收尾。 */
+export const TASK_INTERRUPT_REASONS = ['turn-aborted', 'turn-interrupted'] as const
 
 export type TaskInterruptReason = (typeof TASK_INTERRUPT_REASONS)[number]
 
