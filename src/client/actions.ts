@@ -6,8 +6,11 @@
 export interface ConsoleActions {
   /** 跳到发起这条审批的执行会话。 */
   openSession(sessionId: string): void
-  /** 在右侧栏打开一个文件（绝对路径）。 */
-  openFile(path: string): void
+  /**
+   * 在右侧栏打开一个文件（绝对路径）。
+   * @param sessionId - 为该文件读取授权的会话；缺省时退化为无操作。
+   */
+  openFile(path: string, sessionId: string | undefined): void
   /** 会话的展示名；宿主还没投影出标题时返回 undefined，卡片回退到短码。 */
   sessionTitle(sessionId: string): string | undefined
 }

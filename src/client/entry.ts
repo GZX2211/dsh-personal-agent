@@ -12,7 +12,7 @@ import type { ClientContext } from './context.ts'
 import { CONSOLE_ID, consoleDefinition } from './definition.ts'
 import { ConsoleTabTitle } from './components/ConsoleTabTitle.tsx'
 import { detectLanguage, NS, translateFor, type Translate } from './i18n.ts'
-import { absoluteFileAddress } from './lib/files.ts'
+import { sessionFileAddress } from './lib/files.ts'
 import { sessionTitleOf } from './lib/sessions.ts'
 import { ConsolePanel } from './panel/ConsolePanel.tsx'
 
@@ -46,9 +46,17 @@ export function apply(ctx: ClientContext): void {
       const workspace = ctx.get('uiWorkspace') as WorkspaceNavigation | undefined
       workspace?.openSession?.(sessionId)
     },
-    openFile: path => {
+    openFile: (path, sessionId) => {
+      if (sessionId === undefined) return
       const sidebar = ctx.get('sidebarRight') as SidebarNavigation | undefined
-      sidebar?.openResource?.(absoluteFileAddress(path))
+      if (sidebar?.openResource === undefined) return
+      try {
+        // 文档预览按地址里的会话授权读取；当前会话是右侧栏的宿主，也一定活着。
+        sidebar.openResource(sessionFileAddress(sessionId, path))
+      } catch (error) {
+        // 预览插件未挂载时 openResource 会抛错：文件打开是可选能力，不拖垮面板。
+        console.error('personal-agent: failed to open file preview', error)
+      }
     },
     sessionTitle: sessionId => {
       const sessions = ctx.get('sessions') as SessionListService | undefined

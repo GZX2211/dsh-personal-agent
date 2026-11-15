@@ -80,12 +80,23 @@ export const CONSOLE_CSS = `
   background: var(--dsw-alias-state-business-primary);
 }
 .pa-console__badge {
-  margin-left: 3px;
-  color: var(--dsw-alias-state-error-primary);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-primary-inverted);
   font-size: 11px;
   font-weight: 600;
-  line-height: 1;
-  vertical-align: super;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  white-space: nowrap;
 }
 .pa-console__body {
   display: flex;

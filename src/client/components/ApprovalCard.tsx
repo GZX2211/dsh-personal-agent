@@ -27,6 +27,8 @@ import { Button } from './card/Button.tsx'
 export interface ApprovalCardProps {
   t: Translate
   language: string
+  /** 右侧栏所在会话；文件预览用它授权读取。 */
+  sessionId?: string
   approval: ApprovalView
   actions: ConsoleActions
   busy: boolean
@@ -39,6 +41,7 @@ export interface ApprovalCardProps {
 export function ApprovalCard({
   t,
   language,
+  sessionId,
   approval,
   actions,
   busy,
@@ -125,7 +128,7 @@ export function ApprovalCard({
               paths={approval.attachments ?? []}
               label={t('attachmentsLabel')}
               openHint={t('attachmentsOpenHint')}
-              onOpen={path => actions.openFile(path)}
+              onOpen={path => actions.openFile(path, sessionId ?? approval.requestedBySessionId)}
             />
           </div>
 

@@ -31,11 +31,18 @@ export interface ConsolePanelProps {
   t: Translate
   /** 当前界面语言，用于日期与时间的本地化。 */
   language?: string
+  /** 右侧栏所在会话；文件预览用它授权读取。 */
+  sessionId?: string
   /** 由 entry 注入的动作面；缺省时卡片按钮退化为无操作。 */
   actions?: ConsoleActions
 }
 
-export function ConsolePanel({ t, language = 'zh', actions = NO_ACTIONS }: ConsolePanelProps): ReactElement {
+export function ConsolePanel({
+  t,
+  language = 'zh',
+  sessionId,
+  actions = NO_ACTIONS,
+}: ConsolePanelProps): ReactElement {
   const [active, setActive] = useState<ConsoleTabId>(INITIAL_TAB)
   const { snapshot, error, refresh } = useSnapshot()
 
@@ -57,6 +64,7 @@ export function ConsolePanel({ t, language = 'zh', actions = NO_ACTIONS }: Conso
           <Approvals
             t={t}
             language={language}
+            sessionId={sessionId}
             snapshot={snapshot}
             error={error}
             refresh={refresh}

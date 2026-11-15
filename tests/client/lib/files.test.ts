@@ -1,27 +1,28 @@
 // tests/client/lib/files.test.ts
 //
-// 文件地址是宿主右侧栏唯一认得的输入：语法来自官方 util/workspace-path，
-// 这里只负责把绝对路径编码成地址，以及从路径取一个可读名。
+// 文件地址是宿主右侧栏唯一认得的输入：语法来自官方 util/workspace-path。
+// 右侧栏文档预览只认带会话的地址；无会话的 absolute 地址不会被认领，所以这里
+// 只产出 session/<sessionId>/<path> 形态。
 
 import { describe, expect, it } from 'vitest'
-import { absoluteFileAddress, fileName } from '../../../src/client/lib/files.ts'
+import { fileName, sessionFileAddress } from '../../../src/client/lib/files.ts'
 
-describe('absoluteFileAddress', () => {
-  it('encodes a Windows path and keeps the drive colon', () => {
-    expect(absoluteFileAddress('D:\\pa-work\\t-1\\notes.md')).toBe(
-      'dsh-resource://file/absolute/D:/pa-work/t-1/notes.md',
+describe('sessionFileAddress', () => {
+  it('encodes a Windows absolute path and keeps the drive colon', () => {
+    expect(sessionFileAddress('session-1', 'D:\\pa-work\\t-1\\notes.md')).toBe(
+      'dsh-resource://file/session/session-1/D:/pa-work/t-1/notes.md',
     )
   })
 
-  it('encodes spaces and reserved characters per segment', () => {
-    expect(absoluteFileAddress('/home/me/发布 稿#1.md')).toBe(
-      'dsh-resource://file/absolute/home/me/%E5%8F%91%E5%B8%83%20%E7%A8%BF%231.md',
+  it('encodes the session id and path segments, keeping reserved characters escaped', () => {
+    expect(sessionFileAddress('session a/b', '/home/me/发布 稿#1.md')).toBe(
+      'dsh-resource://file/session/session%20a%2Fb//home/me/%E5%8F%91%E5%B8%83%20%E7%A8%BF%231.md',
     )
   })
 
-  it('keeps the empty first segment of a UNC path', () => {
-    expect(absoluteFileAddress('\\\\server\\share\\x.txt')).toBe(
-      'dsh-resource://file/absolute//server/share/x.txt',
+  it('preserves the empty first segments of a UNC path', () => {
+    expect(sessionFileAddress('session-1', '\\\\server\\share\\x.txt')).toBe(
+      'dsh-resource://file/session/session-1///server/share/x.txt',
     )
   })
 })

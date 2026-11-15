@@ -23,6 +23,8 @@ const CAPSULES: readonly ApprovalCapsule[] = ['pending', 'decided', 'all']
 export interface ApprovalsProps {
   t: Translate
   language: string
+  /** 右侧栏所在会话；文件预览用它授权读取。 */
+  sessionId?: string
   snapshot?: SnapshotResponse
   /** 连接中断时的原因；非空即显示重试横幅。 */
   error?: string
@@ -33,6 +35,7 @@ export interface ApprovalsProps {
 export function Approvals({
   t,
   language,
+  sessionId,
   snapshot,
   error,
   refresh,
@@ -103,6 +106,7 @@ export function Approvals({
               key={approval.id}
               t={t}
               language={language}
+              sessionId={sessionId}
               approval={approval}
               actions={actions}
               busy={busyId === approval.id}

@@ -31,9 +31,16 @@ export function ConsoleTabStrip({ tabs, active, onSelect }: ConsoleTabStripProps
           onClick={() => onSelect(tab.id)}
         >
           {tab.label}
-          {tab.badge !== undefined && tab.badge > 0 ? <sup className="pa-console__badge">{tab.badge}</sup> : null}
+          {tab.badge !== undefined && tab.badge > 0 ? (
+            <span className="pa-console__badge">{badgeText(tab.badge)}</span>
+          ) : null}
         </button>
       ))}
     </div>
   )
+}
+
+/** 通知点保持小：三位数以上收敛成 `99+`，不把标签挤宽。 */
+function badgeText(count: number): string {
+  return count > 99 ? '99+' : String(count)
 }
