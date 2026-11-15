@@ -21,7 +21,9 @@ export const CONSOLE_CSS = `
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  width: 100%;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   color: inherit;
   font-size: 13px;
@@ -29,13 +31,19 @@ export const CONSOLE_CSS = `
 .pa-console__tabs {
   display: flex;
   flex: 0 0 auto;
-  flex-wrap: wrap;
-  gap: 0 32px;?
-  align-items: stretch;?
-  box-sizing: border-box;?
-  min-height: 38px;?
+  flex-wrap: nowrap;
+  gap: 0 32px;
+  align-items: stretch;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 38px;
   padding: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+}
+.pa-console__tabs::-webkit-scrollbar {
+  display: none;
 }
 .pa-console__tab {
   position: relative;
@@ -96,7 +104,7 @@ export const CONSOLE_CSS = `
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px 16px;?
+  padding: 12px 16px;
   font-size: 13px;
   line-height: 20px;
   color: var(--dsw-alias-label-secondary);
@@ -111,8 +119,8 @@ export const CONSOLE_CSS = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;?
-  flex: 0 0 auto;?
+  gap: 8px;
+  flex: 0 0 auto;
   padding: 8px 16px;
 }
 .pa-filterbar__capsules {
@@ -280,10 +288,10 @@ export const CONSOLE_CSS = `
 }
 .pa-notice {
   margin: 0;
-  padding: 0 16px 8px;?
-  color: var(--dsw-alias-state-business-primary);?
-  font-size: 12px;?
-  line-height: 16px;?
+  padding: 0 16px 8px;
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 12px;
+  line-height: 16px;
 }
 
 /* ── 卡片外壳 ───────────────────────────────────────────────────────── */
