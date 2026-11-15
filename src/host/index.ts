@@ -6,6 +6,9 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { API_PREFIX } from '../shared/api.ts'
+import { healPendingApprovals } from './approvals/heal.ts'
+import { ResolverRegistry } from './approvals/resolvers.ts'
+import { createApprovalDecider } from './approvals/service.ts'
 import { createConsoleHandler } from './console-api/server.ts'
 import type { HostContext } from './context.ts'
 import { ensureRouterSession } from './sessions/router.ts'
@@ -50,6 +53,18 @@ export function apply(ctx: HostContext, config?: Config): void {
   })
   void identities.catch((error: unknown) => logWarning(ctx, `kv unavailable: ${describe(error)}`))
 
+  // 阻塞中的审批工具登记表：HTTP 决定与工具等待之间的交接点。
+  const resolvers = new ResolverRegistry()
+  const decider = ledger.then(store => createApprovalDecider({ ctx, store, resolvers }))
+
+  // 启动自愈：补写「已送达但未记账」的审批；失败只记日志。
+  void ledger
+    .then(store => healPendingApprovals({ ctx, store, log: message => logWarning(ctx, message) }))
+    .then(count => {
+      if (count > 0) logWarning(ctx, `recovered ${count} approval decision(s) from session logs`)
+    })
+    .catch((error: unknown) => logWarning(ctx, `approval self-heal failed: ${describe(error)}`))
+
   ctx.effect(() => {
     const disposeRoute = ctx.webServer.register({
       kind: 'prefix',
@@ -61,6 +76,7 @@ export function apply(ctx: HostContext, config?: Config): void {
         stateDir,
         startedAt,
         snapshot: async () => (await ledger).projection(),
+        decideApproval: async (approvalId, request) => (await decider).decide(approvalId, request),
       }),
     })
     return () => {

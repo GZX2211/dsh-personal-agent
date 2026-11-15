@@ -150,6 +150,32 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
             : `已选择：${result.decision.label ?? ''}`
         return [{ type: 'text', text: `审批 #${short} ${outcome}` }]
       },
+      // 决定内容随 tool/result 持久化：启动自愈据此恢复「已送达但未记账」的审批。
+      presentationMeta: (_args: unknown, value: unknown) => {
+        const result = value as {
+          approvalId: string
+          decidedAt: number
+          decision: {
+            kind: 'selected' | 'skipped'
+            index?: number
+            label?: string
+            note?: string
+            fields?: Record<string, string | number | boolean>
+          }
+        }
+        const decision = result.decision
+        return {
+          approvalId: result.approvalId,
+          decidedAt: result.decidedAt,
+          decision: {
+            kind: decision.kind,
+            ...(decision.index === undefined ? {} : { index: decision.index }),
+            ...(decision.label === undefined ? {} : { label: decision.label }),
+            ...(decision.note === undefined ? {} : { note: decision.note }),
+            ...(decision.fields === undefined ? {} : { fields: decision.fields }),
+          },
+        }
+      },
     },
     execute: async (rawArgs: unknown, exec: ToolRunContext) => {
       const args = parseApprovalSubmitArgs(rawArgs)

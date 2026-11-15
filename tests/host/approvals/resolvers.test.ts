@@ -53,7 +53,7 @@ describe('ResolverRegistry', () => {
     resolver.cancel()
     resolver.acknowledge()
 
-    await expect(delivered).resolves.toBeUndefined()
+    await expect(delivered).resolves.toBe(true)
     await expect(resolver.decision).resolves.toEqual(DELIVERY)
   })
 
@@ -65,9 +65,19 @@ describe('ResolverRegistry', () => {
     const second = resolver.deliver({ ...DELIVERY, decidedAt: 2 })
     resolver.acknowledge()
 
-    await expect(first).resolves.toBeUndefined()
-    await expect(second).resolves.toBeUndefined()
+    await expect(first).resolves.toBe(true)
+    await expect(second).resolves.toBe(true)
     await expect(resolver.decision).resolves.toEqual(DELIVERY)
+  })
+
+  it('reports a cancelled hand-over so the caller can fall back to followup', async () => {
+    const registry = new ResolverRegistry()
+    const resolver = registry.create('a-1')
+
+    resolver.cancel()
+    await expect(resolver.decision).rejects.toBeInstanceOf(ApprovalCancelledError)
+
+    await expect(resolver.deliver(DELIVERY)).resolves.toBe(false)
   })
 
   it('rejects a duplicate registration for one approval', () => {

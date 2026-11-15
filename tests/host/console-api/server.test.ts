@@ -5,7 +5,13 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { describe, expect, it, vi } from 'vitest'
-import { API_PREFIX, REQUEST_HEADER, REQUEST_HEADER_VALUE, type SnapshotResponse } from '../../../src/shared/api.ts'
+import {
+  API_PREFIX,
+  approvalDecidePath,
+  REQUEST_HEADER,
+  REQUEST_HEADER_VALUE,
+  type SnapshotResponse,
+} from '../../../src/shared/api.ts'
 import { createConsoleHandler, type ConsoleTarget } from '../../../src/host/console-api/server.ts'
 
 const ORIGIN = 'http://127.0.0.1:52810'
@@ -35,19 +41,28 @@ function makeTarget(overrides: Partial<ConsoleTarget> = {}): ConsoleTarget {
     stateDir: 'C:\\state\\personal-agent',
     startedAt: Date.now() - 1_000,
     snapshot: () => emptySnapshot(),
+    decideApproval: async () => ({ status: 200, body: { ok: true, transport: 'inline' } }),
     ...overrides,
   }
 }
 
-function makeRequest(options: { method?: string; path: string; headers?: Record<string, string> }): IncomingMessage {
+function makeRequest(options: {
+  method?: string
+  path: string
+  headers?: Record<string, string>
+  body?: unknown
+}): IncomingMessage {
   const headers = Object.fromEntries(
     Object.entries(options.headers ?? {}).map(([name, value]) => [name.toLowerCase(), value]),
   )
+  const body = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body), 'utf8')
   return {
     method: options.method ?? 'GET',
     url: options.path,
     headers,
-    async *[Symbol.asyncIterator]() {},
+    async *[Symbol.asyncIterator]() {
+      if (body !== undefined) yield body
+    },
   } as unknown as IncomingMessage
 }
 
@@ -70,7 +85,7 @@ function makeResponse(): { response: ServerResponse; captured: Captured } {
 
 async function call(
   target: ConsoleTarget,
-  requestOptions: { method?: string; path: string; headers?: Record<string, string> },
+  requestOptions: { method?: string; path: string; headers?: Record<string, string>; body?: unknown },
 ): Promise<{ captured: Captured; json: unknown }> {
   const { response, captured } = makeResponse()
   await createConsoleHandler(target)(makeRequest(requestOptions), response)
@@ -179,5 +194,83 @@ describe('console api', () => {
 
     expect(captured.status).toBe(500)
     expect(json).toEqual({ ok: false, code: 'internal', message: 'events.jsonl line 1: invalid JSON' })
+  })
+
+  it('forwards a decision request to the approval service', async () => {
+    const decideApproval = vi.fn(async () => ({
+      status: 200,
+      body: { ok: true as const, transport: 'inline' as const },
+    }))
+
+    const { captured, json } = await call(makeTarget({ decideApproval }), {
+      method: 'POST',
+      path: approvalDecidePath('a-1'),
+      headers: sameOriginHeaders,
+      body: { kind: 'selected', index: 1, note: '先别发' },
+    })
+
+    expect(captured.status).toBe(200)
+    expect(json).toEqual({ ok: true, transport: 'inline' })
+    expect(decideApproval).toHaveBeenCalledWith('a-1', { kind: 'selected', index: 1, note: '先别发' })
+  })
+
+  it('returns the approval service status and failure body unchanged', async () => {
+    const target = makeTarget({
+      decideApproval: async () => ({
+        status: 409,
+        body: { ok: false, code: 'already-decided', message: '审批 a-1 已经处理过' },
+      }),
+    })
+
+    const { captured, json } = await call(target, {
+      method: 'POST',
+      path: approvalDecidePath('a-1'),
+      headers: sameOriginHeaders,
+      body: { kind: 'skipped' },
+    })
+
+    expect(captured.status).toBe(409)
+    expect(json).toEqual({ ok: false, code: 'already-decided', message: '审批 a-1 已经处理过' })
+  })
+
+  it('requires POST for the decision endpoint', async () => {
+    const decideApproval = vi.fn()
+    const { captured } = await call(makeTarget({ decideApproval }), {
+      path: approvalDecidePath('a-1'),
+      headers: sameOriginHeaders,
+    })
+
+    expect(captured.status).toBe(405)
+    expect(captured.headers.allow).toBe('POST')
+    expect(decideApproval).not.toHaveBeenCalled()
+  })
+
+  it('guards the decision endpoint like other state endpoints', async () => {
+    const decideApproval = vi.fn()
+    const { captured, json } = await call(makeTarget({ decideApproval }), {
+      method: 'POST',
+      path: approvalDecidePath('a-1'),
+      body: { kind: 'skipped' },
+    })
+
+    expect(captured.status).toBe(403)
+    expect(json).toEqual({ ok: false, code: 'missing-request-header', message: expect.any(String) })
+    expect(decideApproval).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed JSON body before calling the approval service', async () => {
+    const decideApproval = vi.fn()
+    const { response, captured } = makeResponse()
+    const request = makeRequest({ method: 'POST', path: approvalDecidePath('a-1'), headers: sameOriginHeaders })
+    // 原始请求体不是合法 JSON。
+    ;(request as unknown as { [Symbol.asyncIterator]: () => AsyncGenerator<Buffer> })[Symbol.asyncIterator] =
+      async function* () {
+        yield Buffer.from('{not json', 'utf8')
+      }
+
+    await createConsoleHandler(makeTarget({ decideApproval }))(request, response)
+
+    expect(captured.status).toBe(400)
+    expect(decideApproval).not.toHaveBeenCalled()
   })
 })

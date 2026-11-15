@@ -3,7 +3,7 @@
 // 同源 HTTP 契约：路径前缀、自定义请求头、健康检查与总控台快照的响应形状。
 // Host 与 Client 共用，调用点不得硬编码这些字面量。
 
-import type { ApprovalView } from './approvals.ts'
+import type { ApprovalView, ApprovalTransport } from './approvals.ts'
 import type { TicketView } from './tickets.ts'
 
 /** 插件 HTTP 面挂载前缀；Host 以 prefix 路由注册，Client 以此为唯一网络入口。 */
@@ -23,6 +23,16 @@ export const ROUTES = {
   health: `${API_PREFIX}/health`,
   snapshot: `${API_PREFIX}/snapshot`,
 } as const
+
+/** 审批决定端点的具体路径（带 approvalId）。 */
+export function approvalDecidePath(approvalId: string): string {
+  return `${API_PREFIX}/approvals/${encodeURIComponent(approvalId)}/decide`
+}
+
+/** 匹配决定端点的路径形态，捕获 approvalId。 */
+export const APPROVAL_DECIDE_PATTERN = new RegExp(
+  `^${API_PREFIX}/approvals/([^/]+)/decide$`,
+)
 
 /** 稳定错误码：客户端按码分支，不吞错。 */
 export const ERROR_CODES = {
@@ -76,3 +86,36 @@ export interface SnapshotResponse {
   approvals: ApprovalView[]
   stats: SnapshotStats
 }
+
+/** 提交决定时的稳定失败码（方案 §9.4）；客户端按码给出具体文案。 */
+export const DECISION_ERROR_CODES = {
+  notFound: 'not-found',
+  alreadyDecided: 'already-decided',
+  workerArchived: 'worker-archived',
+  deliveryFailed: 'delivery-failed',
+  invalidDecision: 'invalid-decision',
+} as const
+
+export type DecisionErrorCode = (typeof DECISION_ERROR_CODES)[keyof typeof DECISION_ERROR_CODES]
+
+/** 提交决定：选中一个选项，或跳过让 worker 自行决定。 */
+export interface DecisionRequest {
+  kind: 'selected' | 'skipped'
+  /** `selected` 必填：选项下标。 */
+  index?: number
+  note?: string
+  fields?: Record<string, string | number | boolean>
+}
+
+export interface DecisionSuccess {
+  ok: true
+  transport: ApprovalTransport
+}
+
+export interface DecisionFailure {
+  ok: false
+  code: DecisionErrorCode
+  message: string
+}
+
+export type DecisionResponse = DecisionSuccess | DecisionFailure

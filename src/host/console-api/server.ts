@@ -5,13 +5,21 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
+  APPROVAL_DECIDE_PATTERN,
   ERROR_CODES,
   ROUTES,
+  type DecisionResponse,
   type ErrorResponse,
   type HealthResponse,
   type SnapshotResponse,
 } from '../../shared/api.ts'
 import { guardRequest } from './guard.ts'
+
+/** 决定端点的结果：HTTP 状态由审批服务给出（404/409/502 等）。 */
+export interface DecisionOutcome {
+  status: number
+  body: DecisionResponse
+}
 
 export interface ConsoleTarget {
   plugin: string
@@ -21,6 +29,8 @@ export interface ConsoleTarget {
   startedAt: number
   /** 读一次总控台视图；账本不可用时抛错，由路由转成 internal 而不是空快照。 */
   snapshot: () => Promise<SnapshotResponse> | SnapshotResponse
+  /** 提交一次审批决定；请求体未经校验，由审批服务收窄。 */
+  decideApproval: (approvalId: string, request: unknown) => Promise<DecisionOutcome>
 }
 
 /** 把 HTTP 面挂到 prefix 路由上的处理函数。 */
@@ -69,6 +79,24 @@ async function dispatch(
     return sendJson(response, 200, await target.snapshot())
   }
 
+  const decision = APPROVAL_DECIDE_PATTERN.exec(path)
+  if (decision !== null) {
+    if (method !== 'POST') return sendMethodNotAllowed(response, 'POST')
+    let body: unknown
+    try {
+      body = await readJson(request)
+    } catch (error) {
+      return sendJson(
+        response,
+        400,
+        failure(ERROR_CODES.badRequest, error instanceof Error ? error.message : String(error)),
+      )
+    }
+    const approvalId = decodeURIComponent(decision[1] ?? '')
+    const outcome = await target.decideApproval(approvalId, body)
+    return sendJson(response, outcome.status, outcome.body)
+  }
+
   return sendJson(response, 404, failure(ERROR_CODES.notFound, `no route for ${path}`))
 }
 
@@ -89,4 +117,23 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
     'cache-control': 'no-store',
   })
   response.end(body)
+}
+
+/** 读取 JSON 请求体；只负责不撑爆内存，结构校验交给审批服务。 */
+async function readJson(request: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of request) {
+    const buffer = chunk as Buffer
+    size += buffer.byteLength
+    if (size > 64 * 1024) throw new Error('request body exceeds 64 KiB')
+    chunks.push(buffer)
+  }
+  const text = Buffer.concat(chunks).toString('utf8').trim()
+  if (text.length === 0) return undefined
+  try {
+    return JSON.parse(text) as unknown
+  } catch (error) {
+    throw new Error(`request body is not valid JSON: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }

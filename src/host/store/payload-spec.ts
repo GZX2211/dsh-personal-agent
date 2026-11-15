@@ -174,7 +174,7 @@ function matches(value: unknown, rule: FieldRule): boolean {
     case 'fields':
       return Array.isArray(value) && value.every(isApprovalField)
     case 'decision':
-      return isApprovalDecision(value)
+      return isApprovalDecisionRecord(value)
   }
 }
 
@@ -202,7 +202,8 @@ function isApprovalField(value: unknown): boolean {
   return value.required === undefined || typeof value.required === 'boolean'
 }
 
-function isApprovalDecision(value: unknown): boolean {
+/** 运行时判别一份决定记录；启动自愈读取 tool/result 的 meta 时复用。 */
+export function isApprovalDecisionRecord(value: unknown): boolean {
   if (!isRecord(value)) return false
   if (!isOneOf(value.kind, APPROVAL_DECISION_KINDS)) return false
   if (value.index !== undefined && !Number.isInteger(value.index)) return false

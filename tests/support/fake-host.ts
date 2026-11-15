@@ -187,7 +187,19 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
         return path
       },
     },
-    sessionPersistence: { flush: async () => undefined },
+    sessionPersistence: {
+      flush: async () => undefined,
+      open: async (sessionId: string) => {
+        const session = sessions.get(sessionId)
+        if (session === undefined) throw new Error(`fake persistence has no session ${sessionId}`)
+        return {
+          read: async (offset: number) => ({
+            events: offset === 0 ? [...session.events] : [],
+          }),
+          [Symbol.asyncDispose]: async () => undefined,
+        }
+      },
+    },
     tools: {
       register: (definition: { name: string }) => {
         tools.push(definition)
