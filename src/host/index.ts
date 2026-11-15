@@ -11,6 +11,7 @@ import type { HostContext } from './context.ts'
 import { ensureRouterSession } from './sessions/router.ts'
 import { resolveStateDirectory } from './state/directory.ts'
 import { EventStore } from './store/event-store.ts'
+import { KvStore } from './store/kv-store.ts'
 
 export const name = 'dsh-personal-agent'
 
@@ -42,6 +43,13 @@ export function apply(ctx: HostContext, config?: Config): void {
   })
   void ledger.catch((error: unknown) => logWarning(ctx, `ledger unavailable: ${describe(error)}`))
 
+  // 技术元数据（router 身份）与业务账本分开：它允许改写，损坏只降级不阻断。
+  const identities = KvStore.open({
+    directory: stateDir,
+    onWarning: message => logWarning(ctx, message),
+  })
+  void identities.catch((error: unknown) => logWarning(ctx, `kv unavailable: ${describe(error)}`))
+
   ctx.effect(() => {
     const disposeRoute = ctx.webServer.register({
       kind: 'prefix',
@@ -58,14 +66,17 @@ export function apply(ctx: HostContext, config?: Config): void {
     return () => {
       disposeRoute()
       void ledger.then(store => store.close()).catch(() => undefined)
+      void identities.then(store => store.close()).catch(() => undefined)
     }
   }, 'personal-agent: console api')
 
   // 路由会话是产品入口：左栏固定区里必须一直有它，不能等用户先点开面板。
   // 与会话本身无关的清理动作不存在，因此这里不用 ctx.effect 包裹。
-  void ensureRouterSession(ctx, stateDir).catch((error: unknown) => {
-    logWarning(ctx, `router session unavailable: ${describe(error)}`)
-  })
+  void identities
+    .then(store => ensureRouterSession(ctx, stateDir, store))
+    .catch((error: unknown) => {
+      logWarning(ctx, `router session unavailable: ${describe(error)}`)
+    })
 }
 
 /** 版本号的真身是 package.json；读不到也不能让插件起不来。 */
