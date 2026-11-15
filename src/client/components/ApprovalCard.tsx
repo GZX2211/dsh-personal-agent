@@ -1,111 +1,155 @@
 // src/client/components/ApprovalCard.tsx
 //
-// 一张待审批卡片：默认展开，给出选项与「输入你的答案」，由容器负责提交。
-// 已通过/作废的条目不在待审批列表里，所以这里只渲染待审批形态。
+// 一张审批卡：结构照搬官方 `ask_user_question` 提问卡（头部、题干、选项、
+// 「输入你的答案」、分页页脚），只多两处——
+// 卡顶的发起者 / 关联工单 / 时间，以及卡底的附件行。
+//
+// 两种形态：
+// - 待审批：默认展开，可以选一个选项、写自由文本，或直接跳过；
+// - 已通过：默认折叠，展开后是同一张卡片的只读态（选中项高亮、无动作按钮）。
 
 import { useState, type ReactElement } from 'react'
 import type { ApprovalView } from '../../shared/approvals.ts'
+import type { TicketView } from '../../shared/tickets.ts'
+import type { ConsoleActions } from '../actions.ts'
 import type { Translate } from '../i18n.ts'
-import { shortTicket, type ApprovalDraft } from '../lib/approvals.ts'
-import { formatTimestamp, riskKey } from '../lib/format.ts'
+import { shortSession, shortTicket, type ApprovalDraft } from '../lib/approvals.ts'
+import { formatTimestamp } from '../lib/format.ts'
+import { CardAnswerField, CardAnswerText } from './card/CardAnswer.tsx'
+import { CardAttachment } from './card/CardAttachment.tsx'
+import { CardFooter } from './card/CardFooter.tsx'
+import { CardFrame } from './card/CardFrame.tsx'
+import { CardHeader } from './card/CardHeader.tsx'
+import { CardOption } from './card/CardOption.tsx'
+import { Button } from './card/Button.tsx'
 
 export interface ApprovalCardProps {
   t: Translate
-  approval: ApprovalView
   language: string
+  approval: ApprovalView
+  /** 关联工单的标题；快照里找不到时回退到短码。 */
+  tickets: ReadonlyMap<string, TicketView>
+  actions: ConsoleActions
   busy: boolean
   error?: string
+  /** 初始折叠状态；缺省时待审批展开、已通过折叠。 */
+  defaultCollapsed?: boolean
   onSubmit: (draft: ApprovalDraft) => void
 }
 
 export function ApprovalCard({
   t,
-  approval,
   language,
+  approval,
+  tickets,
+  actions,
   busy,
   error,
+  defaultCollapsed,
   onSubmit,
 }: ApprovalCardProps): ReactElement {
-  const [expanded, setExpanded] = useState(true)
-  const [optionIndex, setOptionIndex] = useState<number | undefined>(undefined)
-  const [note, setNote] = useState('')
+  const decided = approval.decidedAt !== undefined
+  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? decided)
+  const [optionIndex, setOptionIndex] = useState<number | undefined>(approval.decision?.index)
+  const [note, setNote] = useState(approval.decision?.note ?? '')
+  const locked = decided || busy
 
-  const canSubmit = !busy
+  const titleId = `pa-approval-${approval.id}`
+  const requester = actions.sessionTitle(approval.requestedBySessionId) ?? shortSession(approval.requestedBySessionId)
+  const ticket = tickets.get(approval.ticketId)
+  const ticketTitle = ticket === undefined ? `#${shortTicket(approval.ticketId)}` : ticket.title
+  const shownAt = decided ? (approval.decidedAt ?? approval.createdAt) : approval.createdAt
+  const status = decided ? t(approval.decision?.kind === 'skipped' ? 'approvalSkippedTitle' : 'approvalDecidedTitle') : undefined
 
   return (
-    <article className="pa-approval" data-risk={approval.risk ?? 'none'}>
-      <button type="button" className="pa-approval__head" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-        <span className="pa-approval__title">{approval.question}</span>
-        <span className="pa-approval__meta">
-          {approval.risk !== undefined ? (
-            <span className={`pa-approval__risk pa-approval__risk--${approval.risk}`}>
-              {t('approvalRiskLabel')}·{t(riskKey(approval.risk))}
-            </span>
-          ) : null}
-          <span>
-            {t('approvalTicket')} #{shortTicket(approval.ticketId)}
-          </span>
-          <span>{formatTimestamp(language, approval.createdAt)}</span>
-        </span>
-      </button>
+    <CardFrame collapsed={collapsed} labelledBy={collapsed ? titleId : undefined}>
+      <CardHeader
+        eyebrow={
+          <>
+            <button type="button" className="pa-card__link" onClick={() => actions.openSession(approval.requestedBySessionId)}>
+              {`${t('approvalRequester')}\uFF1A`}
+              {requester}
+            </button>
+            <button type="button" className="pa-card__link" onClick={() => actions.showTickets()}>
+              {`${t('approvalTicket')}\uFF1A`}
+              {ticketTitle}
+            </button>
+          </>
+        }
+        title={collapsed ? approval.question : undefined}
+        titleId={titleId}
+        time={formatTimestamp(language, shownAt)}
+        status={status}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(current => !current)}
+        toggleLabel={t(collapsed ? 'approvalExpand' : 'approvalCollapse')}
+      />
 
-      {expanded ? (
-        <div className="pa-approval__body">
-          <div className="pa-approval__options" role="radiogroup" aria-label={t('approvalChooseOption')}>
-            {approval.options.map((option, index) => (
-              <label key={`${option.label}-${index}`} className="pa-approval__option">
-                <input
-                  type="radio"
-                  name={`pa-option-${approval.id}`}
-                  checked={optionIndex === index}
-                  disabled={busy}
-                  onChange={() => setOptionIndex(index)}
+      {collapsed ? null : (
+        <>
+          <div className="pa-card__body">
+            <h2 className="pa-card__question" id={titleId}>
+              {approval.question}
+            </h2>
+
+            <div className="pa-card__options" role="radiogroup" aria-label={t('approvalChooseOption')}>
+              {approval.options.map((option, index) => (
+                <CardOption
+                  key={`${option.label}-${String(index)}`}
+                  index={index}
+                  label={option.label}
+                  description={option.description}
+                  selected={optionIndex === index}
+                  locked={locked}
+                  onSelect={() => setOptionIndex(index)}
                 />
-                <span className="pa-approval__option-text">
-                  <strong>{option.label}</strong>
-                  <span className="pa-approval__option-desc">{option.description}</span>
-                </span>
-              </label>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <label className="pa-approval__note">
-            <textarea
-              className="pa-approval__note-input"
-              rows={2}
-              value={note}
-              placeholder={t('approvalAnswerPlaceholder')}
-              disabled={busy}
-              onChange={event => setNote(event.target.value)}
+            {decided ? (
+              <CardAnswerText note={note} />
+            ) : (
+              <CardAnswerField
+                value={note}
+                placeholder={t('approvalAnswerPlaceholder')}
+                disabled={busy}
+                onChange={setNote}
+              />
+            )}
+
+            <CardAttachment
+              paths={approval.attachments ?? []}
+              label={t('attachmentsLabel')}
+              openHint={t('attachmentsOpenHint')}
+              onOpen={path => actions.openFile(path)}
             />
-          </label>
-
-          {error !== undefined ? (
-            <p className="pa-approval__error" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          <div className="pa-approval__actions">
-            <button
-              type="button"
-              className="pa-approval__secondary"
-              disabled={!canSubmit}
-              onClick={() => onSubmit({ note })}
-            >
-              {t('approvalSkip')}
-            </button>
-            <button
-              type="button"
-              className="pa-approval__primary"
-              disabled={!canSubmit}
-              onClick={() => onSubmit({ optionIndex, note })}
-            >
-              {busy ? t('approvalSubmitting') : t('approvalSubmit')}
-            </button>
           </div>
-        </div>
-      ) : null}
-    </article>
+
+          <CardFooter
+            current={1}
+            total={1}
+            prevLabel={t('approvalExpand')}
+            nextLabel={t('approvalExpand')}
+            feedback={error}
+            actions={
+              decided ? undefined : (
+                <>
+                  <Button variant="outline" disabled={busy} onClick={() => onSubmit({ note })}>
+                    {t('approvalSkip')}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    disabled={busy}
+                    onClick={() => onSubmit({ optionIndex, note })}
+                  >
+                    {busy ? t('approvalSubmitting') : t('approvalSubmit')}
+                  </Button>
+                </>
+              )
+            }
+          />
+        </>
+      )}
+    </CardFrame>
   )
 }

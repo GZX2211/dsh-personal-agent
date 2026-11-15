@@ -10,6 +10,13 @@ export function shortTicket(ticketId: string): string {
   return ticketId.replace(/^t-/, '').slice(0, 6)
 }
 
+/** 会话的短码：去掉 `session-` 前缀后取 8 位，用于拿不到标题时的展示。 */
+export function shortSession(sessionId: string): string {
+  const prefix = 'session-'
+  const bare = sessionId.startsWith(prefix) ? sessionId.slice(prefix.length) : sessionId
+  return bare.slice(0, 8)
+}
+
 export interface ApprovalDraft {
   /** 选中的选项下标；未选时按「跳过」提交。 */
   optionIndex?: number
