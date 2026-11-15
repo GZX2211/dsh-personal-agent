@@ -40,5 +40,12 @@ export function guardRequest(origin: string, request: IncomingMessage): GuardVer
       ? { ok: true }
       : reject(ERROR_CODES.wrongOrigin, `Referer ${referer} is not under ${origin}`)
   }
-  return reject(ERROR_CODES.wrongOrigin, 'request carries neither Origin nor Referer')
+  // 宿主页面可能配置 Referrer-Policy: no-referrer，把唯一可用的 Referer 也去掉。
+  // Sec-Fetch-Site 由浏览器按真实来源强制写入、脚本不可伪造，是第三种同源证据。
+  const fetchSite = request.headers['sec-fetch-site']
+  if (fetchSite === 'same-origin') return { ok: true }
+  return reject(
+    ERROR_CODES.wrongOrigin,
+    'request carries neither Origin, Referer, nor a same-origin Sec-Fetch-Site header',
+  )
 }

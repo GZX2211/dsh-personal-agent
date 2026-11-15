@@ -743,3 +743,7 @@ MVP 先用**状态目录本身**（`$DSH_HOME/state/personal-agent`）：路由�
 2. 插件重载时对仍存活的 worker agent 按账本绑定补装饰（`decorateLiveWorkerSessions`，只读 `ctx.agents.list()`，不唤醒冷会话）。
 
 **回归证据**：`tests/integration/ticket-flow.test.ts` 模拟「create 即发布 agent/created」的真实时序并断言 worker 在简报投递前已具备工具与 section；`collab/scr/check-host.mjs` 第 18–20 项用构建产物复现同一路径。
+
+### 16.12 同源守卫补充 Sec-Fetch-Site（P3 联调发现）
+
+同源 GET 的 `fetch` 不带 `Origin`，宿主页面又可能因 `Referrer-Policy` 去掉 `Referer`，原守卫会误拒浏览器请求。现在 `Sec-Fetch-Site: same-origin` 作为第三种同源证据被接受（脚本不可伪造）；`cross-site` 仍拒绝。见 `src/host/console-api/guard.ts`。

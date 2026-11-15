@@ -248,3 +248,35 @@ worker agent 由 `sessionController.create` 创建，而真实宿主在 create �
 ### 10.5 重跑验收
 
 请再跑一次第三项（需要审批的任务）。预期：worker 会话日志的系统提示词里出现「个人代理的执行会话」段落，工具列表含 `pa_approval_submit`；提交审批后 `/snapshot` 出现待审批，决定应返回 `transport: inline` 或 `followup`。
+
+---
+
+## 11. 进度记录（0.2.2，2026-11-15 晚）
+
+### 11.1 审批页最小版（已提交）
+
+`src/client/views/Approvals.tsx` + `components/ApprovalCard.tsx` + `hooks/useSnapshot.ts`：待审批列表、选项/可填字段/备注/跳过/提交、2s 轮询（失败退避 10s）、提交后立即刷新并按错误码显示原因。暂未做：已通过/全部胶囊、搜索、工单页、徽标（P3 后续）。
+
+### 11.2 浏览器请求被 403 的根因与修复
+
+现象：面板显示「连接中断」，`/snapshot` 在命令行可用。原因：同源 GET 的 `fetch` 不带 `Origin`，宿主页面又用 `Referrer-Policy` 去掉了 `Referer`，同源守卫因此拒绝（`wrong-origin`）。
+
+修复：`guard.ts` 增加第三种同源证据——浏览器强制写入、脚本不可伪造的 `Sec-Fetch-Site: same-origin`；同时保留 Origin/Referer 校验。只接受 `same-origin`，`cross-site` 仍拒绝。新增 `tests/host/console-api/guard.test.ts`（8 项）与冒烟第 21 项。
+
+已实测：`custom-header + Sec-Fetch-Site: same-origin`（无 Origin/Referer）→ 200；重载后 `/health` 为 `0.2.2`。
+
+### 11.3 A2–A4 链路已验证（经 API 触发决定）
+
+为避免重载 Host 时把阻塞中的 resolver 弄丢（worker 会卡在工具调用里），在重载前用 HTTP 以 inline 支路结掉了当时的测试审批：
+
+- `POST /approvals/a-684460e5f9/decide {kind:'selected',index:0}` → `{ok:true, transport:'inline'}`；
+- 账本随后出现 `approval/decided`、`task/reported`、`task/closed`，工单 `t-7380b609ef` 正常结束（ended）。
+
+即：**工具提交 → 审批阻塞 → 决定送达 → worker 继续 → 汇报 → 关闭** 这条链已跑通；尚未验证的是「在面板里点击提交」这一下，需用户刷新后再发一个新审批。
+
+### 11.4 下一步（恢复上下文后从这里继续）
+
+1. 用户刷新页面（可选，轮询会自动恢复）→ 让 router 再发一个测试审批 → 在审批页点选并提交，验证 UI 到 HTTP 的最后一段。
+2. P3 剩余：已通过/全部胶囊、已决卡片只读、搜索、工单页、标签徽标、i18n 清理（`approvalsEmpty` 等未用键）。
+3. 测试规模：**244 项**（含 client 9 项、guard 8 项）；`check-host.mjs` **21 项**。
+4. 当前真实账本：2 张已结束工单，1 条已决审批，无待审批。

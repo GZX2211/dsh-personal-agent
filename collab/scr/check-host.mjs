@@ -337,6 +337,16 @@ try {
   )
 
   const sameOrigin = { 'x-personal-agent-request': '1', origin: ORIGIN }
+  const fetchSiteSnapshot = await call(route, {
+    url: '/personal-agent/api/snapshot',
+    headers: { 'x-personal-agent-request': '1', 'sec-fetch-site': 'same-origin' },
+  })
+  check(
+    'GET /snapshot accepts a same-origin Sec-Fetch-Site without Referer',
+    fetchSiteSnapshot.status === 200 && fetchSiteSnapshot.json?.tickets?.length === 1,
+    fetchSiteSnapshot.json?.tickets?.length,
+  )
+
   const snapshot = await call(route, { url: '/personal-agent/api/snapshot', headers: sameOrigin })
   check(
     'snapshot replays the ledger into a blocked ticket',
