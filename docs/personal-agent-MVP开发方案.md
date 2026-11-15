@@ -757,3 +757,78 @@ MVP 先用**状态目录本身**（`$DSH_HOME/state/personal-agent`）：路由�
 **安全边界不变**：浏览器跨站请求必带 `Origin`（CORS 模式）或 `Sec-Fetch-Site`（简单请求），二者都会命中拒绝分支；自定义头仍会触发预检，而本端点不返回 CORS 头。非浏览器客户端本就能伪造 Origin，不构成新增暴露面。
 
 **证据**：`tests/host/console-api/guard.test.ts` 16 项（新增桌面 referer、`dsh-app://app2` 前缀伪装、opaque `null` origin、桌面前缀伪装）；`collab/scr/check-host.mjs` 新增桌面转发与桌面 referer 两项（共 23 项）；真实宿主以「仅自定义头」请求 `/snapshot` 得 200，外来 Origin 与 `cross-site` 仍 403。
+
+## 17. P3 实施修订（P3 完成后追加，不改动上文）
+
+本节记录 P3（总控台 UI）实施中与上文不同的决定与新增契约。上文条款继续有效，冲突处按本节执行。
+
+### 17.1 审批契约收敛为「选项 + 自由文本回答」（修订 §6、§8）
+
+P2 曾给 `pa_approval_submit` 设计 `title`（一句话摘要）与 `fields`（结构化可填字段）。P3 的卡片外观以官方 `ask_user_question` 提问卡为基准，两者都没有位置，因此：
+
+| 项 | 变化 | 旧数据读取行为 |
+|---|---|---|
+| `approval/pending.payload.title` | 删除 | 旧行里的 `title` 读到即忽略，不视为损坏 |
+| `approval/pending.payload.fields` | 删除 | 同上；`payload-spec` 不再声明该键，未知键不报错 |
+| `approval/decided.payload.decision.fields` | 删除 | `isApprovalDecisionRecord` 不校验也不拒绝该键 |
+| `POST /approvals/:id/decide` 的 `fields` | 删除 | 未知键不参与决定、不报错；必填字段校验一并移除 |
+| `ApprovalView.title` / `ApprovalView.fields` | 删除 | 投影不再透出 |
+| `pa_ledger_query` 的审批行 | 改用题干预览（首行、最多 24 字） | — |
+
+人的回答只剩两条路：`selected`（选项下标 + 标签副本）与 `skipped`，两者都可带自由文本 `note`（来自卡片上的「输入你的答案」）。UI 只允许「未选项 + 有文本」按 `skipped` 提交，「未选项 + 无文本」即纯跳过。
+
+### 17.2 新增 `attachments`（AI 填、人只读）
+
+| 位置 | 形状 | 说明 |
+|---|---|---|
+| `pa_approval_submit` 参数 | `attachments?: string[]` | 非空字符串、去重、上限 20 |
+| `approval/pending.payload` | `attachments?: string[]` | 归一后的绝对路径 |
+| `ApprovalView` | `attachments?: string[]` | 为空时卡片不渲染附件行 |
+
+**归一规则**：绝对路径原样保留；相对路径按工单工作目录（`TicketView.directory`）拼成绝对路径；工单没有工作目录时相对路径直接以 `invalid-arguments` 失败——客户端不猜基准目录。归一后去重，同一文件的相对与绝对写法只保留一次。工具不做文件系统 IO（不校验存在性）。
+
+点击附件用官方 `util/workspace-path` 的地址语法构造 `dsh-resource://file/absolute/…`，再交给 `ctx.sidebarRight.openResource` 在右侧栏打开。
+
+### 17.3 卡片外观以官方提问卡为基准（细化 §10.2）
+
+审批卡的表面、头部留白、序号座位、选项行、回答框与页脚逐条移植 `dsh-client-ui-user-questions` 的 `QuestionComposer.module.css`；颜色、圆角、字号、阴影全部取宿主 token（`--dsw-radius-xl`、`--dsw-specific-input-major`、`--dsw-elevation-panel`、`--dsw-alias-bg-overlay`、`--dsw-alias-label-tertiary` 等）。与官方仅两处不同：
+
+1. **头部**：左侧 eyebrow 放「发起者：… 关联工单：…」（11px/16px tertiary，均可点击：发起者跳会话、关联工单切工单页），右侧是时间（12px/24px tertiary）与折叠按钮（24px 圆形，图标语义与官方最小化按钮一致）；不使用官方的「关闭」按钮。
+2. **附件行**：见 §17.2，无附件时不渲染。
+
+**折叠态即官方的 minimize 形态**：卡头 + 题干两行截断（`-webkit-line-clamp: 2`），不渲染主体与页脚。待审批默认展开、已通过默认折叠。
+
+**与官方的一处刻意差异**：不再给卡片 `max-height: min(60vh, 520px)`——右侧栏是整列滚动，卡片按内容自然高；官方在输入位上需要限高，这里不需要。
+
+**已通过卡片是官方 review 只读态**：选项禁用且选中项高亮，回答区显示当时的 `note`，不渲染跳过/提交，页脚只剩分页；头部右侧多一个「已通过 / 已跳过」状态词与决定时间。
+
+### 17.4 工单卡与本插件唯一的卡片风格（细化 §10.3）
+
+工单卡与审批卡同一套外壳与头部：左侧「工单 #短码 · 标题」、右侧更新时间、主体是目标（`goal`）。**没有**阶段徽标（胶囊已经表达状态）、**没有**汇报摘要、**没有**排队原因、**没有**展开态与动作按钮。副标签只有两个：`阻塞中`（stage=blocked）与 `已中断`（stage=running 且 interrupted）。
+
+### 17.5 过滤、搜索与徽标（实现 §10.5）
+
+- 审批页胶囊：待审批 / 已通过 / 全部，默认待审批；工单页胶囊：待处理 / 进行中 / 已结束 / 全部，默认进行中（`blocked` 归进行中）。
+- 搜索与胶囊取交集；关键词按空白分词后 AND；haystack 覆盖题干、选项、附件、决定内容、工单标题/目标/目录/汇报、阶段与副标签文案以及时间文本。`now` 不再参与——卡片显示绝对时间。
+- 空态分三种：这一类本来就没有、搜索没命中、整页为空。
+- 待审批数显示在「审批」标签上（0 不显示）。
+- 快照在面板层拉**一次**，两个列表页共用；2s 轮询、失败退避 10s 的行为不变。
+- 过滤条右侧的「?」打开一段说明浮层（默认说明筛选、卡片与搜索语义）。
+
+### 17.6 卡片里的跨域动作（新增）
+
+组件不接触服务，动作面由 `entry` 注入（`src/client/actions.ts`）：
+
+| 动作 | 实现 |
+|---|---|
+| `openSession(sessionId)` | `ctx.get('uiWorkspace')?.openSession(id)`，服务缺失时降级为无操作 |
+| `openFile(path)` | `ctx.sidebarRight.openResource(absoluteFileAddress(path))` |
+| `showTickets(ticketId)` | 面板自身状态：切到工单页、胶囊落到「全部」并高亮该卡 |
+| `sessionTitle(sessionId)` | 读 `ctx.sessions.list` 的列表行（`title` → `displayTitle`），都没有就回退到会话短码 |
+
+### 17.7 样式与测试约定
+
+- 无 CSS Module 管线，样式集中在 `src/client/style.ts`；类名 `pa-` 前缀隔离。
+- 图标包未向插件开放，卡片用一组自绘 16px 线性图标（同一网格、1.5px 描边）。
+- 视图用 `renderToStaticMarkup` 做结构契约测试，不引入浏览器 DOM 环境。
+- 样式与文案的双语要求不变：新增界面文案都在 `i18n.ts` 的 `zh` / `en` 两份里。

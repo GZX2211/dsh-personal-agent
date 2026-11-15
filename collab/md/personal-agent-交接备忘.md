@@ -1,14 +1,14 @@
 # dsh-personal-agent 交接备忘
 
 > 自包含交接文档：不依赖任何对话上下文，读完即可继续开发。
-> 状态：**P2 工具与会话已交付；审批面板连接中断已修复（0.2.3，桌面转发同源证据缺失）**（2026-11-15），下一步 P3 UI；A1–A4 需重跑，A5 待重启验证。
+> 状态：**P3 UI 已交付（0.3.0）**（2026-11-15），审批/工单两页按官方提问卡样式重做；待用户在 GUI 目检样式。
 > 本文属临时协作文档（`collab/md/`），不进 `docs/`，不需要英文版。
 
 ---
 
 ## 0. 一句话现状
 
-`dsh-personal-agent` 已安装到 `desktop` profile 并运行：右侧栏「总控台」面板（审批/工单两页仍为空态）。P1 完成 append-only JSONL 账本、纯投影与 `/snapshot`；P2 完成了**可用闭环的宿主侧**：router 有 `pa_task_route`/`pa_ledger_query`，worker 有阻塞式 `pa_approval_submit`；调度器按槽位放行、回合结束自动汇报并关闭工单、用户停止回合标记「已中断」、审批决定三支路与启动自愈、`POST /approvals/:id/decide`。UI 渲染仍是 P3。
+`dsh-personal-agent` 已安装到 `desktop` profile 并运行（0.3.0）：右侧栏「总控台」有审批页与工单页，卡片外观逐条移植官方 `ask_user_question` 提问卡，只有卡顶（发起者/关联工单/时间）与卡底（附件行）是本插件新增；过滤条有胶囊、搜索与帮助浮层，审批标签带待审批数。样式待用户目检，功能链路（派发→审批→决定→汇报→关闭）沿用 P2 已验证的实现。
 
 ---
 
@@ -41,7 +41,7 @@ $pnpm='C:\Users\GZX\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnpm\bin\
 # 类型检查
 & $node .\node_modules\typescript\bin\tsc --noEmit
 
-# 单元 + 集成测试（235 项）
+# 单元 + 集成测试（303 项）
 & $node .\node_modules\vitest\vitest.mjs run
 
 # 构建：先 tsdown（host ESM → lib/index.js，client CJS → lib/client.body.js），再包外壳成 lib/client.js
@@ -115,9 +115,20 @@ src/host/tools/pa_approval_submit/ 阻塞审批工具（presentationMeta 供自�
 src/host/tools/pa_ledger_query/ 只读紧凑文本查询
 src/host/tickets/ids.ts        createTicketId / shortTicketId
 src/host/state/directory.ts    状态目录解析 + 幂等建目录
-src/client/entry.ts            注册标签类型、正文、标题（无自动打开）
+src/client/entry.ts            注册标签类型、正文、标题（无自动打开）；构造动作面
+src/client/actions.ts          动作面：openSession / openFile / showTickets / sessionTitle
 src/client/lib/http.ts         唯一网络边界（fetchSnapshot + ApiError）
-src/client/panel/ConsolePanel.tsx   总控台正文（审批/工单仍为空态）
+src/client/lib/filter.ts       胶囊 + 搜索（haystack、AND、与胶囊交集）
+src/client/lib/tickets.ts      胶囊归属与副标签（阻塞中 / 已中断）
+src/client/lib/files.ts        绝对路径 → dsh-resource 地址、路径取展示名
+src/client/lib/sessions.ts     会话列表行取展示名（title → displayTitle）
+src/client/lib/format.ts       卡片时间（绝对时间）与风险标签
+src/client/panel/ConsolePanel.tsx   总控台正文（快照轮询在此一层，标签徽标）
+src/client/components/ApprovalCard.tsx  审批卡（官方提问卡结构 + 头部元信息 + 附件）
+src/client/components/TicketCard.tsx    工单卡（同款外壳，无展开态/无动作）
+src/client/components/FilterBar.tsx     胶囊 + 搜索 + 帮助
+src/client/components/HelpPopover.tsx   帮助浮层
+src/client/components/card/             卡片外壳、头部、选项、回答框、附件、页脚、按钮、图标
 tests/host/**                  单测（镜像 src）
 tests/integration/ticket-flow.test.ts  A1–A4 链路 + A7 容量释放
 tests/support/fake-host.ts     伪宿主（会话、投递、agent ctx、事件分发）
@@ -186,17 +197,16 @@ scripts/wrap-client.mjs        把 CJS 产物包成 window.__ModuleLoader__.load
 
 ---
 
-## 7. 下一步 P3（UI）
+## 7. P3（UI）已完成，待目检
 
-1. `src/client/hooks/useSnapshot.ts`：面板可见时 2s 轮询、失败退避 10s、连接状态；用 `client/lib/http.ts` 的 `fetchSnapshot`。
-2. 审批页：待审批/已通过/全部三胶囊；卡片折叠/展开、选项、备注、可填字段、跳过 + 提交（POST decide，按错误码显示文案）；只读态。
-3. 工单页：待处理/进行中/已结束/全部；阶段徽标 + 「阻塞中」/「已中断」副标签 + 排队原因 + 汇报摘要。
-4. 搜索（§10.5 haystack）与胶囊过滤交集；`lib/filter.ts` 纯函数 + 测试。
-5. 头部按钮/徽标、i18n 补全、面板样式；`interrupted` 副标签文案（zh/en）。
-6. A9 搜索验收。
+1. `hooks/useSnapshot.ts` 未改：2s 轮询、失败退避 10s；现在由 `ConsolePanel` 调用一次，两页共用。
+2. 审批页：三胶囊、搜索、卡片折叠/展开、选项、回答框、附件、跳过 + 提交、已决只读态，全部完成。
+3. 工单页：四胶囊、搜索、同款卡片；只有「阻塞中」「已中断」两个副标签，无阶段徽标/汇报摘要/排队原因。
+4. `lib/filter.ts`：胶囊与搜索交集、AND 分词、haystack 覆盖可见字段与时间文本，已测。
+5. 徽标（审批标签显示待审批数）、i18n zh/en、帮助浮层与卡片样式全部完成。
+6. 待用户目检：深浅色主题、窄宽度、真实审批一条新数据（见 §12）。
 
 ---
-
 ## 8. 未决问题
 
 1. **A1–A4 真实链路待跑**：需要一个「用户在 router 会话提任务」的回合。建议在 GUI 的「个人代理 · 路由」里发：`把当前状态整理成一句话，先不要派工单`（验证直接回复），再发：`在 D:\tmp\pa-smoke 建一个 hello.txt，内容写 P2 OK`（验证派发→执行→结束）；需要审批时说「发布前问我一次」。
@@ -278,7 +288,7 @@ worker agent 由 `sessionController.create` 创建，而真实宿主在 create �
 
 1. 用户在面板点「立即重试」确认连接恢复（Host 已重载到 0.2.3，无需刷新页面）。
 2. P3 剩余：已通过/全部胶囊、已决卡片只读、搜索、工单页、标签徽标、i18n 清理（`approvalsEmpty` 等未用键）。
-3. 测试规模：**260 项**（含 client 9 项、guard 16 项）；`check-host.mjs` **23 项**。
+3. 测试规模：**303 项**（P3 后；含 client 43 项、guard 16 项）；`check-host.mjs` **23 项**。
 4. 当前真实账本：2 张已结束工单，1 条已决审批，无待审批。
 
 ### 11.5 「连接中断」最终根因与修复（0.2.3）
@@ -288,3 +298,45 @@ worker agent 由 `sessionController.create` 创建，而真实宿主在 create �
 **修复**：`guard.ts` 改为只拒绝**明确存在且不合格**的证据；三项全缺席放行，并接受 `dsh-app://app` 作 Referer 来源。浏览器跨站请求必带 `Origin` 或 `Sec-Fetch-Site`，拒绝分支不变；自定义头仍会触发预检。详见方案 §16.13。
 
 **验证**：真实宿主 `/health` 为 `0.2.3`；仅带自定义头的 `/snapshot` → 200，外来 Origin / `cross-site` → 403；单测 260、冒烟 23 全绿。
+
+## 12. P3 交付记录（0.3.0，2026-11-15）
+
+### 12.1 契约变化
+
+- 删除 `title` 与 `fields`（工具参数、决定校验、消息模板、投影、查询、测试一并清理）；
+  旧账本里的这两个键**读到即忽略**，不算损坏（`payload-spec` 只校验已声明键）。
+- 新增 `attachments`：工具参数 → `approval/pending.payload` → `ApprovalView`；
+  相对路径按工单工作目录归一，工单无目录时相对路径直接失败；上限 20、去重、不做文件 IO。
+- 详见 `docs/personal-agent-MVP开发方案.md` §17。
+
+### 12.2 外观基准
+
+卡片外观以官方 `ask_user_question` 提问卡为唯一基准（源码从 `app.asar` 取到，见
+`collab/scr/ref/user-questions/`，该目录已 gitignore）。与官方只有两处不同：
+头部元信息（发起者/关联工单/时间）与附件行。折叠态 = 官方 minimize 形态。
+所有颜色/圆角/字号/阴影取宿主 token，没有自造设计变量。
+
+### 12.3 验证证据
+
+| 项 | 结果 |
+|---|---|
+| `tsc --noEmit` | 无输出 |
+| `vitest run` | 32 文件 / 303 项全绿 |
+| 构建 | `lib/index.js` + `lib/client.js`（client 63KB） |
+| `check-host.mjs` | 23/23（含 attachments 透出） |
+| `check-client.mjs` | 外壳、inject 5 项、两个 slot、标题正确 |
+| 真实宿主 | `set_plugin` 关→开；`/health` = **0.3.0**；`/snapshot` 旧账本重放成功，审批视图无 title/fields |
+
+### 12.4 待用户目检
+
+1. 刷新 GUI → 总控台「审批」：已通过卡片折叠态、展开后只读态、时间格式。
+2. 「工单」：四胶囊、卡片头部「工单 #短码 · 标题」、主体目标、两个副标签。
+3. 深浅色主题、窄宽度（右侧栏拖窄到 ~360px）。
+4. 真实数据：让 router 派一个「需要审批」的工单，并在审批里带一个 `attachments`，
+   确认附件行出现且点击能在右侧栏打开文件。
+
+### 12.5 已知取舍
+
+- 卡片不再限高（官方在输入位上限高 `min(60vh,520px)`）；右侧栏整列滚动，卡片自然高。
+- 卡片里的图标是自绘的 16px 线性图标（宿主未把图标包暴露给插件）。
+- 会话展示名取 `ctx.sessions.list` 的列表行；宿主还没投影出标题时显示会话短码。
