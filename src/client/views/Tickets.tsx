@@ -5,7 +5,6 @@
 
 import { useState, type ReactElement } from 'react'
 import type { SnapshotResponse } from '../../shared/api.ts'
-import type { TicketView } from '../../shared/tickets.ts'
 import { FilterBar } from '../components/FilterBar.tsx'
 import { TicketCard } from '../components/TicketCard.tsx'
 import type { Translate } from '../i18n.ts'
@@ -18,12 +17,10 @@ export interface TicketsProps {
   t: Translate
   language: string
   snapshot?: SnapshotResponse
-  /** 从审批卡跳过来的工单：落到「全部」并高亮它。 */
-  focusTicketId?: string
 }
 
-export function Tickets({ t, language, snapshot, focusTicketId }: TicketsProps): ReactElement {
-  const [capsule, setCapsule] = useState<TicketCapsule>(focusTicketId === undefined ? 'running' : 'all')
+export function Tickets({ t, language, snapshot }: TicketsProps): ReactElement {
+  const [capsule, setCapsule] = useState<TicketCapsule>('running')
   const [query, setQuery] = useState('')
 
   const tickets = snapshot?.tickets ?? []
@@ -51,15 +48,7 @@ export function Tickets({ t, language, snapshot, focusTicketId }: TicketsProps):
         {visible.length === 0 ? (
           <span className="pa-console__empty">{t(emptyKey(capsule, query, capsuleHasItems))}</span>
         ) : (
-          visible.map(ticket => (
-            <TicketCard
-              key={ticket.id}
-              t={t}
-              language={language}
-              ticket={ticket}
-              focused={ticket.id === focusTicketId}
-            />
-          ))
+          visible.map(ticket => <TicketCard key={ticket.id} t={t} language={language} ticket={ticket} />)
         )}
       </div>
     </>

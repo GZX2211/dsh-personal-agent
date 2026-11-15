@@ -1,6 +1,7 @@
 // tests/client/lib/tickets.test.ts
 //
-// 工单页的纯展示逻辑：胶囊归属（blocked 算进行中）与副标签（阻塞中 / 已中断）。
+// 工单页的纯展示逻辑：胶囊归属（blocked 算进行中）与头部徽标
+// （一个状态徽标，阻塞中与已中断优先显示）。
 
 import { describe, expect, it } from 'vitest'
 import type { TicketView } from '../../../src/shared/tickets.ts'
@@ -9,6 +10,7 @@ import {
   outcomeKey,
   queueReasonKey,
   stageKey,
+  ticketBadge,
   ticketTags,
 } from '../../../src/client/lib/tickets.ts'
 
@@ -44,13 +46,45 @@ describe('matchesTicketCapsule', () => {
   })
 })
 
+describe('ticketBadge', () => {
+  it('shows the stage a queued or running ticket is in', () => {
+    expect(ticketBadge(ticket({ stage: 'queued' }))).toEqual({ labelKey: 'ticketStageQueued', tone: 'idle' })
+    expect(ticketBadge(ticket({ stage: 'running' }))).toEqual({ labelKey: 'ticketStageRunning', tone: 'business' })
+  })
+
+  it('prefers blocked over everything else', () => {
+    expect(ticketBadge(ticket({ stage: 'blocked', interrupted: true }))).toEqual({
+      labelKey: 'ticketTagBlocked',
+      tone: 'warn',
+    })
+  })
+
+  it('prefers interrupted over the plain running badge', () => {
+    expect(ticketBadge(ticket({ stage: 'running', interrupted: true }))).toEqual({
+      labelKey: 'ticketTagInterrupted',
+      tone: 'error',
+    })
+  })
+
+  it('tones an ended ticket by its outcome', () => {
+    expect(ticketBadge(ticket({ stage: 'ended', outcome: 'completed' }))).toEqual({
+      labelKey: 'ticketStageEnded',
+      tone: 'success',
+    })
+    expect(ticketBadge(ticket({ stage: 'ended', outcome: 'failed' }))).toEqual({
+      labelKey: 'ticketStageEnded',
+      tone: 'error',
+    })
+  })
+})
+
 describe('ticketTags', () => {
-  it('reports the 阻塞中副标签 only for a blocked ticket', () => {
+  it('reports the blocked tag only for a blocked ticket', () => {
     expect(ticketTags(ticket({ stage: 'blocked' }))).toEqual(['blocked'])
     expect(ticketTags(ticket({ stage: 'running' }))).toEqual([])
   })
 
-  it('reports the 已中断副标签 for an interrupted running ticket', () => {
+  it('reports the interrupted tag for an interrupted running ticket', () => {
     expect(ticketTags(ticket({ stage: 'running', interrupted: true }))).toEqual(['interrupted'])
     expect(ticketTags(ticket({ stage: 'ended', interrupted: true }))).toEqual([])
   })

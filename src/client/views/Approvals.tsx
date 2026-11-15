@@ -3,10 +3,9 @@
 // 审批页：胶囊（待审批 / 已通过 / 全部）+ 搜索，列表用同一张卡片渲染；
 // 提交决定后立即刷新，并按稳定错误码给出具体原因。
 
-import { useMemo, useState, type ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import type { ApprovalView } from '../../shared/approvals.ts'
 import type { SnapshotResponse } from '../../shared/api.ts'
-import type { TicketView } from '../../shared/tickets.ts'
 import type { ConsoleActions } from '../actions.ts'
 import { ApprovalCard } from '../components/ApprovalCard.tsx'
 import { FilterBar } from '../components/FilterBar.tsx'
@@ -46,11 +45,6 @@ export function Approvals({
   const [notice, setNotice] = useState<string>()
 
   const approvals = snapshot?.approvals ?? []
-  const tickets = useMemo(() => {
-    const map = new Map<string, TicketView>()
-    for (const ticket of snapshot?.tickets ?? []) map.set(ticket.id, ticket)
-    return map
-  }, [snapshot])
 
   const visible = filterApprovals(approvals, capsule, query, { t, language })
   const capsuleHasItems = approvals.some(approval => matchesApprovalCapsule(approval, capsule))
@@ -110,7 +104,6 @@ export function Approvals({
               t={t}
               language={language}
               approval={approval}
-              tickets={tickets}
               actions={actions}
               busy={busyId === approval.id}
               error={errors[approval.id] === undefined || errors[approval.id] === '' ? undefined : errors[approval.id]}

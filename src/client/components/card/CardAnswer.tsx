@@ -25,7 +25,7 @@ export function CardAnswerField({
   return (
     <div className="pa-card__answer-row" data-active={value.length > 0 || undefined}>
       <span className="pa-card__seat" aria-hidden="true">
-        <Icon name="edit" size={12} />
+        <Icon name="edit" size={13} />
       </span>
       <div className="pa-card__field">
         <div aria-hidden className="pa-card__field-mirror">{`${value}\n`}</div>
@@ -52,7 +52,7 @@ export function CardAnswerText({ note }: CardAnswerTextProps): ReactElement | nu
   return (
     <div className="pa-card__answer-row pa-card__answer-row--readonly">
       <span className="pa-card__seat" aria-hidden="true">
-        <Icon name="edit" size={12} />
+        <Icon name="edit" size={13} />
       </span>
       <span className="pa-card__answer-text">{note}</span>
     </div>

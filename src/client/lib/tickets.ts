@@ -11,6 +11,14 @@ export type TicketCapsule = 'queued' | 'running' | 'ended' | 'all'
 /** 工单卡片上的副标签；只有这两种，状态重复的信息不再做徽标。 */
 export type TicketTag = 'blocked' | 'interrupted'
 
+/** 卡片头部只放一个状态徽标，色调跟随状态语义。 */
+export type TicketBadgeTone = 'idle' | 'business' | 'success' | 'warn' | 'error'
+
+export interface TicketBadge {
+  labelKey: keyof Dict
+  tone: TicketBadgeTone
+}
+
 const STAGE_KEYS: Record<TicketStage, keyof Dict> = {
   queued: 'ticketStageQueued',
   running: 'ticketStageRunning',
@@ -52,6 +60,27 @@ export function ticketTags(ticket: TicketView): TicketTag[] {
   if (ticket.stage === 'blocked') tags.push('blocked')
   if (ticket.stage === 'running' && ticket.interrupted === true) tags.push('interrupted')
   return tags
+}
+
+/**
+ * 头部那一个状态徽标：阻塞中 > 已中断 > 阶段本身。
+ *
+ * 用户在一个工单上只需要看到一个当前状态；阻塞中和已中断是比「进行中」
+ * 更具体的事实，所以优先显示它们。
+ */
+export function ticketBadge(ticket: TicketView): TicketBadge {
+  if (ticket.stage === 'blocked') return { labelKey: 'ticketTagBlocked', tone: 'warn' }
+  if (ticket.stage === 'running' && ticket.interrupted === true) {
+    return { labelKey: 'ticketTagInterrupted', tone: 'error' }
+  }
+  switch (ticket.stage) {
+    case 'queued':
+      return { labelKey: 'ticketStageQueued', tone: 'idle' }
+    case 'running':
+      return { labelKey: 'ticketStageRunning', tone: 'business' }
+    case 'ended':
+      return { labelKey: 'ticketStageEnded', tone: ticket.outcome === 'failed' ? 'error' : 'success' }
+  }
 }
 
 export function tagKey(tag: TicketTag): keyof Dict {

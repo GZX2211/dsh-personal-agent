@@ -1,7 +1,7 @@
 // tests/client/components/ticket-card.test.tsx
 //
-// 工单卡片的结构契约：与审批卡同一套卡片，但没有展开态、没有动作、没有阶段
-// 徽标与汇报摘要；只有「阻塞中」「已中断」两个副标签。
+// 工单卡片的结构契约：与审批卡同一套卡片，但没有展开态、没有动作；头部右侧
+// 只有一个状态徽标（阻塞中 / 已中断优先），正文最多两行。
 
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -48,31 +48,32 @@ describe('TicketCard', () => {
     expect(html).not.toContain('提交')
   })
 
-  it('shows the blocked副标签 for a blocked ticket', () => {
-    expect(render(ticket({ stage: 'blocked' }))).toContain('阻塞中')
+  it('clamps the goal to two lines', () => {
+    expect(render(ticket())).toContain('pa-card__question--clamp')
   })
 
-  it('shows the interrupted副标签 for an interrupted running ticket', () => {
-    expect(render(ticket({ stage: 'running', interrupted: true }))).toContain('已中断')
+  it('shows the stage as the single header badge', () => {
+    expect(render(ticket({ stage: 'queued' }))).toContain('待处理')
+    expect(render(ticket({ stage: 'running' }))).toContain('进行中')
+    expect(render(ticket({ stage: 'ended', outcome: 'completed' }))).toContain('已结束')
   })
 
-  it('shows no副标签 for a plain running ticket', () => {
-    const html = render(ticket())
+  it('prefers blocked and interrupted over the stage badge', () => {
+    const blocked = render(ticket({ stage: 'blocked', interrupted: true }))
+    const interrupted = render(ticket({ stage: 'running', interrupted: true }))
 
-    expect(html).not.toContain('阻塞中')
-    expect(html).not.toContain('已中断')
+    expect(blocked).toContain('阻塞中')
+    expect(blocked).not.toContain('进行中')
+    expect(interrupted).toContain('已中断')
+    expect(interrupted).not.toContain('进行中')
   })
 
-  it('does not repeat the stage or the report on the card', () => {
-    const html = render(ticket({ stage: 'ended', outcome: 'completed', report: '做完了，产物在 out/' }))
-
-    expect(html).not.toContain('已结束')
-    expect(html).not.toContain('做完了')
+  it('tones an ended ticket by its outcome', () => {
+    expect(render(ticket({ stage: 'ended', outcome: 'completed' }))).toContain('data-tone="success"')
+    expect(render(ticket({ stage: 'ended', outcome: 'failed' }))).toContain('data-tone="error"')
   })
 
-  it('marks the card as focused when opened from an approval', () => {
-    const html = renderToStaticMarkup(<TicketCard t={t} language="zh-CN" ticket={ticket()} focused />)
-
-    expect(html).toContain('data-focused="true"')
+  it('does not repeat the report on the card', () => {
+    expect(render(ticket({ stage: 'ended', outcome: 'completed', report: '做完了，产物在 out/' }))).not.toContain('做完了')
   })
 })

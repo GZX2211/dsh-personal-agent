@@ -6,7 +6,7 @@
 // 快照在这里拉一次，两个列表页共用：两页各轮询一次会让同一份数据在同一屏里
 // 出现两种时刻的状态。标签上的待审批数也来自这一次快照。
 
-import { useMemo, useState, type ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import type { ConsoleActions } from '../actions.ts'
 import { NO_ACTIONS } from '../actions.ts'
 import { ConsoleTabStrip, type ConsoleTab } from '../components/ConsoleTabStrip.tsx'
@@ -29,7 +29,7 @@ const INITIAL_TAB: ConsoleTabId = 'approvals'
 
 export interface ConsolePanelProps {
   t: Translate
-  /** 当前界面语言，用于日期与相对时间的本地化。 */
+  /** 当前界面语言，用于日期与时间的本地化。 */
   language?: string
   /** 由 entry 注入的动作面；缺省时卡片按钮退化为无操作。 */
   actions?: ConsoleActions
@@ -37,21 +37,7 @@ export interface ConsolePanelProps {
 
 export function ConsolePanel({ t, language = 'zh', actions = NO_ACTIONS }: ConsolePanelProps): ReactElement {
   const [active, setActive] = useState<ConsoleTabId>(INITIAL_TAB)
-  /** 从审批卡点过来的工单：切页后要能一眼看到它。 */
-  const [focusedTicket, setFocusedTicket] = useState<string>()
   const { snapshot, error, refresh } = useSnapshot()
-
-  // 「关联工单」要跳工单页：那是这一层自己的状态，所以在这里覆盖注入的实现。
-  const merged = useMemo<ConsoleActions>(
-    () => ({
-      ...actions,
-      showTickets: ticketId => {
-        setFocusedTicket(ticketId)
-        setActive('tickets')
-      },
-    }),
-    [actions],
-  )
 
   const tabs: ConsoleTab[] = [
     { id: 'overview', label: t('tabOverview') },
@@ -74,12 +60,10 @@ export function ConsolePanel({ t, language = 'zh', actions = NO_ACTIONS }: Conso
             snapshot={snapshot}
             error={error}
             refresh={refresh}
-            actions={merged}
+            actions={actions}
           />
         ) : null}
-        {active === 'tickets' ? (
-          <Tickets t={t} language={language} snapshot={snapshot} focusTicketId={focusedTicket} />
-        ) : null}
+        {active === 'tickets' ? <Tickets t={t} language={language} snapshot={snapshot} /> : null}
         {IMPLEMENTED.includes(active) ? null : (
           <Placeholder
             title={tabs.find(tab => tab.id === active)?.label ?? t('notAvailable')}

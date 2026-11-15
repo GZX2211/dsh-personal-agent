@@ -50,8 +50,6 @@ export function apply(ctx: ClientContext): void {
       const sidebar = ctx.get('sidebarRight') as SidebarNavigation | undefined
       sidebar?.openResource?.(absoluteFileAddress(path))
     },
-    // 面板自己的标签状态由 ConsolePanel 覆盖。
-    showTickets: () => undefined,
     sessionTitle: sessionId => {
       const sessions = ctx.get('sessions') as SessionListService | undefined
       return sessionTitleOf(sessions?.list?.getSnapshot?.(), sessionId)

@@ -19,7 +19,7 @@ export function CardAttachment({ paths, label, openHint, onOpen }: CardAttachmen
   return (
     <div className="pa-card__attachment-row">
       <span className="pa-card__seat" aria-hidden="true">
-        <Icon name="paperclip" size={12} />
+        <Icon name="paperclip" size={13} />
       </span>
       <span className="pa-card__attachment-copy">
         <span className="pa-card__attachment-label">

@@ -14,7 +14,7 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
 export function IconButton({ icon, label, type = 'button', ...rest }: IconButtonProps): ReactElement {
   return (
     <button type={type} className="pa-icon-button" aria-label={label} title={label} {...rest}>
-      <Icon name={icon} />
+      <Icon name={icon} size={14} />
     </button>
   )
 }

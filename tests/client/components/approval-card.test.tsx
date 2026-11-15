@@ -1,12 +1,11 @@
 // tests/client/components/approval-card.test.tsx
 //
-// 审批卡片的结构契约：待审批默认展开、已通过默认折叠且只读、附件为空时
-// 整行不渲染。用服务端静态渲染，不依赖浏览器 DOM。
+// 审批卡片的结构契约：待审批默认展开、已通过默认折叠且只读、头部只有发起者
+// 会话名与时间、附件为空时整行不渲染。用服务端静态渲染，不依赖浏览器 DOM。
 
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ApprovalView } from '../../../src/shared/approvals.ts'
-import type { TicketView } from '../../../src/shared/tickets.ts'
 import { NO_ACTIONS } from '../../../src/client/actions.ts'
 import { ApprovalCard } from '../../../src/client/components/ApprovalCard.tsx'
 import { translateFor } from '../../../src/client/i18n.ts'
@@ -29,28 +28,12 @@ function approval(overrides: Partial<ApprovalView> = {}): ApprovalView {
   }
 }
 
-const TICKETS = new Map<string, TicketView>([
-  [
-    't-7380b609ef',
-    {
-      id: 't-7380b609ef',
-      shortId: '7380b6',
-      title: '发布新版本',
-      stage: 'blocked',
-      goal: '把 v2 发出去',
-      createdAt: NOW,
-      updatedAt: NOW,
-    },
-  ],
-])
-
 function render(card: ApprovalView, defaultCollapsed?: boolean): string {
   return renderToStaticMarkup(
     <ApprovalCard
       t={t}
       language="zh-CN"
       approval={card}
-      tickets={TICKETS}
       actions={NO_ACTIONS}
       busy={false}
       defaultCollapsed={defaultCollapsed}
@@ -73,13 +56,12 @@ describe('ApprovalCard 待审批', () => {
     expect(html).toContain('1 / 1')
   })
 
-  it('names the requester and the related ticket in the eyebrow', () => {
+  it('shows the requesting session name alone in the header', () => {
     const html = render(approval())
 
-    expect(html).toContain('发起者')
     expect(html).toContain('19b0e213')
-    expect(html).toContain('关联工单')
-    expect(html).toContain('发布新版本')
+    expect(html).not.toContain('发起者')
+    expect(html).not.toContain('关联工单')
   })
 
   it('hides the attachment row entirely when the worker sent none', () => {

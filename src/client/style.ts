@@ -1,12 +1,16 @@
 // src/client/style.ts
 //
-// 面板样式：只做隔离与布局，颜色/圆角/字号/阴影一律取宿主 design token，
-// 不复制设计变量，也不为了贴参考图而自造像素值。
+// 面板样式：颜色/圆角/字号/阴影一律取宿主 design token，不复制设计变量。
 //
-// 卡片部分逐条移植官方 `ask_user_question` 提问卡的样式
-// （dsh-client-ui-user-questions: QuestionComposer.module.css）：
-// 表面、头部、序号座位、选项行、回答框、页脚都保持同一套度量；本插件只
-// 新增头部元信息（发起者 / 关联工单 / 时间）与附件行，它们沿用同一批 token。
+// 排版跟宿主主界面同一套刻度，这是本文件的第一原则：
+//   · 字号：14 正文 / 13 次要 / 12 小字与时间 / 11 徽标
+//   · 行高：22 正文 / 20 次要 / 16 小字与徽标
+//   · 间距：2 / 4 / 8 / 12 / 14，全部沿同一条左基线（卡片内边距 14px）
+// 因此卡片里任何一块都不再各带左右留白——各区块自己加左内边距，正是上一版
+// 「文字对不齐、边距不一致」的根源。
+//
+// 卡片仍是官方 `ask_user_question` 提问卡的结构（头部 / 题干 / 选项 / 回答 /
+// 附件 / 页脚），只是度量收敛到上面这套刻度。
 //
 // 构建链路没有 CSS Module 管线（客户端产物是单个 CJS 文件），因此样式集中
 // 在本文件；类名用 `pa-` 前缀隔离，避免与宿主样式串味。
@@ -26,11 +30,11 @@ export const CONSOLE_CSS = `
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
-  gap: 0 32px;
+  gap: 0 28px;
   align-items: stretch;
   box-sizing: border-box;
-  min-height: 38px;
-  padding: 0 16px;
+  min-height: 36px;
+  padding: 0 14px;
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
 }
 .pa-console__tab {
@@ -82,20 +86,24 @@ export const CONSOLE_CSS = `
   min-height: 0;
 }
 .pa-console__empty {
-  padding: 24px 16px;
+  padding: 20px 14px;
   color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
   text-align: center;
 }
 .pa-console__placeholder {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 16px;
+  gap: 4px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 20px;
   color: var(--dsw-alias-label-secondary);
 }
 .pa-console__placeholder strong {
   color: var(--dsw-alias-label-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* ── 过滤条 ─────────────────────────────────────────────────────────── */
@@ -103,14 +111,14 @@ export const CONSOLE_CSS = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex: 0 0 auto;
-  padding: 8px 16px;
+  padding: 8px 14px;
 }
 .pa-filterbar__capsules {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -118,16 +126,22 @@ export const CONSOLE_CSS = `
 .pa-filterbar__capsules::-webkit-scrollbar {
   display: none;
 }
+/* 胶囊用 flex 居中，不靠 line-height 撑高度——上下留白才会一致。 */
 .pa-capsule {
-  height: 28px;
-  padding: 0 12px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 10px;
   border: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 16px;
   white-space: nowrap;
   cursor: pointer;
@@ -138,13 +152,14 @@ export const CONSOLE_CSS = `
 .pa-capsule[aria-pressed='true'] {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+  font-weight: 500;
 }
 .pa-filterbar__tools {
   position: relative;
   display: flex;
   flex: 0 1 auto;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 .pa-search {
@@ -153,11 +168,11 @@ export const CONSOLE_CSS = `
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
-  height: 32px;
+  height: 28px;
   min-width: 120px;
-  max-width: 240px;
-  padding: 0 10px;
-  border-radius: var(--dsw-radius-md);
+  max-width: 220px;
+  padding: 0 8px;
+  border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-layer-1);
   box-shadow: var(--dsw-elevation-soft);
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
@@ -191,8 +206,8 @@ export const CONSOLE_CSS = `
   right: 0;
   z-index: 10;
   box-sizing: border-box;
-  width: 248px;
-  padding: 12px 14px;
+  width: 240px;
+  padding: 10px 12px;
   border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-elevation-prominent);
@@ -202,28 +217,30 @@ export const CONSOLE_CSS = `
 }
 .pa-help-pop strong {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
 }
 .pa-help-pop p {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
 }
 .pa-help-pop p:last-of-type {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .pa-help-pop__close {
   display: inline-flex;
   align-items: center;
-  height: 26px;
-  padding: 0 12px;
+  height: 24px;
+  padding: 0 10px;
   border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 12px;
+  line-height: 16px;
   cursor: pointer;
 }
 
@@ -235,7 +252,7 @@ export const CONSOLE_CSS = `
   gap: 8px;
   box-sizing: border-box;
   min-height: 0;
-  padding: 4px 16px 16px;
+  padding: 4px 14px 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -244,16 +261,16 @@ export const CONSOLE_CSS = `
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
-  margin: 0 16px 8px;
+  margin: 0 14px 8px;
   padding: 6px 10px;
   border: 0.5px solid var(--dsw-alias-state-error-primary);
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-state-error-primary);
   font-size: 12px;
   line-height: 16px;
 }
 .pa-banner__retry {
-  padding: 0 8px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
@@ -263,67 +280,64 @@ export const CONSOLE_CSS = `
 }
 .pa-notice {
   margin: 0;
-  padding: 0 16px 8px;
+  padding: 0 14px 8px;
   color: var(--dsw-alias-state-business-primary);
   font-size: 12px;
   line-height: 16px;
 }
 
-/* ── 卡片外壳（官方 .card / .cardMinimized） ────────────────────────── */
+/* ── 卡片外壳 ───────────────────────────────────────────────────────── */
 .pa-card {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
+  box-sizing: border-box;
   width: 100%;
-  padding: 0 0 10px;
+  padding: 12px 14px;
   border: 0;
-  border-radius: var(--dsw-radius-xl);
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-panel);
+  box-shadow: var(--dsw-elevation-soft);
   color: var(--dsw-alias-label-primary);
-  overflow: hidden;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2-darkmode-thin);
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
 }
 .pa-card,
 .pa-card * {
   box-sizing: border-box;
 }
-.pa-card[data-collapsed] .pa-card__header {
-  padding-bottom: 14px;
-}
-/* 无页脚的卡片（工单）：没有页脚可收口，靠底部内边距补回来。 */
-.pa-card--footerless {
-  padding-bottom: 16px;
-}
-/* 从审批卡跳过来的工单：描边强调，不改变尺寸。 */
-.pa-card[data-focused] {
-  outline: 1px solid var(--dsw-alias-state-business-primary);
-  outline-offset: 1px;
-}
 
-/* ── 卡片头部（官方 .header / .eyebrow + 本插件的时间与折叠） ───────── */
+/* ── 卡片头部：一行元信息 + 右侧状态/时间/折叠 ──────────────────────── */
 .pa-card__header {
   display: flex;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 20px 16px 0 24px;
+  gap: 8px;
 }
 .pa-card__heading {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
-.pa-card__eyebrow {
+.pa-card__meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 16px;
-  margin-bottom: 5px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
+}
+.pa-card__meta-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 元信息里的「主体」（会话名、工单标题）比标识（短码）更亮一档。 */
+.pa-card__meta-strong {
+  color: var(--dsw-alias-label-primary);
 }
 .pa-card__link {
   max-width: 100%;
@@ -340,40 +354,26 @@ export const CONSOLE_CSS = `
 .pa-card__link:hover {
   color: var(--dsw-alias-state-business-primary);
 }
-/* eyebrow 里的普通文本（工单短码与标题）：同样单行截断。 */
-.pa-card__eyebrow-text {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .pa-card__header-actions {
   display: flex;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-.pa-card__status {
-  color: var(--dsw-alias-state-success-primary);
-  font-size: 12px;
-  line-height: 24px;
-  white-space: nowrap;
+  gap: 6px;
 }
 .pa-card__time {
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
-  line-height: 24px;
+  line-height: 16px;
   white-space: nowrap;
 }
-/* 折叠态题干：官方 .cardMinimized .title（16/22、两行截断）。 */
+/* 折叠态题干：与正文同字号，两行截断。 */
 .pa-card__collapsed-title {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
   color: var(--dsw-alias-label-primary);
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 400;
   line-height: 22px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -381,12 +381,40 @@ export const CONSOLE_CSS = `
   -webkit-line-clamp: 2;
 }
 
-/* 官方 .iconButton：24px 圆形图标按钮。 */
+/* 徽标：一个状态一个徽标，形状统一，色调按语义。 */
+.pa-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: var(--dsw-radius-xs);
+  background: var(--dsw-alias-bg-overlay);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.pa-badge[data-tone='business'] {
+  color: var(--dsw-alias-state-business-primary);
+}
+.pa-badge[data-tone='success'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+.pa-badge[data-tone='warn'] {
+  color: var(--dsw-alias-state-warn-primary);
+}
+.pa-badge[data-tone='error'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* 20px 圆形图标按钮：与 12px 时间同一行时不撑高头部。 */
 .pa-icon-button {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: none;
   border-radius: 999px;
@@ -405,43 +433,43 @@ export const CONSOLE_CSS = `
   cursor: default;
 }
 
-/* ── 卡片主体（官方 .body） ─────────────────────────────────────────── */
+/* ── 卡片主体 ───────────────────────────────────────────────────────── */
 .pa-card__body {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  margin-top: 8px;
 }
-/* 官方 .questionTitle + .title：题干与卡片标题同一套 16/22。 */
+/* 正文：与主界面同一套 14/22；工单卡截断到两行。 */
 .pa-card__question {
-  flex-shrink: 0;
-  margin: 5px 24px 0;
+  margin: 0;
   color: var(--dsw-alias-label-primary);
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 400;
   line-height: 22px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+.pa-card__question--clamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 
-/* ── 选项（官方 .options / .optionRow / .option / .number） ──────────── */
+/* ── 选项 ───────────────────────────────────────────────────────────── */
 .pa-card__options {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  margin: 8px 0 0;
-  padding: 4px 12px;
+  gap: 2px;
+  margin-top: 8px;
 }
 .pa-card__option-row {
   position: relative;
   width: 100%;
-  min-height: 40px;
-  flex-shrink: 0;
   border: 0.5px solid transparent;
-  border-radius: var(--dsw-radius-md);
-  background: transparent;
+  border-radius: var(--dsw-radius-sm);
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 @media (hover: hover) {
@@ -459,8 +487,7 @@ export const CONSOLE_CSS = `
   gap: 8px;
   width: 100%;
   min-width: 0;
-  min-height: 40px;
-  padding: 8px 12px 8px 8px;
+  padding: 6px 8px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -471,20 +498,21 @@ export const CONSOLE_CSS = `
 .pa-card__option:disabled {
   cursor: default;
 }
-/* 官方 .number：20×20 序号座位，与第一行文字对齐。 */
-.pa-card__number {
+/* 18×18 座位：序号、编辑、附件共用，保证三行文字落在同一条基线上。 */
+.pa-card__number,
+.pa-card__seat {
   display: grid;
   place-items: center;
-  flex: 0 0 20px;
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
   border-radius: var(--dsw-radius-xs);
   background: var(--dsw-alias-bg-overlay);
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
-  line-height: 18px;
+  line-height: 16px;
 }
 .pa-card__option-copy {
   display: flex;
@@ -495,34 +523,33 @@ export const CONSOLE_CSS = `
   min-width: 0;
 }
 .pa-card__option-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 24px;
+  line-height: 20px;
 }
 .pa-card__option-desc {
   max-width: 100%;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 400;
-  line-height: 20px;
+  line-height: 18px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-/* ── 回答行与附件行（官方 .customRow / AnswerField） ────────────────── */
+/* ── 回答行与附件行：与选项行同高、同内边距、同文字起点 ─────────────── */
 .pa-card__answer-row,
 .pa-card__attachment-row {
   display: flex;
-  flex-shrink: 0;
   align-items: flex-start;
   gap: 8px;
   width: 100%;
-  min-height: 40px;
-  padding: 8px 12px 8px 8px;
+  padding: 6px 8px;
   border: 0.5px solid transparent;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-sm);
 }
 .pa-card__answer-row {
+  margin-top: 8px;
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 .pa-card__answer-row:focus-within,
@@ -538,18 +565,6 @@ export const CONSOLE_CSS = `
 .pa-card__answer-row--readonly:hover {
   background: transparent;
 }
-/* 编辑图标与附件图标共用序号座位的形状。 */
-.pa-card__seat {
-  display: grid;
-  place-items: center;
-  flex: 0 0 20px;
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-bg-overlay);
-  color: var(--dsw-alias-label-secondary);
-}
 .pa-card__field {
   display: grid;
   flex: 1;
@@ -560,15 +575,15 @@ export const CONSOLE_CSS = `
   min-width: 0;
   padding: 0;
   font: inherit;
-  font-size: 14px;
-  line-height: 24px;
+  font-size: 13px;
+  line-height: 20px;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 .pa-card__field-mirror {
   box-sizing: content-box;
-  max-height: 144px;
+  max-height: 120px;
   overflow: hidden;
   visibility: hidden;
 }
@@ -588,10 +603,13 @@ export const CONSOLE_CSS = `
   flex: 1;
   min-width: 0;
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  line-height: 24px;
+  font-size: 13px;
+  line-height: 20px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+.pa-card__attachment-row {
+  margin-top: 2px;
 }
 .pa-card__attachment-copy {
   display: flex;
@@ -601,8 +619,8 @@ export const CONSOLE_CSS = `
   gap: 0 6px;
   min-width: 0;
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  line-height: 24px;
+  font-size: 13px;
+  line-height: 20px;
 }
 .pa-card__attachment-file {
   max-width: 100%;
@@ -624,53 +642,27 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* ── 副标签（工单） ─────────────────────────────────────────────────── */
-.pa-card__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 8px 24px 0;
-}
-.pa-card__tag {
-  padding: 0 6px;
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-bg-overlay);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 18px;
-}
-.pa-card__tag[data-tag='blocked'] {
-  color: var(--dsw-alias-state-warn-primary);
-}
-.pa-card__tag[data-tag='interrupted'] {
-  color: var(--dsw-alias-state-error-primary);
-}
-
-/* ── 页脚（官方 .footer / .pager / .progress / .feedback） ──────────── */
+/* ── 页脚 ───────────────────────────────────────────────────────────── */
 .pa-card__footer {
   display: flex;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
-  padding: 0 10px 0 18px;
+  gap: 8px;
+  margin-top: 8px;
 }
 .pa-card__pager {
   display: flex;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 .pa-card__progress {
-  padding: 0 4px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 24px;
+  padding: 0 2px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 16px;
   white-space: nowrap;
-  word-spacing: -2px;
 }
 .pa-card__feedback {
   flex: 1;
@@ -682,23 +674,23 @@ export const CONSOLE_CSS = `
 }
 .pa-card__footer-actions {
   display: flex;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
-/* ── 按钮（宿主按钮的同一套：32px 高、8px 圆角） ────────────────────── */
+/* ── 按钮：与宿主按钮同一套（28px 高、8px 圆角、13px 字） ───────────── */
 .pa-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   box-sizing: border-box;
-  height: 32px;
-  padding: 0 16px;
+  height: 28px;
+  padding: 0 12px;
   border-radius: var(--dsw-radius-sm);
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 20px;
   white-space: nowrap;
@@ -729,25 +721,6 @@ export const CONSOLE_CSS = `
   cursor: not-allowed;
 }
 
-/* 窄面板：跟随官方窄屏断点收紧头部与选项的水平留白。 */
-@media (max-width: 720px) {
-  .pa-card__header {
-    padding: 10px 12px 0 18px;
-  }
-  .pa-card__options {
-    padding: 4px 8px;
-  }
-  .pa-card__question {
-    margin-right: 18px;
-    margin-left: 18px;
-    font-size: 15px;
-    line-height: 21px;
-  }
-  .pa-card__footer {
-    align-items: flex-end;
-    padding: 0 10px;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .pa-card__option-row,
   .pa-card__answer-row {
