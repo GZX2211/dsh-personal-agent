@@ -16,6 +16,28 @@ export interface FakeAgent {
   session: { id: string }
   status: 'idle' | 'running'
   inbox: { nextTurn: unknown[]; nextStep: unknown[] }
+  /** 该 agent 作用域内注册的工具名。 */
+  toolNames: string[]
+  /** 该 agent 作用域内注册的工具定义（按名字）。 */
+  toolImpls: Map<string, unknown>
+  /** 该 agent 作用域内的提示词 section。 */
+  sections: { name: string; order: number; text: string }[]
+  /** 该 agent 的 restrict 调用。 */
+  restrictions: unknown[]
+  /** agent 作用域 effect 的标签与释放状态。 */
+  effectLabels: string[]
+  disposed: boolean
+  ctx: {
+    effect(fn: () => (() => void) | void, label: string): () => void
+    tools: {
+      register(definition: { name: string }): () => void
+      restrict(filter: unknown): () => void
+      definitions(scope?: unknown): { name: string }[]
+    }
+    systemPrompt: {
+      section(section: { name: string; order: number; text: string }): () => void
+    }
+  }
   followup(message: { id: string; content: { type: string; text?: string }[] }): void
 }
 
@@ -58,6 +80,8 @@ export interface FakeHostOptions {
   archivedSessionIds?: string[]
   /** 每次投递时回调，便于在「投递发生的那一刻」检查账本状态。 */
   onFollowup?: (sessionId: string, requestId: string) => void
+  /** 全局可见工具名：角色装饰的 restrict 只会裁剪这里的名字。 */
+  visibleTools?: string[]
 }
 
 export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
@@ -76,29 +100,64 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
   const created: string[] = []
 
   function addSession(sessionId: string): FakeSession {
+    const agent: FakeAgent = {
+      id: sessionId,
+      session: { id: sessionId },
+      status: 'idle',
+      inbox: { nextTurn: [], nextStep: [] },
+      toolNames: [],
+      toolImpls: new Map<string, unknown>(),
+      sections: [],
+      restrictions: [],
+      effectLabels: [],
+      disposed: false,
+      ctx: {
+        effect(fn, label) {
+          const dispose = fn()
+          agent.effectLabels.push(label)
+          return () => {
+            dispose?.()
+            agent.disposed = true
+          }
+        },
+        tools: {
+          register(definition) {
+            agent.toolNames.push(definition.name)
+            agent.toolImpls.set(definition.name, definition)
+            return () => undefined
+          },
+          restrict(filter) {
+            agent.restrictions.push(filter)
+            return () => undefined
+          },
+          definitions: () => (options.visibleTools ?? []).map(name => ({ name })),
+        },
+        systemPrompt: {
+          section(section) {
+            agent.sections.push(section)
+            return () => undefined
+          },
+        },
+      },
+      followup(message) {
+        if (followupFailure !== undefined) {
+          const failure = followupFailure
+          followupFailure = undefined
+          throw new Error(failure)
+        }
+        session.delivered.push({
+          requestId: message.id,
+          text: message.content.map(block => block.text ?? '').join(''),
+        })
+        this.inbox.nextTurn.push(message)
+        options.onFollowup?.(sessionId, message.id)
+      },
+    }
     const session: FakeSession = {
       sessionId,
       delivered: [],
       events: [],
-      agent: {
-        id: sessionId,
-        session: { id: sessionId },
-        status: 'idle',
-        inbox: { nextTurn: [], nextStep: [] },
-        followup(message) {
-          if (followupFailure !== undefined) {
-            const failure = followupFailure
-            followupFailure = undefined
-            throw new Error(failure)
-          }
-          session.delivered.push({
-            requestId: message.id,
-            text: message.content.map(block => block.text ?? '').join(''),
-          })
-          this.inbox.nextTurn.push(message)
-          options.onFollowup?.(sessionId, message.id)
-        },
-      },
+      agent,
     }
     sessions.set(sessionId, session)
     return session
