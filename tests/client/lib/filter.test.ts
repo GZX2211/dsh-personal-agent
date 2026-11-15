@@ -88,6 +88,14 @@ describe('approvalHaystack', () => {
     expect(haystack).toContain('今晚发')
     expect(haystack).toContain('7380b6')
   })
+  it('searches a standalone approval without a ticket id', () => {
+    const standalone = approval({ id: 'a-standalone', ticketId: undefined, question: '要独立审批吗？' })
+    const haystack = approvalHaystack(standalone, ctx)
+
+    expect(haystack).toContain('要独立审批吗')
+    expect(haystack).not.toContain('undefined')
+    expect(filterApprovals([standalone], 'all', '独立审批', ctx)).toEqual([standalone])
+  })
 })
 
 describe('ticketHaystack', () => {

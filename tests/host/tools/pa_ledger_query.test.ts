@@ -162,6 +162,29 @@ describe('pa_ledger_query', () => {
     expect(decided.text).toContain('#a-done')
   })
 
+  it('labels an approval that is not bound to a ticket', async () => {
+    store.append({
+      type: 'approval/pending',
+      actor: 'worker',
+      correlationId: 'a-standalone',
+      payload: {
+        approvalId: 'a-standalone',
+        question: '要不要继续？',
+        options: [{ label: '继续', description: '往下做' }],
+        requestedBySessionId: 'session-standalone',
+      },
+    })
+    const tool = createLedgerQueryTool({ store })
+
+    const result = (await tool.execute({ scope: 'approvals', filter: 'active' }, {} as never)) as {
+      text: string
+    }
+
+    expect(result.text).toContain('#a-standalone')
+    expect(result.text).toContain('独立审批')
+    expect(result.text).not.toContain('工单 #undefined')
+  })
+
   it('queries both scopes and marks truncated results', async () => {    seedTicket(TICKET_A)
     seedTicket(TICKET_B)
     const tool = createLedgerQueryTool({ store })

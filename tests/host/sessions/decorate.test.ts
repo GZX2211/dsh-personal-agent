@@ -81,6 +81,18 @@ describe('roleForSession', () => {
     expect(roleForSession(WORKER_SESSION, 'session-router', projection)).toBe('worker')
     expect(roleForSession('session-other', 'session-router', projection)).toBeUndefined()
   })
+
+  it('keeps a worker session decorated after its ticket has ended', () => {
+    seedWorkerTicket()
+    store.append({
+      type: 'task/closed',
+      actor: 'system',
+      correlationId: WORKER_TICKET,
+      payload: { ticketId: WORKER_TICKET, outcome: 'completed' },
+    })
+
+    expect(roleForSession(WORKER_SESSION, 'session-router', store.projection())).toBe('worker')
+  })
 })
 
 describe('createAgentDecorator', () => {

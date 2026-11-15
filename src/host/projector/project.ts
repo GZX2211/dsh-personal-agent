@@ -61,7 +61,8 @@ interface TicketAccumulator {
 
 interface ApprovalAccumulator {
   id: string
-  ticketId: string
+  /** 独立审批不绑定工单。 */
+  ticketId?: string
   question: string
   options: ApprovalView['options']
   attachments?: string[]
@@ -90,7 +91,8 @@ export function project(events: readonly L2Event[]): Projection {
 
   const pendingTickets = new Set<string>()
   for (const approval of approvals.values()) {
-    if (!approval.discarded && approval.decidedAt === undefined) pendingTickets.add(approval.ticketId)
+    if (approval.discarded || approval.decidedAt !== undefined || approval.ticketId === undefined) continue
+    pendingTickets.add(approval.ticketId)
   }
 
   const ticketViews = [...tickets.values()]
@@ -202,7 +204,7 @@ function applyEvent(
       if (approvals.has(event.payload.approvalId)) return
       approvals.set(event.payload.approvalId, {
         id: event.payload.approvalId,
-        ticketId: event.payload.ticketId,
+        ...(event.payload.ticketId === undefined ? {} : { ticketId: event.payload.ticketId }),
         question: event.payload.question,
         options: event.payload.options,
         attachments: event.payload.attachments,
@@ -220,8 +222,11 @@ function applyEvent(
       approval.decidedAt = event.payload.decidedAt
       approval.decision = { ...event.payload.decision, transport: event.payload.transport }
       // 决定送达后 worker 会被唤醒继续，下一次 turn/start 之前也不该再显示「已中断」。
-      const ticket = tickets.get(approval.ticketId)
-      if (ticket !== undefined) ticket.interrupted = false
+      // 独立审批不绑定工单，因此不会影响任何工单的阶段。
+      if (approval.ticketId !== undefined) {
+        const ticket = tickets.get(approval.ticketId)
+        if (ticket !== undefined) ticket.interrupted = false
+      }
       return
     }
     case 'approval/discarded': {
@@ -271,12 +276,12 @@ function stageOf(ticket: TicketAccumulator, pendingTickets: ReadonlySet<string>)
 function toApprovalView(approval: ApprovalAccumulator): ApprovalView {
   const view: ApprovalView = {
     id: approval.id,
-    ticketId: approval.ticketId,
     question: approval.question,
     options: approval.options,
     requestedBySessionId: approval.requestedBySessionId,
     createdAt: approval.createdAt,
   }
+  if (approval.ticketId !== undefined) view.ticketId = approval.ticketId
   if (approval.attachments !== undefined && approval.attachments.length > 0) {
     view.attachments = approval.attachments
   }

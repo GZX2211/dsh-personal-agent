@@ -2,6 +2,7 @@
 //
 // 审批工具的核心契约：写 pending → 阻塞 → 收到决定并确认 → 返回决定；
 // 回合中止时审批留在账本里，工具以 approval-cancelled 结束。
+// 审批不依赖工单：没有进行中工单时仍提交，只是不绑定 ticketId。
 
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -193,7 +194,26 @@ describe('pa_approval_submit', () => {
     await expect(pending).rejects.toMatchObject({ code: 'approval-cancelled' })
   })
 
-  it('rejects a relative attachment when the ticket has no directory', async () => {
+  it('resolves relative attachments against the session directory without a ticket', async () => {
+    const session = host.sessions.get(WORKER_SESSION)
+    if (session === undefined) throw new Error('fake session missing')
+    session.cwd = WORK_DIRECTORY
+    const tool = makeTool()
+    const controller = new AbortController()
+
+    const pending = tool.execute(
+      { ...BASE_ARGS, attachments: ['notes.md'] },
+      execution(controller.signal),
+    ) as Promise<Record<string, unknown>>
+    await waitForPending()
+
+    expect(pendingPayload().attachments).toEqual([join(WORK_DIRECTORY, 'notes.md')])
+
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'approval-cancelled' })
+  })
+
+  it('rejects a relative attachment when no working directory is available', async () => {
     seedRunningTicket()
     const tool = makeTool()
 
@@ -264,25 +284,86 @@ describe('pa_approval_submit', () => {
     expect(store.projection().approvals).toEqual([expect.objectContaining({ id: approvalId })])
   })
 
-  it('rejects when the calling session has no active ticket', async () => {
+  it('submits a standalone approval when the calling session has no active ticket', async () => {
     const tool = makeTool()
+    const controller = new AbortController()
 
-    await expect(
-      tool.execute(BASE_ARGS, execution(new AbortController().signal, 'session-other')),
-    ).rejects.toMatchObject({ code: 'no-active-ticket' })
-    expect(store.events()).toEqual([])
+    const pending = tool.execute(BASE_ARGS, execution(controller.signal, 'session-other')) as Promise<
+      Record<string, unknown>
+    >
+    const approvalId = await waitForPending()
+
+    expect(pendingPayload()).not.toHaveProperty('ticketId')
+    await resolvers.find(approvalId)?.deliver({
+      decision: { kind: 'selected', index: 0, label: '发布' },
+      decidedAt: 7,
+    })
+
+    await expect(pending).resolves.toEqual({
+      approvalId,
+      decision: { kind: 'selected', index: 0, label: '发布' },
+      decidedAt: 7,
+    })
   })
 
-  it('rejects a ticket id that is not bound to the calling session', async () => {
+  it('submits a standalone approval after the session ticket has ended', async () => {
     seedRunningTicket()
+    store.append({
+      type: 'task/closed',
+      actor: 'system',
+      correlationId: TICKET_ID,
+      payload: { ticketId: TICKET_ID, outcome: 'completed' },
+    })
+    const tool = makeTool()
+    const controller = new AbortController()
+
+    const pending = tool.execute(BASE_ARGS, execution(controller.signal)) as Promise<Record<string, unknown>>
+    await waitForPending()
+
+    expect(pendingPayload()).not.toHaveProperty('ticketId')
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'approval-cancelled' })
+  })
+
+  it('does not bind a ticket id owned by another session', async () => {
+    seedRunningTicket()
+    const tool = makeTool()
+    const controller = new AbortController()
+
+    const pending = tool.execute(
+      { ...BASE_ARGS, ticketId: TICKET_ID },
+      execution(controller.signal, 'session-other'),
+    ) as Promise<Record<string, unknown>>
+    await waitForPending()
+
+    expect(pendingPayload()).not.toHaveProperty('ticketId')
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'approval-cancelled' })
+  })
+
+  it('falls back to the session active ticket when the hint names another ticket', async () => {
+    seedRunningTicket()
+    const tool = makeTool()
+    const controller = new AbortController()
+
+    const pending = tool.execute(
+      { ...BASE_ARGS, ticketId: 't-1111111111' },
+      execution(controller.signal),
+    ) as Promise<Record<string, unknown>>
+    await waitForPending()
+
+    expect(pendingPayload()).toMatchObject({ ticketId: TICKET_ID })
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'approval-cancelled' })
+  })
+
+  it('rejects when the execution has no calling session', async () => {
     const tool = makeTool()
 
     await expect(
-      tool.execute(
-        { ...BASE_ARGS, ticketId: 't-1111111111' },
-        execution(new AbortController().signal),
-      ),
-    ).rejects.toMatchObject({ code: 'no-active-ticket' })
+      tool.execute(BASE_ARGS, { ...execution(new AbortController().signal), agent: undefined }),
+    ).rejects.toMatchObject({ code: 'no-session' })
+    expect(store.events()).toEqual([])
   })
 
   it('rejects malformed options before writing anything', async () => {

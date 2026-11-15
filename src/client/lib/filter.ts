@@ -81,10 +81,11 @@ export function approvalHaystack(approval: ApprovalView, ctx: FilterContext): st
     approval.options,
     approval.attachments,
     approval.id,
-    approval.ticketId,
-    shortTicket(approval.ticketId),
     approval.requestedBySessionId,
   ]
+  if (approval.ticketId !== undefined) {
+    parts.push(approval.ticketId, shortTicket(approval.ticketId))
+  }
   if (approval.risk !== undefined) parts.push(ctx.t(riskKey(approval.risk)))
   if (approval.decision !== undefined) {
     parts.push(approval.decision.label, approval.decision.note, approval.decision.transport)

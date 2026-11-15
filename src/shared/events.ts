@@ -163,7 +163,8 @@ export interface TaskClosedPayload {
 
 export interface ApprovalPendingPayload {
   approvalId: string
-  ticketId: string
+  /** 关联工单；独立审批不绑定任何工单。 */
+  ticketId?: string
   question: string
   options: ApprovalOption[]
   /** worker 带上的文件，绝对路径；只读展示。 */

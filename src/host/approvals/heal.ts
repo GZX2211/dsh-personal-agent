@@ -10,6 +10,7 @@ import type { HostContext } from '../context.ts'
 import { readSessionEvents } from '../sessions/log-reader.ts'
 import type { EventStore } from '../store/event-store.ts'
 import { isApprovalDecisionRecord } from '../store/payload-spec.ts'
+import { approvalCorrelationId } from './ids.ts'
 
 export interface HealOptions {
   ctx: HostContext
@@ -33,7 +34,7 @@ export async function healPendingApprovals(options: HealOptions): Promise<number
       options.store.append({
         type: 'approval/decided',
         actor: 'system',
-        correlationId: approval.ticketId,
+        correlationId: approvalCorrelationId(approval.id, approval.ticketId),
         payload: {
           approvalId: approval.id,
           decision: recovered.decision,

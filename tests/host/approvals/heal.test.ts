@@ -97,6 +97,37 @@ describe('healPendingApprovals', () => {
     expect(store.projection().approvals[0]?.decidedAt).toBe(1_700_000_000_000)
   })
 
+  it('recovers a standalone approval under its own correlation key', async () => {
+    store.append({
+      type: 'approval/pending',
+      actor: 'worker',
+      correlationId: 'a-standalone',
+      payload: {
+        approvalId: 'a-standalone',
+        question: '要不要继续？',
+        options: [{ label: '继续', description: '往下做' }],
+        requestedBySessionId: WORKER_SESSION,
+      },
+    })
+    host.sessions.get(WORKER_SESSION)?.events.push({
+      type: 'tool/result',
+      seq: 9,
+      time: 1,
+      data: {
+        meta: {
+          approvalId: 'a-standalone',
+          decision: { kind: 'skipped' },
+          decidedAt: 1_700_000_000_000,
+        },
+      },
+    })
+
+    await expect(runHeal()).resolves.toBe(1)
+
+    const decided = store.events().find(event => event.type === 'approval/decided')
+    expect(decided?.correlationId).toBe('a-standalone')
+  })
+
   it('does nothing when the tool result was never delivered', async () => {
     seedPending()
 

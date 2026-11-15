@@ -244,6 +244,20 @@ describe('replayLedger', () => {
     expect(result.warnings).toEqual([])
   })
 
+  it('accepts a standalone approval without a ticket id', () => {
+    const standalone = eventAt(1, 'approval/pending', {
+      approvalId: 'a-standalone',
+      question: '要不要继续？',
+      options: [{ label: '继续', description: '往下做' }],
+      requestedBySessionId: 'session-1',
+    })
+
+    const result = replayLedger(ledgerBytes(encodeLedgerLine(standalone)))
+
+    expect(result.events).toEqual([standalone])
+    expect(result.warnings).toEqual([])
+  })
+
   it('accepts payload fields introduced by a newer version', () => {
     const extended = { ...signalEvent(1), payload: { ...signalEvent(1).payload, futureFlag: true } }
 

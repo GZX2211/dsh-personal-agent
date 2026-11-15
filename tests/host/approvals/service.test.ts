@@ -65,6 +65,20 @@ function seedApproval(options: { approvalId?: string; requestedBySessionId?: str
   })
 }
 
+function seedStandaloneApproval(approvalId = 'a-standalone'): void {
+  store.append({
+    type: 'approval/pending',
+    actor: 'worker',
+    correlationId: approvalId,
+    payload: {
+      approvalId,
+      question: '要不要继续？',
+      options: [{ label: '继续', description: '往下做' }],
+      requestedBySessionId: WORKER_SESSION,
+    },
+  })
+}
+
 function decidedEvents() {
   return store.events().filter(event => event.type === 'approval/decided')
 }
@@ -139,6 +153,15 @@ describe('approval decider', () => {
     expect(delivered?.text).toContain('决定：等等（option 1）')
     expect(delivered?.text).toContain('补充说明：先观察')
     expect(decidedEvents()[0]?.payload).toMatchObject({ transport: 'followup' })
+  })
+
+  it('records a standalone approval under its own correlation key', async () => {
+    seedStandaloneApproval()
+
+    const outcome = await decider.decide('a-standalone', { kind: 'skipped' })
+
+    expect(outcome).toEqual({ status: 200, body: { ok: true, transport: 'followup' } })
+    expect(decidedEvents()[0]?.correlationId).toBe('a-standalone')
   })
 
   it('discards the approval when the worker session is archived', async () => {

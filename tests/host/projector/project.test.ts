@@ -536,6 +536,31 @@ describe('project', () => {
     ])
   })
 
+  it('keeps a standalone approval visible without blocking any ticket', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      event(3, 'approval/pending', {
+        approvalId: 'a-standalone',
+        question: '发布到生产会立刻影响用户。',
+        options: [{ label: '发布', description: '立刻上线' }],
+        requestedBySessionId: 'session-standalone',
+      }),
+    ])
+
+    expect(projection.approvals).toEqual([
+      {
+        id: 'a-standalone',
+        question: '发布到生产会立刻影响用户。',
+        options: [{ label: '发布', description: '立刻上线' }],
+        requestedBySessionId: 'session-standalone',
+        createdAt: BASE_TIME + 3,
+      },
+    ])
+    expect(projection.approvals[0]).not.toHaveProperty('ticketId')
+    expect(projection.tickets).toEqual([expect.objectContaining({ stage: 'running' })])
+  })
+
   it('ignores retired payload fields such as title and fields', () => {
     const projection = project([
       queuedEvent(1, 't-aaa1112223'),

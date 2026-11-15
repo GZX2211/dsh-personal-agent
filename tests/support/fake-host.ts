@@ -245,6 +245,11 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       },
     },
     workingDirectory: {
+      get: (session: { id: string }) => {
+        const cwd = sessions.get(session.id)?.cwd
+        if (cwd === undefined) throw new Error(`fake session ${session.id} has no working directory`)
+        return cwd
+      },
       set: async (agent: { id: string }, path: string) => {
         const session = sessions.get(agent.id)
         if (session !== undefined) session.cwd = path

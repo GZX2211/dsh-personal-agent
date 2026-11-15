@@ -112,12 +112,15 @@ const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
   [EVENT_TYPES.approvalPending]: {
     required: {
       approvalId: { type: 'string' },
-      ticketId: { type: 'string' },
       question: { type: 'string' },
       options: { type: 'options' },
       requestedBySessionId: { type: 'string' },
     },
-    optional: { attachments: { type: 'strings' }, risk: { type: 'enum', values: APPROVAL_RISKS } },
+    optional: {
+      ticketId: { type: 'string' },
+      attachments: { type: 'strings' },
+      risk: { type: 'enum', values: APPROVAL_RISKS },
+    },
   },
   [EVENT_TYPES.approvalDecided]: {
     required: {

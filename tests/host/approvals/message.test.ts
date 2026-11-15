@@ -53,6 +53,14 @@ describe('formatApprovalDelivery', () => {
     expect(text).toContain('决定：发布（option 0）')
   })
 
+  it('omits the ticket clause for a standalone approval', () => {
+    const { ticketId: _ticketId, ...standalone } = APPROVAL
+    const text = formatApprovalDelivery(standalone, { kind: 'skipped' })
+
+    expect(text).toContain('[审批结果] 审批 a-abcdef1234 已有决定。')
+    expect(text).not.toContain('工单')
+  })
+
   it('always reminds that the original tool call has ended', () => {
     const text = formatApprovalDelivery(APPROVAL, { kind: 'selected', index: 0, label: '发布' })
 

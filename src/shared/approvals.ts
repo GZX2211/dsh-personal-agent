@@ -45,7 +45,8 @@ export interface RecordedApprovalDecision extends ApprovalDecision {
 /** 审批卡片与 HTTP 响应共用的一份视图。 */
 export interface ApprovalView {
   id: string
-  ticketId: string
+  /** 发起这个审批时关联的工单；独立审批没有工单。 */
+  ticketId?: string
   question: string
   options: ApprovalOption[]
   /**

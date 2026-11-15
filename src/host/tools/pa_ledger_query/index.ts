@@ -141,7 +141,11 @@ function approvalLine(approval: ApprovalView): string {
       : approval.decision.kind === 'skipped'
         ? '（跳过）'
         : `（${approval.decision.label ?? ''}）`
-  return `#${approval.id} ${state}${decision} ${questionPreview(approval.question)}（工单 #${shortTicketId(approval.ticketId)}）`
+  const scope =
+    approval.ticketId === undefined
+      ? '（独立审批）'
+      : `（工单 #${shortTicketId(approval.ticketId)}）`
+  return `#${approval.id} ${state}${decision} ${questionPreview(approval.question)}${scope}`
 }
 
 /** 题干可能很长：查询结果只给第一行、最多 24 字，够认出是哪一条。 */

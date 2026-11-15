@@ -4,19 +4,22 @@
 // 决定先送达本工具，工具确认已收到（acknowledge）之后，服务端才写
 // approval/decided —— 这是「先送达、后记账」的实现位置（方案 §6.2）。
 //
+// 审批不依赖工单：有进行中工单时自动关联（工单页据此显示阻塞阶段），
+// 工单已结束或会话没有工单时仍可提交，只是不绑定任何工单。
+//
 // 人的回答只有两种：选一个选项或跳过，外加自由文本 `note`。附件是 worker
 // 在这时带上的文件（人只读），因此在这里归一成绝对路径，卡片才能直接打开。
 
 import { isAbsolute, join } from 'node:path'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import {
   APPROVAL_RISKS,
   type ApprovalOption,
   type ApprovalRisk,
 } from '../../../shared/approvals.ts'
-import { createApprovalId, shortApprovalId } from '../../approvals/ids.ts'
+import { approvalCorrelationId, createApprovalId, shortApprovalId } from '../../approvals/ids.ts'
 import {
   ApprovalCancelledError,
   type ApprovalDelivery,
@@ -40,7 +43,7 @@ export interface ApprovalSubmitDependencies {
 export type ApprovalSubmitErrorCode =
   | 'invalid-arguments'
   | 'invalid-options'
-  | 'no-active-ticket'
+  | 'no-session'
   | 'approval-cancelled'
 
 export class ApprovalSubmitError extends HarnessError {
@@ -53,9 +56,10 @@ export class ApprovalSubmitError extends HarnessError {
 export interface ApprovalSubmitArgs {
   question: string
   options: ApprovalOption[]
-  /** 相对路径按工单工作目录解析；绝对路径原样保留。 */
+  /** 相对路径按工单工作目录解析，没有工单时按会话工作目录；绝对路径原样保留。 */
   attachments?: string[]
   risk?: ApprovalRisk
+  /** 可选的工单关联提示：只有属于本会话且进行中的工单才会被采用。 */
   ticketId?: string
 }
 
@@ -80,6 +84,7 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
     name: APPROVAL_SUBMIT_TOOL_NAME,
     description:
       '需要人类决定时使用：提交一个审批并等待决定。调用会一直阻塞到有人处理，返回决定内容后按决定继续。'
+      + '审批不依赖工单：有进行中的工单时会自动关联，没有工单也能提交。'
       + '如果有让人看/改的文件，用 attachments 一起交上去。',
     parameters: {
       type: 'object',
@@ -106,10 +111,14 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
           type: 'array',
           maxItems: MAX_ATTACHMENTS,
           items: { type: 'string', minLength: 1 },
-          description: '随审批附上的文件路径：相对路径按工单工作目录解析，人可在右侧栏打开查看。',
+          description:
+            '随审批附上的文件路径：相对路径按工单工作目录解析，没有工单时按会话工作目录；人可在右侧栏打开查看。',
         },
         risk: { type: 'string', enum: ['low', 'medium', 'high'], description: '风险等级，供审批页排序与强调。' },
-        ticketId: { type: 'string', description: '缺省取当前会话绑定的进行中工单。' },
+        ticketId: {
+          type: 'string',
+          description: '可选：指定要关联的进行中工单；不属于本会话或已结束时忽略，审批照常提交。',
+        },
       },
     },
     output: {
@@ -168,26 +177,27 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
     },
     execute: async (rawArgs: unknown, exec: ToolRunContext) => {
       const args = parseApprovalSubmitArgs(rawArgs)
-      const sessionId = exec.agent?.session.id
-      if (sessionId === undefined) {
-        throw new ApprovalSubmitError('无法确定调用该工具的会话', 'no-active-ticket')
+      const session = exec.agent?.session
+      if (session === undefined) {
+        throw new ApprovalSubmitError('无法确定调用该工具的会话', 'no-session')
       }
-      const ticket = findActiveTicket(deps, args.ticketId, sessionId)
-      if (ticket === undefined) {
-        throw new ApprovalSubmitError('当前会话没有进行中的工单', 'no-active-ticket')
-      }
-      const attachments = resolveAttachments(args.attachments, ticket.directory)
+      const sessionId = session.id
+      const ticket = findSessionTicket(deps, args.ticketId, sessionId)
+      const attachments = resolveAttachments(
+        args.attachments,
+        ticket?.directory ?? sessionDirectory(deps, session),
+      )
 
       const approvalId = createApprovalId()
       const resolver = deps.resolvers.create(approvalId)
       deps.store.append({
         type: 'approval/pending',
         actor: 'worker',
-        correlationId: ticket.id,
+        correlationId: approvalCorrelationId(approvalId, ticket?.id),
         sessionId,
         payload: {
           approvalId,
-          ticketId: ticket.id,
+          ...(ticket === undefined ? {} : { ticketId: ticket.id }),
           question: args.question,
           options: args.options,
           requestedBySessionId: sessionId,
@@ -229,27 +239,47 @@ function toResult(approvalId: string, delivery: ApprovalDelivery): Record<string
   }
 }
 
-/** 当前会话绑定的进行中工单；显式 ticketId 必须属于该会话。 */
-function findActiveTicket(
+/**
+ * 当前会话可关联的进行中工单。
+ *
+ * 显式 ticketId 只是提示：只有它属于本会话且仍在进行中时才采用；否则退回本会话
+ * 的其它进行中工单，完全没有就返回 undefined（独立审批）。审批能否提交不取决于
+ * 这里的结果——没有工单只是少一层关联，不是失败。
+ */
+function findSessionTicket(
   deps: ApprovalSubmitDependencies,
   ticketId: string | undefined,
   sessionId: SessionId,
 ): { id: string; directory?: string } | undefined {
-  return deps.store
+  const active = deps.store
     .projection()
-    .tickets.find(
-      ticket =>
-        (ticketId === undefined || ticket.id === ticketId) &&
-        ticket.workerSessionId === sessionId &&
-        ticket.stage !== 'ended',
-    )
+    .tickets.filter(ticket => ticket.workerSessionId === sessionId && ticket.stage !== 'ended')
+  if (ticketId !== undefined) {
+    const hinted = active.find(ticket => ticket.id === ticketId)
+    if (hinted !== undefined) return hinted
+  }
+  return active[0]
+}
+
+/**
+ * 会话的当前工作目录，用于没有工单时解释相对附件。
+ *
+ * 目录服务不可用时降级为 undefined：相对附件会得到一条可行动的参数错误，
+ * 而不是让整个审批提交失败。绝对路径不依赖这个结果。
+ */
+function sessionDirectory(deps: ApprovalSubmitDependencies, session: Session): string | undefined {
+  try {
+    return deps.ctx.workingDirectory.get(session)
+  } catch {
+    return undefined
+  }
 }
 
 /**
  * 把 worker 给的附件归一成绝对路径。
  *
- * 相对路径只相对于工单工作目录才有意义，而只有 Host 知道那个目录；
- * 解析不了就当场失败，而不是留给卡片去猜一个打不开的地址。
+ * 相对路径需要工单或会话的工作目录，而只有 Host 知道那个目录；解析不了就当场
+ * 失败，而不是留给卡片去猜一个打不开的地址。
  */
 export function resolveAttachments(
   attachments: readonly string[] | undefined,
@@ -263,7 +293,7 @@ export function resolveAttachments(
     const absolute = isAbsolute(path) ? path : directory === undefined ? undefined : join(directory, path)
     if (absolute === undefined) {
       throw new ApprovalSubmitError(
-        `附件 ${path} 是相对路径，但该工单没有工作目录；请给出绝对路径`,
+        `附件 ${path} 是相对路径，但没有可用的工作目录；请给出绝对路径`,
         'invalid-arguments',
       )
     }

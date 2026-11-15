@@ -6,8 +6,9 @@
 import type { ApprovalDecision, ApprovalView } from '../../shared/approvals.ts'
 
 export function formatApprovalDelivery(approval: ApprovalView, decision: ApprovalDecision): string {
+  const ticket = approval.ticketId === undefined ? ' ' : `（工单 ${approval.ticketId}）`
   const lines = [
-    `[审批结果] 审批 ${approval.id}（工单 ${approval.ticketId}）已有决定。`,
+    `[审批结果] 审批 ${approval.id}${ticket}已有决定。`,
     '',
     decisionLine(approval, decision),
   ]

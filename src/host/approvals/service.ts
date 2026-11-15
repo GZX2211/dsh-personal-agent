@@ -10,6 +10,7 @@ import { DECISION_ERROR_CODES, type DecisionErrorCode, type DecisionResponse } f
 import type { HostContext } from '../context.ts'
 import { deliverToSession } from '../sessions/delivery.ts'
 import type { EventStore } from '../store/event-store.ts'
+import { approvalCorrelationId } from './ids.ts'
 import { formatApprovalDelivery } from './message.ts'
 import type { ResolverRegistry } from './resolvers.ts'
 
@@ -67,7 +68,7 @@ export function createApprovalDecider(options: ApprovalDeciderOptions): Approval
         options.store.append({
           type: 'approval/discarded',
           actor: 'system',
-          correlationId: approval.ticketId,
+          correlationId: approvalCorrelationId(approval.id, approval.ticketId),
           payload: {
             approvalId,
             reason: 'worker-archived',
@@ -156,7 +157,7 @@ function appendDecided(
   options.store.append({
     type: 'approval/decided',
     actor: 'human',
-    correlationId: approval.ticketId,
+    correlationId: approvalCorrelationId(approval.id, approval.ticketId),
     payload: { approvalId: approval.id, decision, decidedAt, transport },
   })
 }
