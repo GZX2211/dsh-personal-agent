@@ -347,6 +347,27 @@ try {
     fetchSiteSnapshot.json?.tickets?.length,
   )
 
+  // 桌面端（dsh-app://app）转发时删除 Origin/Referer/Sec-Fetch-Site，只留下自定义头。
+  const desktopForwarded = await call(route, {
+    url: '/personal-agent/api/snapshot',
+    headers: { 'x-personal-agent-request': '1' },
+  })
+  check(
+    'GET /snapshot accepts the desktop-forwarded request without browser evidence',
+    desktopForwarded.status === 200 && desktopForwarded.json?.tickets?.length === 1,
+    desktopForwarded.status,
+  )
+
+  const desktopReferer = await call(route, {
+    url: '/personal-agent/api/snapshot',
+    headers: { 'x-personal-agent-request': '1', referer: 'dsh-app://app/' },
+  })
+  check(
+    'GET /snapshot accepts the desktop application page referer',
+    desktopReferer.status === 200,
+    desktopReferer.status,
+  )
+
   const snapshot = await call(route, { url: '/personal-agent/api/snapshot', headers: sameOrigin })
   check(
     'snapshot replays the ledger into a blocked ticket',

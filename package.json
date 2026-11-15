@@ -1,6 +1,6 @@
 {
   "name": "dsh-personal-agent",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "description": "Personal Agent for DeepSeek Harness: a pinned Router Session dispatches Tickets to Worker Sessions, and a right-sidebar console carries the approvals that unblock them.",

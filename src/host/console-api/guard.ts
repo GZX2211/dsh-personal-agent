@@ -10,12 +10,31 @@ export type GuardVerdict =
   | { ok: true }
   | { ok: false; code: ErrorCode; message: string }
 
+/**
+ * 桌面端渲染页的来源。Desktop 把 `dsh-app://app` 下的请求转发给本 Host 时会删掉
+ * Origin 与 Sec-Fetch-Site，但保留 Referer；因此它是本该被当成「本应用页面」的来源。
+ */
+const DESKTOP_PAGE_ORIGIN = 'dsh-app://app'
+
 function reject(code: ErrorCode, message: string): GuardVerdict {
   return { ok: false, code, message }
 }
 
+function isSameOrigin(origin: string, value: string): boolean {
+  return value === origin || value.startsWith(`${origin}/`)
+}
+
+function isDesktopPage(value: string): boolean {
+  return value === DESKTOP_PAGE_ORIGIN || value.startsWith(`${DESKTOP_PAGE_ORIGIN}/`)
+}
+
 /**
  * 判定一次请求是否来自本 GUI 页面。
+ *
+ * 只拒绝**明确存在**且不合格的证据；三者全缺席时放行，因为 Desktop 转发会剥离
+ * Origin、Referer 与 Sec-Fetch-Site，而浏览器跨站请求必带三者之一（跨站 CORS
+ * 请求带 Origin，简单请求带 Sec-Fetch-Site）。自定义头是浏览器侧的实际门槛：
+ * 跨站请求带它会触发预检，而本端点不返回 CORS 头。
  *
  * @param origin - 本进程实际服务的源（`http://127.0.0.1:<port>`）。
  * @param request - 待判定的请求；只读头部，不消费 body。
@@ -28,24 +47,21 @@ export function guardRequest(origin: string, request: IncomingMessage): GuardVer
     )
   }
   const originHeader = request.headers.origin
-  if (originHeader !== undefined) {
-    return originHeader === origin
-      ? { ok: true }
-      : reject(ERROR_CODES.wrongOrigin, `Origin ${originHeader} is not ${origin}`)
+  if (originHeader !== undefined && !isSameOrigin(origin, originHeader)) {
+    return reject(ERROR_CODES.wrongOrigin, `Origin ${originHeader} is not ${origin}`)
   }
-  // 同源 GET 的 fetch 不发送 Origin，只发送 Referer；两者都缺席即无法证明同源。
   const referer = request.headers.referer
-  if (referer !== undefined) {
-    return referer === origin || referer.startsWith(`${origin}/`)
-      ? { ok: true }
-      : reject(ERROR_CODES.wrongOrigin, `Referer ${referer} is not under ${origin}`)
+  if (referer !== undefined && !isSameOrigin(origin, referer) && !isDesktopPage(referer)) {
+    return reject(ERROR_CODES.wrongOrigin, `Referer ${referer} is not under ${origin}`)
   }
   // 宿主页面可能配置 Referrer-Policy: no-referrer，把唯一可用的 Referer 也去掉。
-  // Sec-Fetch-Site 由浏览器按真实来源强制写入、脚本不可伪造，是第三种同源证据。
+  // Sec-Fetch-Site 由浏览器按真实来源强制写入、脚本不可伪造；只接受 same-origin。
   const fetchSite = request.headers['sec-fetch-site']
-  if (fetchSite === 'same-origin') return { ok: true }
-  return reject(
-    ERROR_CODES.wrongOrigin,
-    'request carries neither Origin, Referer, nor a same-origin Sec-Fetch-Site header',
-  )
+  if (fetchSite !== undefined && fetchSite !== 'same-origin') {
+    return reject(
+      ERROR_CODES.wrongOrigin,
+      `Sec-Fetch-Site ${fetchSite} is not a same-origin document`,
+    )
+  }
+  return { ok: true }
 }

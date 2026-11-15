@@ -1,7 +1,7 @@
 # dsh-personal-agent 交接备忘
 
 > 自包含交接文档：不依赖任何对话上下文，读完即可继续开发。
-> 状态：**P2 工具与会话已交付，并修复验收发现的 worker 装饰时序问题（0.2.1）**（2026-11-15），下一步 P3 UI；A1–A4 需重跑，A5 待重启验证。
+> 状态：**P2 工具与会话已交付；审批面板连接中断已修复（0.2.3，桌面转发同源证据缺失）**（2026-11-15），下一步 P3 UI；A1–A4 需重跑，A5 待重启验证。
 > 本文属临时协作文档（`collab/md/`），不进 `docs/`，不需要英文版。
 
 ---
@@ -19,7 +19,7 @@
 | 仓库 | `D:\AiCoding-Gzx\HarnessPlugin\dsh-personal-agent` |
 | DSH 运行版本 | 0.2.2-rc.3（Desktop：`D:\dsh\resources\app.asar\dsh`） |
 | profile | `desktop` → `C:\Users\GZX\.dsh\profiles\desktop` |
-| GUI | `http://127.0.0.1:52810`（页面需认证 cookie；插件自己的路由不走该认证） |
+| GUI | `http://127.0.0.1:<端口>`（每次启动随机，以 `/health` 返回的 `origin` 为准；页面需认证 cookie，插件路由不走该认证）。**桌面端页面实际运行在 `dsh-app://app`**，非静态路径请求由主进程转发到该端口（见 §11.5） |
 | 插件状态目录 | `C:\Users\GZX\.dsh\state\personal-agent`（`events.jsonl`、`kv.json`、`work/<ticketId>/`） |
 | 插件 entryId | `include:personal-agent`（patch 行 id `personal-agent`，包名 `dsh-personal-agent`） |
 | 安装方式 | 本地目录链接（`plugin_manager install_bundle` 指向仓库绝对路径） |
@@ -276,7 +276,15 @@ worker agent 由 `sessionController.create` 创建，而真实宿主在 create �
 
 ### 11.4 下一步（恢复上下文后从这里继续）
 
-1. 用户刷新页面（可选，轮询会自动恢复）→ 让 router 再发一个测试审批 → 在审批页点选并提交，验证 UI 到 HTTP 的最后一段。
+1. 用户在面板点「立即重试」确认连接恢复（Host 已重载到 0.2.3，无需刷新页面）。
 2. P3 剩余：已通过/全部胶囊、已决卡片只读、搜索、工单页、标签徽标、i18n 清理（`approvalsEmpty` 等未用键）。
-3. 测试规模：**244 项**（含 client 9 项、guard 8 项）；`check-host.mjs` **21 项**。
+3. 测试规模：**260 项**（含 client 9 项、guard 16 项）；`check-host.mjs` **23 项**。
 4. 当前真实账本：2 张已结束工单，1 条已决审批，无待审批。
+
+### 11.5 「连接中断」最终根因与修复（0.2.3）
+
+**诊断**：Desktop 页面运行在 `dsh-app://app`，`lib/main.js` 的 `forwardWebRequest` 把 `dsh-app://app/<path>` 转发到 Host 的同一路径，并**删除** `origin`、`cookie`、`sec-fetch-site`，再注入 Host 认证 cookie。因此面板的 `/snapshot` 请求到达 Host 时三者全缺席，旧守卫把它当跨源拒绝（403），面板显示「连接中断」。§11.2 补的 `Sec-Fetch-Site` 在转发链路上已被主进程剥掉，所以修不好。
+
+**修复**：`guard.ts` 改为只拒绝**明确存在且不合格**的证据；三项全缺席放行，并接受 `dsh-app://app` 作 Referer 来源。浏览器跨站请求必带 `Origin` 或 `Sec-Fetch-Site`，拒绝分支不变；自定义头仍会触发预检。详见方案 §16.13。
+
+**验证**：真实宿主 `/health` 为 `0.2.3`；仅带自定义头的 `/snapshot` → 200，外来 Origin / `cross-site` → 403；单测 260、冒烟 23 全绿。

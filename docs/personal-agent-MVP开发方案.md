@@ -747,3 +747,13 @@ MVP 先用**状态目录本身**（`$DSH_HOME/state/personal-agent`）：路由�
 ### 16.12 同源守卫补充 Sec-Fetch-Site（P3 联调发现）
 
 同源 GET 的 `fetch` 不带 `Origin`，宿主页面又可能因 `Referrer-Policy` 去掉 `Referer`，原守卫会误拒浏览器请求。现在 `Sec-Fetch-Site: same-origin` 作为第三种同源证据被接受（脚本不可伪造）；`cross-site` 仍拒绝。见 `src/host/console-api/guard.ts`。
+
+### 16.13 桌面端转发请求被守卫误拒（P3 联调修复）
+
+**问题**：Desktop 在 `dsh-app://app` 下渲染页面，非静态路径的请求由主进程转发给 Host；转发会删除 `origin`、`cookie`、`sec-fetch-site` 并注入 Host 认证 cookie。到达 `/personal-agent/api` 的请求因此没有任何同源证据，守卫按「三者缺席即拒绝」返回 403，面板显示「连接中断」。§16.12 的 Sec-Fetch-Site 证据在转发链路上已被剥离，所以补它并不能修复该问题。
+
+**行为变化**：旧——三项证据全缺席即拒绝；新——只拒绝**明确存在且不合格**的证据，三项全缺席放行，并接受 `dsh-app://app` 作为 Referer 来源。原因见上；影响范围仅限 `guardRequest`。
+
+**安全边界不变**：浏览器跨站请求必带 `Origin`（CORS 模式）或 `Sec-Fetch-Site`（简单请求），二者都会命中拒绝分支；自定义头仍会触发预检，而本端点不返回 CORS 头。非浏览器客户端本就能伪造 Origin，不构成新增暴露面。
+
+**证据**：`tests/host/console-api/guard.test.ts` 16 项（新增桌面 referer、`dsh-app://app2` 前缀伪装、opaque `null` origin、桌面前缀伪装）；`collab/scr/check-host.mjs` 新增桌面转发与桌面 referer 两项（共 23 项）；真实宿主以「仅自定义头」请求 `/snapshot` 得 200，外来 Origin 与 `cross-site` 仍 403。
