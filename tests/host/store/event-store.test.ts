@@ -249,3 +249,28 @@ describe('EventStore', () => {
     expect(reopened.append(signalDraft(999)).event.seq).toBe(26)
   })
 })
+
+describe('ledger read isolation', () => {
+  it('freezes stored events so a caller cannot rewrite the ledger view', async () => {
+    const store = await openStore()
+
+    const { event } = store.append(queuedDraft({ constraints: ['不要动数据库'] }))
+
+    expect(Object.isFrozen(event)).toBe(true)
+    expect(Object.isFrozen(event.payload)).toBe(true)
+    expect(Object.isFrozen((event.payload as TaskQueuedPayload).constraints ?? [])).toBe(true)
+  })
+
+  it('keeps the projection unchanged when a caller tries to mutate a payload', async () => {
+    const store = await openStore()
+    store.append(queuedDraft())
+    const view = store.events()[0]
+    if (view === undefined) throw new Error('the appended event is missing')
+
+    expect(() => {
+      // 冻结对象在严格模式下拒绝写入：账本的只读边界因此是可观察的。
+      ;(view as { payload: { title: string } }).payload.title = '被改写'
+    }).toThrow(TypeError)
+    expect(store.projection().tickets[0]?.title).toBe('发布新版本')
+  })
+})

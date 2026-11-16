@@ -24,8 +24,9 @@ export class DeliveryError extends Error {
 /**
  * 投递一次，返回是否真的写入。
  *
- * 幂等范围是**本进程**：只查活跃 inbox。跨进程（重启后重投）需要扫持久化历史，
- * 由审批送达在 P2 补齐，届时同一函数按 requestId 比对会话日志。
+ * 幂等范围是**本进程**：只查活跃 inbox。重启后 inbox 为空，同一 requestId 会再投
+ * 一次——这是已知限制（跨进程去重需要扫持久化历史，MVP 不做）；审批送达靠「先
+ * 送达、后记账」与启动自愈把重复窗口压到「decided 未落盘」这一小段。
  */
 export async function deliverToSession(
   ctx: HostContext,

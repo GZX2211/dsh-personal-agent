@@ -13,6 +13,9 @@ import type { EventDraft, EventType } from '../../shared/events.ts'
  * 只列关键字段：标题、目标、选项文案这类展示字段一旦参与，改一个错别字就会让
  * 同一条事实重复入账。整张表是显式契约，新增事件类型时必须在此登记；
  * 预留事件（`signal/received`、`decision/recorded`）同样登记，表保持全覆盖。
+ *
+ * `task/reported.summary` 是关键字段的例外：它是汇报文本本身，同一段汇报重复
+ * 入账应当被幂等掉，而不是当成一次新汇报。
  */
 const KEY_FIELDS: Record<EventType, readonly string[]> = {
   'signal/received': ['kind', 'sourceId', 'externalId', 'text', 'receivedAt', 'rule'],

@@ -9,16 +9,16 @@
 ## 目录与分类
 
 - 按工具能力组织，文件夹按工具名命名：如：`pa_approval_submit/`。
-- `infrastructure/` 放 Tool 基础设施。
+- 不另设共享基础设施目录：工具入口与私有 helper 同目录，跨工具共用的逻辑提升到 Host 模块。
 
 ## Tool 文件职责
 
-标准入口为 `tool.ts`，负责：注册、参数 Schema、description、调用方身份校验、调用 Host capability、输出结果。
+标准入口为 `index.ts`，负责：注册、参数 Schema、description、调用方身份校验、调用 Host capability、输出结果。
 
-不要把大型业务算法堆进 `tool.ts`。复杂 Tool 应拆分：
+不要把大型业务算法堆进 `index.ts`。复杂 Tool 应拆分：
 
 ```text
-tool.ts       Tool-facing adapter
+index.ts      Tool-facing adapter
 apply.ts      纯变换 / 应用逻辑
 types.ts      类型与契约
 service.ts    业务服务

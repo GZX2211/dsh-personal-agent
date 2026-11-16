@@ -1,7 +1,8 @@
 // src/host/tools/pa_task_route/index.ts
 //
 // router 的派发工具：只做「入队」这一件事，然后交给调度器决定何时放行。
-// 因此它总是快速返回，返回里的状态是「此刻账本上的事实」，不是执行结果。
+// 返回里的状态是「调用结束时账本上的事实」；容量空闲时调度会在本次调用内完成
+// 放行与简报投递，所以返回值可能已经是 running，而不是一定停在 queued。
 
 import { statSync } from 'node:fs'
 import { isAbsolute } from 'node:path'

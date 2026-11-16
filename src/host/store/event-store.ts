@@ -66,8 +66,12 @@ export class EventStore {
     for (const warning of replayed.warnings) options.onWarning?.(warning)
 
     const store = new EventStore(options.now ?? Date.now)
-    store.#ledger.push(...replayed.events)
-    for (const event of replayed.events) store.#byEventId.set(event.eventId, event)
+    for (const event of replayed.events) {
+      // 重放事件与 append 事件走同一条只读边界：账本对象一旦入内存就不再可变。
+      deepFreeze(event)
+      store.#ledger.push(event)
+      store.#byEventId.set(event.eventId, event)
+    }
     store.#nextSeq = replayed.lastSeq + 1
     store.#size = replayed.truncateTo ?? bytes.length
     store.#fd = openSync(path, 'a')
@@ -93,7 +97,8 @@ export class EventStore {
 
     const seq = this.#nextSeq
     // 技术字段在此补齐；payload 的形状由生产者类型保证（重放侧另有运行时校验）。
-    const event = { ...draft, seq, eventId, time: this.#now() } as L2Event
+    // 冻结让 `events()` 的只读承诺成立：调用方改不动已入账的事实。
+    const event = deepFreeze({ ...draft, seq, eventId, time: this.#now() } as L2Event)
     const line = encodeLedgerLine(event)
     const bytes = Buffer.byteLength(line, 'utf8')
     const sizeBefore = this.#size
@@ -150,4 +155,14 @@ function readLedgerFile(path: string): Buffer {
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** 递归冻结一条事件（payload 是 JSON 结构，没有循环引用）。 */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    if (Object.isFrozen(value)) return value
+    Object.freeze(value)
+    for (const item of Object.values(value as Record<string, unknown>)) deepFreeze(item)
+  }
+  return value
 }
