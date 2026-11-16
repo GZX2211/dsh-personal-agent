@@ -9,8 +9,8 @@
 
 import type { ApprovalView } from '../../shared/approvals.ts'
 import type { TicketView } from '../../shared/tickets.ts'
+import { shortTicketId } from '../../shared/tickets.ts'
 import type { Translate } from '../i18n.ts'
-import { shortTicket } from './approvals.ts'
 import { formatTimestamp, riskKey } from './format.ts'
 import {
   matchesTicketCapsule,
@@ -84,7 +84,7 @@ export function approvalHaystack(approval: ApprovalView, ctx: FilterContext): st
     approval.requestedBySessionId,
   ]
   if (approval.ticketId !== undefined) {
-    parts.push(approval.ticketId, shortTicket(approval.ticketId))
+    parts.push(approval.ticketId, shortTicketId(approval.ticketId))
   }
   if (approval.risk !== undefined) parts.push(ctx.t(riskKey(approval.risk)))
   if (approval.decision !== undefined) {

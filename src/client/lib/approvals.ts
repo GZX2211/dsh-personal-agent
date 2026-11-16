@@ -1,14 +1,10 @@
 // src/client/lib/approvals.ts
 //
-// 审批页的纯逻辑：决定构造、短码与错误码映射。不碰 React 与网络。
+// 审批页的纯逻辑：决定构造、会话短码与错误码映射。不碰 React 与网络。
+// 工单短码是共享规则，见 `src/shared/tickets.ts`。
 
 import type { ApprovalView } from '../../shared/approvals.ts'
-import type { DecisionRequest } from '../../shared/api.ts'
-
-/** 工单短码：与 Host 的 shortTicketId 同规则。 */
-export function shortTicket(ticketId: string): string {
-  return ticketId.replace(/^t-/, '').slice(0, 6)
-}
+import { DECISION_ERROR_CODES, type DecisionErrorCode, type DecisionRequest } from '../../shared/api.ts'
 
 /** 会话的短码：去掉 `session-` 前缀后取 8 位，用于拿不到标题时的展示。 */
 export function shortSession(sessionId: string): string {
@@ -52,20 +48,21 @@ export type DecisionErrorKey =
   | 'decisionErrorInvalidDecision'
   | 'decisionErrorUnknown'
 
+/**
+ * 稳定错误码 → 词典键的穷举表。
+ *
+ * 用 Record 而不是 switch：共享契约新增错误码时这一行会编译失败，而不是静默
+ * 落进「未知错误」的通用文案。
+ */
+const DECISION_ERROR_KEYS: Record<DecisionErrorCode, DecisionErrorKey> = {
+  [DECISION_ERROR_CODES.alreadyDecided]: 'decisionErrorAlreadyDecided',
+  [DECISION_ERROR_CODES.notFound]: 'decisionErrorNotFound',
+  [DECISION_ERROR_CODES.workerArchived]: 'decisionErrorWorkerArchived',
+  [DECISION_ERROR_CODES.deliveryFailed]: 'decisionErrorDeliveryFailed',
+  [DECISION_ERROR_CODES.invalidDecision]: 'decisionErrorInvalidDecision',
+}
+
 /** 稳定错误码 → 词典键；未知码也要有可读文案。 */
 export function decisionErrorKey(code: string): DecisionErrorKey {
-  switch (code) {
-    case 'already-decided':
-      return 'decisionErrorAlreadyDecided'
-    case 'not-found':
-      return 'decisionErrorNotFound'
-    case 'worker-archived':
-      return 'decisionErrorWorkerArchived'
-    case 'delivery-failed':
-      return 'decisionErrorDeliveryFailed'
-    case 'invalid-decision':
-      return 'decisionErrorInvalidDecision'
-    default:
-      return 'decisionErrorUnknown'
-  }
+  return DECISION_ERROR_KEYS[code as DecisionErrorCode] ?? 'decisionErrorUnknown'
 }

@@ -6,7 +6,11 @@
 
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { ApprovalDecision, ApprovalView } from '../../shared/approvals.ts'
-import { DECISION_ERROR_CODES, type DecisionErrorCode, type DecisionResponse } from '../../shared/api.ts'
+import {
+  DECISION_ERROR_CODES,
+  type DecisionErrorCode,
+  type DecisionOutcome,
+} from '../../shared/api.ts'
 import type { HostContext } from '../context.ts'
 import { deliverToSession } from '../sessions/delivery.ts'
 import type { EventStore } from '../store/event-store.ts'
@@ -19,11 +23,6 @@ export interface ApprovalDeciderOptions {
   store: EventStore
   resolvers: ResolverRegistry
   now?: () => number
-}
-
-export interface DecisionOutcome {
-  status: number
-  body: DecisionResponse
 }
 
 export interface ApprovalDecider {

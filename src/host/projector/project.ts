@@ -8,35 +8,18 @@ import type {
   ApprovalView,
   RecordedApprovalDecision,
 } from '../../shared/approvals.ts'
+import type {
+  ApprovalStats,
+  SnapshotResponse,
+  SnapshotStats,
+  TicketStats,
+} from '../../shared/api.ts'
 import type { L2Event } from '../../shared/events.ts'
 import type { QueueReason, TicketOutcome, TicketStage, TicketView } from '../../shared/tickets.ts'
-import { shortTicketId } from '../tickets/ids.ts'
+import { shortTicketId } from '../../shared/tickets.ts'
 
-/** 各阶段计数供标签页徽标使用；`total` 是全部工单数，不是某阶段数。 */
-export interface TicketStats {
-  queued: number
-  running: number
-  blocked: number
-  ended: number
-  total: number
-}
-
-export interface ApprovalStats {
-  pending: number
-  decided: number
-}
-
-export interface ProjectionStats {
-  tickets: TicketStats
-  approvals: ApprovalStats
-}
-
-/** 总控台一次刷新所需的全部派生状态（方案 §3.4）。 */
-export interface Projection {
-  tickets: TicketView[]
-  approvals: ApprovalView[]
-  stats: ProjectionStats
-}
+/** 总控台一次刷新所需的全部派生状态（方案 §3.4）；与 HTTP 快照是同一份契约。 */
+export type Projection = SnapshotResponse
 
 interface TicketAccumulator {
   id: string
@@ -295,8 +278,8 @@ function toApprovalView(approval: ApprovalAccumulator): ApprovalView {
 function countStats(
   tickets: readonly TicketView[],
   approvals: readonly ApprovalAccumulator[],
-): ProjectionStats {
-  const stats: ProjectionStats = {
+): SnapshotStats {
+  const stats: SnapshotStats = {
     tickets: { queued: 0, running: 0, blocked: 0, ended: 0, total: tickets.length },
     approvals: { pending: 0, decided: 0 },
   }

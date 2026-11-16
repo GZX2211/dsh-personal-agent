@@ -1,13 +1,13 @@
 // tests/client/lib/approvals.test.ts
 //
-// 审批页纯逻辑：决定构造、短码与错误码映射。
+// 审批页纯逻辑：决定构造与错误码映射。
 
 import { describe, expect, it } from 'vitest'
 import type { ApprovalView } from '../../../src/shared/approvals.ts'
+import { DECISION_ERROR_CODES } from '../../../src/shared/api.ts'
 import {
   buildDecision,
   decisionErrorKey,
-  shortTicket,
 } from '../../../src/client/lib/approvals.ts'
 
 const APPROVAL: ApprovalView = {
@@ -21,12 +21,6 @@ const APPROVAL: ApprovalView = {
   requestedBySessionId: 'session-1',
   createdAt: 1_700_000_000_000,
 }
-
-describe('shortTicket', () => {
-  it('drops the prefix and keeps six characters', () => {
-    expect(shortTicket('t-7380b609ef')).toBe('7380b6')
-  })
-})
 
 describe('buildDecision', () => {
   it('builds a selected decision and carries the text answer along', () => {
@@ -70,6 +64,12 @@ describe('buildDecision', () => {
 })
 
 describe('decisionErrorKey', () => {
+  it('maps every stable server code to its own copy', () => {
+    for (const code of Object.values(DECISION_ERROR_CODES)) {
+      expect(decisionErrorKey(code), code).not.toBe('decisionErrorUnknown')
+    }
+  })
+
   it('maps stable server codes and falls back for unknown ones', () => {
     expect(decisionErrorKey('already-decided')).toBe('decisionErrorAlreadyDecided')
     expect(decisionErrorKey('worker-archived')).toBe('decisionErrorWorkerArchived')

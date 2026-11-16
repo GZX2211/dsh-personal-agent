@@ -48,3 +48,13 @@ export interface TicketView {
   /** 结束时的汇报摘要；回合未汇报就结束时不存在。 */
   report?: string
 }
+
+/**
+ * 展示短码：id 去掉 `t-` 前缀后的前 6 位。
+ *
+ * Host 的会话标题、投影与查询，以及 Client 的搜索都用它；放在共享层是为了
+ * 只有一份规则，客户端不再自行复制一份。
+ */
+export function shortTicketId(ticketId: string): string {
+  return ticketId.replace(/^t-/, '').slice(0, 6)
+}

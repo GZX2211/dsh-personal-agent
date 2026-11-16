@@ -8,7 +8,7 @@ import type { ApprovalView } from '../../../shared/approvals.ts'
 import type { TicketStage, TicketView } from '../../../shared/tickets.ts'
 import type { Projection } from '../../projector/project.ts'
 import type { EventStore } from '../../store/event-store.ts'
-import { shortTicketId } from '../../tickets/ids.ts'
+import { shortTicketId } from '../../../shared/tickets.ts'
 
 const LEDGER_QUERY_TOOL_NAME = 'pa_ledger_query'
 

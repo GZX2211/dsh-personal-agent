@@ -7,7 +7,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type { HostContext } from '../context.ts'
 import { ensureDirectory } from '../state/directory.ts'
-import { shortTicketId } from '../tickets/ids.ts'
+import { shortTicketId } from '../../shared/tickets.ts'
 
 const WORKER_WORKSPACE_TITLE = '个人代理 · 工单'
 

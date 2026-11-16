@@ -4,7 +4,7 @@
 // 目标、背景、约束、验收标准与工作目录都在这里，不让模型回读总控台。
 
 import type { TaskMode } from '../../shared/events.ts'
-import { shortTicketId } from '../tickets/ids.ts'
+import { shortTicketId } from '../../shared/tickets.ts'
 
 export interface TaskBrief {
   ticketId: string

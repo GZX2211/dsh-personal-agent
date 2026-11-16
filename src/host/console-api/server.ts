@@ -8,18 +8,12 @@ import {
   APPROVAL_DECIDE_PATTERN,
   ERROR_CODES,
   ROUTES,
-  type DecisionResponse,
+  type DecisionOutcome,
   type ErrorResponse,
   type HealthResponse,
   type SnapshotResponse,
 } from '../../shared/api.ts'
 import { guardRequest } from './guard.ts'
-
-/** 决定端点的结果：HTTP 状态由审批服务给出（404/409/502 等）。 */
-export interface DecisionOutcome {
-  status: number
-  body: DecisionResponse
-}
 
 export interface ConsoleTarget {
   plugin: string

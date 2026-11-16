@@ -3,7 +3,7 @@
 // 同源 HTTP 契约：路径前缀、自定义请求头、健康检查与总控台快照的响应形状。
 // Host 与 Client 共用，调用点不得硬编码这些字面量。
 
-import type { ApprovalView, ApprovalTransport } from './approvals.ts'
+import type { ApprovalView, ApprovalDecisionKind, ApprovalTransport } from './approvals.ts'
 import type { TicketView } from './tickets.ts'
 
 /** 插件 HTTP 面挂载前缀；Host 以 prefix 路由注册，Client 以此为唯一网络入口。 */
@@ -100,7 +100,7 @@ export type DecisionErrorCode = (typeof DECISION_ERROR_CODES)[keyof typeof DECIS
 
 /** 提交决定：选中一个选项、给出自定义答案或跳过。 */
 export interface DecisionRequest {
-  kind: 'selected' | 'answered' | 'skipped'
+  kind: ApprovalDecisionKind
   /** `selected` 必填：选项下标。 */
   index?: number
   /** `answered` 必填：人的自定义答案。 */
@@ -119,3 +119,12 @@ export interface DecisionFailure {
 }
 
 export type DecisionResponse = DecisionSuccess | DecisionFailure
+
+/**
+ * 一次决定提交的完整结果：HTTP 状态由审批服务判定（200/400/404/409/502）。
+ * 审批服务产出它、HTTP 面原样转成响应，所以两侧共用这一份形状。
+ */
+export interface DecisionOutcome {
+  status: number
+  body: DecisionResponse
+}
