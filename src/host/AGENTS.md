@@ -10,11 +10,33 @@ Host 根只承担一类职责：
 
 ## 各模块职责与依赖
 
-- 待定
-- prompts/：待定
-- tools/：负责将 Host 能力暴露为 Agent-facing Tools，并维护 Tool 基础设施。
+| 模块 | 一句话职责 |
+|---|---|
+| `index.ts`（根） | 包级入口：装配状态目录、账本、kv、调度器、回合观察、角色装饰与 HTTP 面，并协调启动顺序。 |
+| `approvals/` | 审批生命周期：阻塞工具登记、决定三支路（销毁 / inline / followup）、送达消息模板与启动自愈。 |
+| `console-api/` | 同源 HTTP 面：路径分派、同源守卫、状态码与稳定错误码。 |
+| `dispatcher/` | 调度：纯计划、任务简报、放行执行（建会话 + 投递）与失败即停的重规划。 |
+| `projector/` | 账本投影：纯函数把事件序列派生为工单/审批视图与统计。 |
+| `prompts/` | 随包提示词加载与 Markdown 拼装。 |
+| `sessions/` | 会话：router/worker 身份与创建、角色装饰、投递、回合观察与日志读取。 |
+| `state/` | 状态目录解析与幂等创建。 |
+| `store/` | 持久化：append-only 账本（幂等、重放、格式校验）与 kv 技术元数据。 |
+| `tickets/` | 工单 id 生成（展示短码是共享规则，不在此处）。 |
+| `tools/` | 把 Host 能力暴露为 Agent-facing Tools（入队、审批提交、只读查询）。 |
 
-依赖方向：待定
+依赖方向：
+
+- 所有模块对共享层的依赖只有：`src/shared` 的契约与 `context.ts` 的服务面类型；host 内部协作通过显式传入的实例或接口完成，不引入模块级单例，也**不得 import 根入口**。
+- 基础层（无 Host 内部依赖）：`state/`、`prompts/`、`tickets/`、`projector/`。
+- `store/` → `projector/`、`state/`：账本负责持久化与投影缓存，投影本身是纯函数。
+- `approvals/` → `sessions/`（投递决定）、`store/`、`context.ts`。
+- `dispatcher/` → `sessions/`（建会话与投递）、`store/`、`projector/`（视图类型）。
+- `sessions/` → `approvals/`、`dispatcher/`、`tools/`（注册角色工具）、`prompts/`、`store/`、`state/`、`projector/`（视图类型）。
+- `tools/` → `approvals/`、`dispatcher/`（调度器接口）、`store/`、`projector/`、`tickets/`。
+- `console-api/` → 仅 `src/shared` 与同目录 `guard.ts`；数据由根注入的 `snapshot` 与 `decideApproval` 提供，它不直接读写账本。
+- 根 → 全部有状态模块，是唯一装配点。
+
+`dispatcher/` 与 `sessions/`、`approvals/` 与 `sessions/` 是双向协作：调度/审批调用会话执行，会话在回合边界回调调度器或登记阻塞。这是协作关系而非分层倒置——两侧只通过注入的实例与 `context.ts` 声明的服务面互相作用，不读对方内部状态。
 
 ## 状态所有权
 
