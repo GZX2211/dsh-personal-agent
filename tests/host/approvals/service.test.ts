@@ -94,12 +94,46 @@ describe('parseDecisionRequest', () => {
     expect(() => parseDecisionRequest(approval, { kind: 'other' })).toThrow(/kind/)
   })
 
-  it('rejects a non-string note', () => {
+  it('keeps a typed custom answer as the decision body', () => {
     seedApproval()
     const approval = store.projection().approvals[0]
     if (approval === undefined) throw new Error('approval missing')
 
-    expect(() => parseDecisionRequest(approval, { kind: 'selected', index: 0, note: 3 })).toThrow(/note/)
+    expect(parseDecisionRequest(approval, { kind: 'answered', answer: '  先观察一晚  ' })).toEqual({
+      kind: 'answered',
+      answer: '先观察一晚',
+    })
+  })
+
+  it('rejects an empty or non-string custom answer', () => {
+    seedApproval()
+    const approval = store.projection().approvals[0]
+    if (approval === undefined) throw new Error('approval missing')
+
+    expect(() => parseDecisionRequest(approval, { kind: 'answered', answer: '   ' })).toThrow(/答案/)
+    expect(() => parseDecisionRequest(approval, { kind: 'answered' })).toThrow(/答案/)
+    expect(() => parseDecisionRequest(approval, { kind: 'answered', answer: 3 })).toThrow(/答案/)
+  })
+
+  it('keeps a text answer on a selected decision too', () => {
+    seedApproval()
+    const approval = store.projection().approvals[0]
+    if (approval === undefined) throw new Error('approval missing')
+
+    expect(parseDecisionRequest(approval, { kind: 'selected', index: 0, answer: '  现在就发  ' })).toEqual({
+      kind: 'selected',
+      index: 0,
+      label: '发布',
+      answer: '现在就发',
+    })
+  })
+
+  it('rejects a non-string answer', () => {
+    seedApproval()
+    const approval = store.projection().approvals[0]
+    if (approval === undefined) throw new Error('approval missing')
+
+    expect(() => parseDecisionRequest(approval, { kind: 'selected', index: 0, answer: 3 })).toThrow(/answer/)
   })
 
   it('ignores decision keys the current contract no longer defines', () => {
@@ -123,13 +157,13 @@ describe('approval decider', () => {
     seedApproval()
     const resolver = resolvers.create('a-1')
 
-    const pending = decider.decide('a-1', { kind: 'selected', index: 0, note: '现在就发' })
+    const pending = decider.decide('a-1', { kind: 'selected', index: 0, answer: '现在就发' })
     const delivery = await resolver.decision
     expect(decidedEvents()).toEqual([])
     resolver.acknowledge()
     const outcome = await pending
 
-    expect(delivery.decision).toMatchObject({ kind: 'selected', index: 0, label: '发布' })
+    expect(delivery.decision).toMatchObject({ kind: 'selected', index: 0, label: '发布', answer: '现在就发' })
     expect(outcome).toEqual({ status: 200, body: { ok: true, transport: 'inline' } })
     expect(decidedEvents()).toEqual([
       expect.objectContaining({
@@ -144,14 +178,14 @@ describe('approval decider', () => {
     const outcome = await decider.decide('a-1', {
       kind: 'selected',
       index: 1,
-      note: '先观察',
+      answer: '先观察',
     })
 
     expect(outcome).toEqual({ status: 200, body: { ok: true, transport: 'followup' } })
     const delivered = host.sessions.get(WORKER_SESSION)?.delivered[0]
     expect(delivered?.requestId).toBe('pa-delivery:pa-approval-delivery:a-1')
     expect(delivered?.text).toContain('决定：等等（option 1）')
-    expect(delivered?.text).toContain('补充说明：先观察')
+    expect(delivered?.text).toContain('答案：先观察')
     expect(decidedEvents()[0]?.payload).toMatchObject({ transport: 'followup' })
   })
 

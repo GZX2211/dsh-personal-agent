@@ -18,22 +18,26 @@ export function shortSession(sessionId: string): string {
 }
 
 export interface ApprovalDraft {
-  /** 选中的选项下标；未选时按「跳过」提交。 */
+  /** 选中的选项下标；未选时看是否填了答案。 */
   optionIndex?: number
-  /** 「输入你的答案」里的人类回答。 */
-  note: string
+  /** 「输入你的答案」里的文本——人的答案，随决定一起送达 worker。 */
+  answer: string
+  /** 显式点「跳过」。 */
+  skip?: boolean
 }
 
 /**
- * 构造提交体；未选选项时按「跳过」提交，选项下标非法时返回 undefined。
- *
- * 空白备注直接丢弃：账本里不该出现一个只剩空白的 note。
+ * 构造提交体：选了选项走 selected，只填文本走 answered，都不填或显式跳过走 skipped。
+ * 文本框内容一律作为 `answer` 随决定送达，与是否选中选项无关；选项下标非法返回 undefined。
  */
 export function buildDecision(approval: ApprovalView, draft: ApprovalDraft): DecisionRequest | undefined {
-  const note = draft.note.trim()
-  const extras = note.length === 0 ? {} : { note }
+  const answer = draft.answer.trim()
+  const extras = answer.length === 0 ? {} : { answer }
 
-  if (draft.optionIndex === undefined) return { kind: 'skipped', ...extras }
+  if (draft.skip === true) return { kind: 'skipped', ...extras }
+  if (draft.optionIndex === undefined) {
+    return answer.length === 0 ? { kind: 'skipped' } : { kind: 'answered', answer }
+  }
   if (!Number.isInteger(draft.optionIndex) || draft.optionIndex < 0 || draft.optionIndex >= approval.options.length) {
     return undefined
   }

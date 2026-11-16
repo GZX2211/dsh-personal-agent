@@ -76,7 +76,7 @@ describe('approvalHaystack', () => {
   it('covers the question, options, attachments and the recorded answer', () => {
     const haystack = approvalHaystack(
       approval({
-        decision: { kind: 'selected', index: 0, label: '发布', note: '今晚发', transport: 'inline' },
+        decision: { kind: 'selected', index: 0, label: '发布', answer: '今晚发', transport: 'inline' },
         decidedAt: NOW + 1000,
       }),
       ctx,

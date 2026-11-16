@@ -206,12 +206,12 @@ describe('console api', () => {
       method: 'POST',
       path: approvalDecidePath('a-1'),
       headers: sameOriginHeaders,
-      body: { kind: 'selected', index: 1, note: '先别发' },
+      body: { kind: 'selected', index: 1, answer: '先别发' },
     })
 
     expect(captured.status).toBe(200)
     expect(json).toEqual({ ok: true, transport: 'inline' })
-    expect(decideApproval).toHaveBeenCalledWith('a-1', { kind: 'selected', index: 1, note: '先别发' })
+    expect(decideApproval).toHaveBeenCalledWith('a-1', { kind: 'selected', index: 1, answer: '先别发' })
   })
 
   it('returns the approval service status and failure body unchanged', async () => {

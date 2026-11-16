@@ -309,8 +309,8 @@ planDispatch(queue: QueuedTicket[], workers: WorkerState[], capacity: number) �
 ```
 [审批结果] 审批 <approvalId>（工单 <ticketId>）已有决定。
 
-决定：<选项标签>（option <index>）      ← 或：跳过（由你自行决定或放弃该动作）
-补充说明：<note>
+决定：<选项标签>（option <index>）      ← 或：自定义答案（答案见下一行），或：跳过（由你自行决定或放弃该动作）
+答案：<answer>                          ← 仅在决定带有文本答案时出现
 填写字段：
 - <label>: <value>
 
@@ -775,7 +775,9 @@ P2 曾给 `pa_approval_submit` 设计 `title`（一句话摘要）与 `fields`�
 | `ApprovalView.title` / `ApprovalView.fields` | 删除 | 投影不再透出 |
 | `pa_ledger_query` 的审批行 | 改用题干预览（首行、最多 24 字） | — |
 
-人的回答只剩两条路：`selected`（选项下标 + 标签副本）与 `skipped`，两者都可带自由文本 `note`（来自卡片上的「输入你的答案」）。UI 只允许「未选项 + 有文本」按 `skipped` 提交，「未选项 + 无文本」即纯跳过。
+不存在「备注」字段与语义：卡片上「输入你的答案」的文本就是人的答案，字段为 `answer`。选中的选项和填写的文本本质相同，都会作为答案送达 worker。
+
+人的决定内容有三种（都归入「已通过」，UI 状态只有待审批 / 已通过两态）：`selected`（选项下标 + 标签副本，可同时带 `answer`）、`answered`（只填文本、未选选项，`answer` 是决定本体且必填非空）、`skipped`（跳过，也可带 `answer`）。提交口：选了选项 + 点提交走 `selected`；未选选项 + 有文本 + 点提交走 `answered`；未填任何内容或显式点「跳过」走 `skipped`。`answer` 随任何决定一并写入账本并送达 worker，不因是否选中选项而丢弃。旧版把「未选项 + 有文本」落成的 `skipped` 记录照旧读取，不视为损坏。
 
 ### 17.2 新增 `attachments`（AI 填、人只读）
 

@@ -75,7 +75,7 @@ describe('ApprovalCard 待审批', () => {
 describe('ApprovalCard 已通过', () => {
   const decided = approval({
     decidedAt: NOW + 60_000,
-    decision: { kind: 'selected', index: 1, label: '选项 B', note: '先观察', transport: 'inline' },
+    decision: { kind: 'selected', index: 1, label: '选项 B', answer: '先观察', transport: 'inline' },
   })
 
   it('starts collapsed and shows only the header strip', () => {
@@ -104,7 +104,7 @@ describe('ApprovalCard 已通过', () => {
     const html = render(
       approval({
         decidedAt: NOW + 60_000,
-        decision: { kind: 'selected', index: 1, label: '选项 B', note: '先观察', transport: 'inline' },
+        decision: { kind: 'selected', index: 1, label: '选项 B', answer: '先观察', transport: 'inline' },
         attachments: ['D:/pa-work/t-1/report.html'],
       }),
       false,
@@ -118,10 +118,26 @@ describe('ApprovalCard 已通过', () => {
     expect(html).not.toContain('提交')
   })
 
-  it('marks a skipped request and leaves the answer row out when no note was written', () => {
+  it('marks a skipped request and leaves the answer row out when no text was written', () => {
     const html = render(approval({ decidedAt: NOW + 1000, decision: { kind: 'skipped', transport: 'inline' } }), false)
 
     expect(html).toContain('已跳过')
     expect(html).not.toContain('pa-card__answer-row')
+  })
+
+  it('treats a custom answer as decided and shows the answer text', () => {
+    const html = render(
+      approval({
+        decidedAt: NOW + 1000,
+        decision: { kind: 'answered', answer: '先观察一晚', transport: 'inline' },
+      }),
+      false,
+    )
+
+    expect(html).toContain('已通过')
+    expect(html).not.toContain('已跳过')
+    expect(html).toContain('先观察一晚')
+    expect(html).not.toContain('跳过')
+    expect(html).not.toContain('提交')
   })
 })

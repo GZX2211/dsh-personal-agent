@@ -13,8 +13,9 @@ export function formatApprovalDelivery(approval: ApprovalView, decision: Approva
     decisionLine(approval, decision),
   ]
 
-  if (decision.note !== undefined && decision.note.trim().length > 0) {
-    lines.push('', `补充说明：${decision.note.trim()}`)
+  // 选项与文本答案都会注入 worker：选项体现在决定行，文本统一走答案行。
+  if (decision.answer !== undefined && decision.answer.trim().length > 0) {
+    lines.push('', `答案：${decision.answer.trim()}`)
   }
 
   lines.push(
@@ -28,6 +29,9 @@ export function formatApprovalDelivery(approval: ApprovalView, decision: Approva
 function decisionLine(approval: ApprovalView, decision: ApprovalDecision): string {
   if (decision.kind === 'skipped') {
     return '决定：跳过（由你自行决定或放弃该动作）'
+  }
+  if (decision.kind === 'answered') {
+    return '决定：自定义答案'
   }
   const label = decision.label ?? approval.options[decision.index ?? -1]?.label ?? ''
   return `决定：${label}（option ${decision.index ?? 0}）`

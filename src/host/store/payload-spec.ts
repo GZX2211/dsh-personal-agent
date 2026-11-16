@@ -202,7 +202,11 @@ export function isApprovalDecisionRecord(value: unknown): boolean {
   if (!isOneOf(value.kind, APPROVAL_DECISION_KINDS)) return false
   if (value.index !== undefined && !Number.isInteger(value.index)) return false
   if (value.label !== undefined && typeof value.label !== 'string') return false
-  if (value.note !== undefined && typeof value.note !== 'string') return false
+  if (value.answer !== undefined && typeof value.answer !== 'string') return false
+  // 自定义答案决定必须带非空答案：答案是决定本体，丢了就无法回放给 worker。
+  if (value.kind === 'answered') {
+    return typeof value.answer === 'string' && value.answer.trim().length > 0
+  }
   // 选中的决定必须带下标：没有下标既解释不了选中了什么，也无法回放给 worker。
   return value.kind === 'skipped' || Number.isInteger(value.index)
 }

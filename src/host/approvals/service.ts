@@ -133,13 +133,20 @@ export function parseDecisionRequest(approval: ApprovalView, request: unknown): 
     decision.kind = 'selected'
     decision.index = index as number
     decision.label = option.label
+  } else if (raw.kind === 'answered') {
+    if (typeof raw.answer !== 'string' || raw.answer.trim().length === 0) {
+      throw new DecisionInputError('自定义答案不能为空')
+    }
+    decision.kind = 'answered'
+    decision.answer = raw.answer.trim()
   } else if (raw.kind !== 'skipped') {
-    throw new DecisionInputError('kind 必须是 selected 或 skipped')
+    throw new DecisionInputError('kind 必须是 selected、answered 或 skipped')
   }
 
-  if (raw.note !== undefined) {
-    if (typeof raw.note !== 'string') throw new DecisionInputError('note 必须是字符串')
-    if (raw.note.trim().length > 0) decision.note = raw.note.trim()
+  // 选项与文本答案本质相同：选了选项也允许带文本，都会写进决定送达 worker。
+  if (raw.answer !== undefined) {
+    if (typeof raw.answer !== 'string') throw new DecisionInputError('answer 必须是字符串')
+    if (raw.answer.trim().length > 0) decision.answer = raw.answer.trim()
   }
 
   // 未知键（例如旧客户端仍提交的 fields）不参与决定，也不报错：

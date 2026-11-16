@@ -29,25 +29,43 @@ describe('shortTicket', () => {
 })
 
 describe('buildDecision', () => {
-  it('builds a selected decision with a trimmed note', () => {
-    expect(buildDecision(APPROVAL, { optionIndex: 0, note: '  继续  ' })).toEqual({
+  it('builds a selected decision and carries the text answer along', () => {
+    expect(buildDecision(APPROVAL, { optionIndex: 0, answer: '  继续  ' })).toEqual({
       kind: 'selected',
       index: 0,
-      note: '继续',
+      answer: '继续',
     })
   })
 
-  it('builds a skipped decision without an option', () => {
-    expect(buildDecision(APPROVAL, { note: '' })).toEqual({ kind: 'skipped' })
-    expect(buildDecision(APPROVAL, { note: '  由你决定  ' })).toEqual({
+  it('builds a selected decision without text when the field is empty', () => {
+    expect(buildDecision(APPROVAL, { optionIndex: 0, answer: '' })).toEqual({
+      kind: 'selected',
+      index: 0,
+    })
+  })
+
+  it('builds a skipped decision when nothing was entered', () => {
+    expect(buildDecision(APPROVAL, { answer: '' })).toEqual({ kind: 'skipped' })
+    expect(buildDecision(APPROVAL, { answer: '   ' })).toEqual({ kind: 'skipped' })
+  })
+
+  it('treats typed text without an option as a custom answer, not a skip', () => {
+    expect(buildDecision(APPROVAL, { answer: '  先按兵不动  ' })).toEqual({
+      kind: 'answered',
+      answer: '先按兵不动',
+    })
+  })
+
+  it('keeps an explicit skip as skipped and carries the text answer along', () => {
+    expect(buildDecision(APPROVAL, { answer: '由你决定', skip: true })).toEqual({
       kind: 'skipped',
-      note: '由你决定',
+      answer: '由你决定',
     })
   })
 
   it('rejects an out-of-range option index', () => {
-    expect(buildDecision(APPROVAL, { optionIndex: 5, note: '' })).toBeUndefined()
-    expect(buildDecision(APPROVAL, { optionIndex: -1, note: '' })).toBeUndefined()
+    expect(buildDecision(APPROVAL, { optionIndex: 5, answer: '' })).toBeUndefined()
+    expect(buildDecision(APPROVAL, { optionIndex: -1, answer: '' })).toBeUndefined()
   })
 })
 

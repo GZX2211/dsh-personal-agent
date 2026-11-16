@@ -88,7 +88,7 @@ export function approvalHaystack(approval: ApprovalView, ctx: FilterContext): st
   }
   if (approval.risk !== undefined) parts.push(ctx.t(riskKey(approval.risk)))
   if (approval.decision !== undefined) {
-    parts.push(approval.decision.label, approval.decision.note, approval.decision.transport)
+    parts.push(approval.decision.label, approval.decision.answer, approval.decision.transport)
   }
   pushTime(parts, ctx, approval.createdAt)
   pushTime(parts, ctx, approval.decidedAt)

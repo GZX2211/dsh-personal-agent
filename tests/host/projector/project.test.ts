@@ -254,7 +254,7 @@ describe('project', () => {
       dispatchedEvent(2, 't-aaa1112223'),
       pendingEvent(3, 'a-1', 't-aaa1112223'),
       decidedEvent(4, 'a-1', {
-        decision: { kind: 'selected', index: 1, label: '等等', note: '先别发' },
+        decision: { kind: 'selected', index: 1, label: '等等', answer: '先别发' },
         decidedAt: BASE_TIME + 4,
         transport: 'followup',
       }),
@@ -265,7 +265,7 @@ describe('project', () => {
       expect.objectContaining({
         id: 'a-1',
         decidedAt: BASE_TIME + 4,
-        decision: { kind: 'selected', index: 1, label: '等等', note: '先别发', transport: 'followup' },
+        decision: { kind: 'selected', index: 1, label: '等等', answer: '先别发', transport: 'followup' },
       }),
     ])
     expect(projection.stats.approvals).toEqual({ pending: 0, decided: 1 })
@@ -591,13 +591,13 @@ describe('project', () => {
       queuedEvent(1, 't-aaa1112223'),
       dispatchedEvent(2, 't-aaa1112223'),
       pendingEvent(3, 'a-1', 't-aaa1112223'),
-      decidedEvent(4, 'a-1', { decision: { kind: 'skipped', note: '你自己看着办' } }),
+      decidedEvent(4, 'a-1', { decision: { kind: 'skipped', answer: '你自己看着办' } }),
     ])
 
     expect(projection.approvals).toEqual([
       expect.objectContaining({
         decidedAt: BASE_TIME + 4,
-        decision: { kind: 'skipped', note: '你自己看着办', transport: 'inline' },
+        decision: { kind: 'skipped', answer: '你自己看着办', transport: 'inline' },
       }),
     ])
     expect(projection.stats.approvals).toEqual({ pending: 0, decided: 1 })

@@ -53,7 +53,7 @@ export function ApprovalCard({
   const skipped = approval.decision?.kind === 'skipped'
   const [collapsed, setCollapsed] = useState(defaultCollapsed ?? decided)
   const [optionIndex, setOptionIndex] = useState<number | undefined>(approval.decision?.index)
-  const [note, setNote] = useState(approval.decision?.note ?? '')
+  const [answer, setAnswer] = useState(approval.decision?.answer ?? '')
   const locked = decided || busy
 
   const titleId = `pa-approval-${approval.id}`
@@ -114,13 +114,13 @@ export function ApprovalCard({
             </div>
 
             {decided ? (
-              <CardAnswerText note={note} />
+              <CardAnswerText answer={answer} />
             ) : (
               <CardAnswerField
-                value={note}
+                value={answer}
                 placeholder={t('approvalAnswerPlaceholder')}
                 disabled={busy}
-                onChange={setNote}
+                onChange={setAnswer}
               />
             )}
 
@@ -141,10 +141,10 @@ export function ApprovalCard({
             actions={
               decided ? undefined : (
                 <>
-                  <Button variant="outline" disabled={busy} onClick={() => onSubmit({ note })}>
+                  <Button variant="outline" disabled={busy} onClick={() => onSubmit({ answer, skip: true })}>
                     {t('approvalSkip')}
                   </Button>
-                  <Button variant="primary" disabled={busy} onClick={() => onSubmit({ optionIndex, note })}>
+                  <Button variant="primary" disabled={busy} onClick={() => onSubmit({ optionIndex, answer })}>
                     {busy ? t('approvalSubmitting') : t('approvalSubmit')}
                   </Button>
                 </>

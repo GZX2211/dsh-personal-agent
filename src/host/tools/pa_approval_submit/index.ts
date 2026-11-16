@@ -7,8 +7,8 @@
 // 审批不依赖工单：有进行中工单时自动关联（工单页据此显示阻塞阶段），
 // 工单已结束或会话没有工单时仍可提交，只是不绑定任何工单。
 //
-// 人的回答只有两种：选一个选项或跳过，外加自由文本 `note`。附件是 worker
-// 在这时带上的文件（人只读），因此在这里归一成绝对路径，卡片才能直接打开。
+// 人的回答：选一个选项、填一段文本（自定义答案）或跳过。选项与文本本质都是答案，
+// 都会随决定送达 worker。附件是 worker 在这时带上的文件（人只读），因此在这里归一成绝对路径，卡片才能直接打开。
 
 import { isAbsolute, join } from 'node:path'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
@@ -132,22 +132,24 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
             type: 'object',
             required: ['kind'],
             properties: {
-              kind: { type: 'string', enum: ['selected', 'skipped'] },
+              kind: { type: 'string', enum: ['selected', 'answered', 'skipped'] },
               index: { type: 'number' },
               label: { type: 'string' },
+              answer: { type: 'string' },
             },
           },
-          note: { type: 'string' },
           decidedAt: { type: 'number' },
         },
       },
       render: (_args: unknown, value: unknown) => {
-        const result = value as { approvalId: string; decision: { kind: string; label?: string } }
+        const result = value as { approvalId: string; decision: { kind: string; label?: string; answer?: string } }
         const short = shortApprovalId(result.approvalId)
         const outcome =
           result.decision.kind === 'skipped'
             ? '已跳过（由你自行决定或放弃该动作）'
-            : `已选择：${result.decision.label ?? ''}`
+            : result.decision.kind === 'answered'
+              ? `答案：${result.decision.answer ?? ''}`
+              : `已选择：${result.decision.label ?? ''}`
         return [{ type: 'text', text: `审批 #${short} ${outcome}` }]
       },
       // 决定内容随 tool/result 持久化：启动自愈据此恢复「已送达但未记账」的审批。
@@ -156,10 +158,10 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
           approvalId: string
           decidedAt: number
           decision: {
-            kind: 'selected' | 'skipped'
+            kind: 'selected' | 'answered' | 'skipped'
             index?: number
             label?: string
-            note?: string
+            answer?: string
           }
         }
         const decision = result.decision
@@ -170,7 +172,7 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
             kind: decision.kind,
             ...(decision.index === undefined ? {} : { index: decision.index }),
             ...(decision.label === undefined ? {} : { label: decision.label }),
-            ...(decision.note === undefined ? {} : { note: decision.note }),
+            ...(decision.answer === undefined ? {} : { answer: decision.answer }),
           },
         }
       },
@@ -227,14 +229,17 @@ export function createApprovalSubmitTool(deps: ApprovalSubmitDependencies): Tool
 }
 
 function toResult(approvalId: string, delivery: ApprovalDelivery): Record<string, unknown> {
-  const { kind, index, label, note } = delivery.decision
+  const { kind, index, label, answer } = delivery.decision
+  const decision =
+    kind === 'selected'
+      ? { kind, index, label }
+      : kind === 'answered'
+        ? { kind, answer }
+        : { kind: 'skipped' }
   return {
     approvalId,
-    decision:
-      kind === 'selected'
-        ? { kind, index, label }
-        : { kind: 'skipped' },
-    ...(note === undefined ? {} : { note }),
+    // 文本答案与选项都会送达 worker，所以 answer 不随 kind 分支丢弃。
+    decision: { ...decision, ...(answer === undefined ? {} : { answer }) },
     decidedAt: delivery.decidedAt,
   }
 }

@@ -3,11 +3,11 @@
 // 审批视图契约。审批只有两态（待审批 / 已通过），作废条目从所有对外列表剔除，
 // 所以这里既不声明状态枚举，也不声明作废态（方案 §6.1、§9.2）。
 //
-// 人的回答只有两种：选一个选项，或跳过；自由文本回答落在 `note`。
-// 附件由 worker 在提交审批时给出（人只读），因此它是审批的输入事实而不是决定。
+// 人的回答：选一个选项、填一段文本（自定义答案）或跳过。选项与文本本质都是答案，
+// 一律随决定送达 worker。附件由 worker 在提交审批时给出（人只读），是输入事实不是决定。
 
-/** 人的决定种类：选中一个选项，或跳过让 worker 自行决定。 */
-export const APPROVAL_DECISION_KINDS = ['selected', 'skipped'] as const
+/** 人的决定种类：选中选项、给出自定义答案，或跳过让 worker 自行决定。 */
+export const APPROVAL_DECISION_KINDS = ['selected', 'answered', 'skipped'] as const
 
 export type ApprovalDecisionKind = (typeof APPROVAL_DECISION_KINDS)[number]
 
@@ -29,12 +29,12 @@ export interface ApprovalOption {
 /** 人提交的决定本体；送达方式在送达后由账本补上。 */
 export interface ApprovalDecision {
   kind: ApprovalDecisionKind
-  /** `selected` 时的选项下标；`skipped` 时为 undefined。 */
+  /** `selected` 时的选项下标；`answered` / `skipped` 时为 undefined。 */
   index?: number
   /** `selected` 时选中项标签的副本：选项文案后续变化不影响历史记录。 */
   label?: string
-  /** 「输入你的答案」里的自由文本。 */
-  note?: string
+  /** 人的文本答案：`answered` 时是决定本体；`selected` / `skipped` 时也会一并送达 worker。 */
+  answer?: string
 }
 
 /** 已写进账本的决定：落账时已确定送达方式。 */

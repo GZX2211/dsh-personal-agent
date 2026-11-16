@@ -174,12 +174,11 @@ describe('ticket flow', () => {
     const decided = await decider.decide(approval.id, {
       kind: 'selected',
       index: 0,
-      note: '现在就发',
+      answer: '现在就发',
     })
     expect(decided).toEqual({ status: 200, body: { ok: true, transport: 'inline' } })
     await expect(approvalPromise).resolves.toMatchObject({
-      decision: { kind: 'selected', index: 0, label: '发布' },
-      note: '现在就发',
+      decision: { kind: 'selected', index: 0, label: '发布', answer: '现在就发' },
     })
     expect(store.projection().tickets[0]?.stage).toBe('running')
     expect(store.projection().approvals[0]?.decidedAt).toBe(CLOCK)

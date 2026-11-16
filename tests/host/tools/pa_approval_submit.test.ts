@@ -131,15 +131,14 @@ describe('pa_approval_submit', () => {
     expect(resolver).toBeDefined()
 
     await resolver?.deliver({
-      decision: { kind: 'selected', index: 1, label: '等等', note: '先别发' },
+      decision: { kind: 'selected', index: 1, label: '等等', answer: '先别发' },
       decidedAt: 1_700_000_000_000,
     })
     const result = await pending
 
     expect(result).toEqual({
       approvalId,
-      decision: { kind: 'selected', index: 1, label: '等等' },
-      note: '先别发',
+      decision: { kind: 'selected', index: 1, label: '等等', answer: '先别发' },
       decidedAt: 1_700_000_000_000,
     })
     expect(resolvers.find(approvalId)).toBeUndefined()
@@ -266,6 +265,26 @@ describe('pa_approval_submit', () => {
       approvalId,
       decision: { kind: 'skipped' },
       decidedAt: 5,
+    })
+  })
+
+  it('returns a custom answer as the decision body', async () => {
+    seedRunningTicket()
+    const tool = makeTool()
+    const controller = new AbortController()
+
+    const pending = tool.execute(BASE_ARGS, execution(controller.signal)) as Promise<Record<string, unknown>>
+    const approvalId = await waitForPending()
+
+    await resolvers.find(approvalId)?.deliver({
+      decision: { kind: 'answered', answer: '先观察一晚' },
+      decidedAt: 6,
+    })
+
+    await expect(pending).resolves.toEqual({
+      approvalId,
+      decision: { kind: 'answered', answer: '先观察一晚' },
+      decidedAt: 6,
     })
   })
 

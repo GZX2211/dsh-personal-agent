@@ -1,6 +1,6 @@
 // tests/host/approvals/message.test.ts
 //
-// 决定消息是 worker 唯一的续接依据：决定内容、补充说明与「原调用已结束」
+// 决定消息是 worker 唯一的续接依据：决定内容、答案文本与「原调用已结束」
 // 的提醒都必须完整。
 
 import { describe, expect, it } from 'vitest'
@@ -21,30 +21,37 @@ const APPROVAL: ApprovalView = {
 }
 
 describe('formatApprovalDelivery', () => {
-  it('states a selected option with its index and the note', () => {
+  it('states a selected option and carries the text answer along', () => {
     const text = formatApprovalDelivery(APPROVAL, {
       kind: 'selected',
       index: 1,
       label: '等等',
-      note: '先观察一晚',
+      answer: '先观察一晚',
     })
 
     expect(text).toContain('[审批结果] 审批 a-abcdef1234（工单 t-abcdef1234）已有决定。')
     expect(text).toContain('决定：等等（option 1）')
-    expect(text).toContain('补充说明：先观察一晚')
+    expect(text).toContain('答案：先观察一晚')
   })
 
   it('states a skipped decision', () => {
     const text = formatApprovalDelivery(APPROVAL, { kind: 'skipped' })
 
     expect(text).toContain('决定：跳过（由你自行决定或放弃该动作）')
-    expect(text).not.toContain('补充说明：')
+    expect(text).not.toContain('答案：')
   })
 
-  it('omits an empty note', () => {
-    const text = formatApprovalDelivery(APPROVAL, { kind: 'selected', index: 0, label: '发布', note: '   ' })
+  it('delivers a custom answer into the worker context', () => {
+    const text = formatApprovalDelivery(APPROVAL, { kind: 'answered', answer: '先观察一晚' })
 
-    expect(text).not.toContain('补充说明：')
+    expect(text).toContain('决定：自定义答案')
+    expect(text).toContain('答案：先观察一晚')
+  })
+
+  it('omits an empty answer', () => {
+    const text = formatApprovalDelivery(APPROVAL, { kind: 'selected', index: 0, label: '发布', answer: '   ' })
+
+    expect(text).not.toContain('答案：')
   })
 
   it('falls back to the option label when the decision carries none', () => {

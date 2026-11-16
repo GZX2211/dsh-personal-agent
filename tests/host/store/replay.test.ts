@@ -83,7 +83,7 @@ function fullLedger(): L2Event[] {
     }),
     eventAt(6, 'approval/decided', {
       approvalId: 'a-1',
-      decision: { kind: 'selected', index: 0, label: '发布', note: '今晚发' },
+      decision: { kind: 'selected', index: 0, label: '发布', answer: '今晚发' },
       decidedAt: 1_700_000_000_006,
       transport: 'inline',
     }),

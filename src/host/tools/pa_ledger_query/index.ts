@@ -140,7 +140,9 @@ function approvalLine(approval: ApprovalView): string {
       ? ''
       : approval.decision.kind === 'skipped'
         ? '（跳过）'
-        : `（${approval.decision.label ?? ''}）`
+        : approval.decision.kind === 'answered'
+          ? `（回答：${approval.decision.answer ?? ''}）`
+          : `（${approval.decision.label ?? ''}）`
   const scope =
     approval.ticketId === undefined
       ? '（独立审批）'
