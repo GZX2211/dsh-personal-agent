@@ -61,7 +61,10 @@ function eventAt<P extends object, T extends L2Event['type']>(seq: number, type:
   } as L2Event
 }
 
-/** 覆盖全部 9 类事件的合法账本：契约新增字段或改必填时，这条测试先坏。 */
+/**
+ * 覆盖契约里全部 11 类事件的合法账本（含两类预留事件）：契约新增字段或改必填时，
+ * 这条测试先坏。
+ */
 function fullLedger(): L2Event[] {
   return [
     eventAt(1, 'signal/received', { kind: 'user-message', delivered: true, receivedAt: 1, text: '发布 v2' }),

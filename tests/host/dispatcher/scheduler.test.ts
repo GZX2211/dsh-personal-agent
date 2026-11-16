@@ -104,7 +104,7 @@ describe('createScheduler', () => {
     seedQueued('t-1')
     await scheduler.trigger('dispatch')
     const workerSessionId = store.projection().tickets[0]?.workerSessionId
-    expect(workerSessionId).toBeDefined()
+    if (workerSessionId === undefined) throw new Error('the dispatched ticket has no worker session')
     seedClosed('t-1')
 
     seedQueued('t-2', { mode: 'append', workerSessionId })

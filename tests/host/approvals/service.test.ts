@@ -7,7 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ResolverRegistry } from '../../../src/host/approvals/resolvers.ts'
+import { ResolverRegistry, type ApprovalDelivery, type PendingResolver } from '../../../src/host/approvals/resolvers.ts'
 import { createApprovalDecider, parseDecisionRequest } from '../../../src/host/approvals/service.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
 import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
@@ -258,5 +258,31 @@ describe('approval decider', () => {
     expect(outcome.body).toMatchObject({ ok: false, code: 'delivery-failed' })
     expect(decidedEvents()).toEqual([])
     expect(store.projection().approvals).toEqual([expect.objectContaining({ id: 'a-1' })])
+  })
+
+  it('falls back to followup when the blocked tool stopped before the decision landed', async () => {
+    seedApproval()
+    const stopped: PendingResolver = {
+      approvalId: 'a-1',
+      decision: new Promise<ApprovalDelivery>(() => undefined),
+      deliver: async () => false,
+      acknowledge: () => undefined,
+      cancel: () => undefined,
+    }
+    const deciderWithStoppedTool = createApprovalDecider({
+      ctx: host.ctx,
+      store,
+      resolvers: {
+        find: (approvalId: string) => (approvalId === 'a-1' ? stopped : undefined),
+      } as unknown as ResolverRegistry,
+      now: () => 1_700_000_000_000,
+    })
+
+    const outcome = await deciderWithStoppedTool.decide('a-1', { kind: 'skipped' })
+
+    expect(outcome).toEqual({ status: 200, body: { ok: true, transport: 'followup' } })
+    expect(decidedEvents()).toHaveLength(1)
+    expect(decidedEvents()[0]?.payload).toMatchObject({ transport: 'followup' })
+    expect(host.sessions.get(WORKER_SESSION)?.delivered).toHaveLength(1)
   })
 })

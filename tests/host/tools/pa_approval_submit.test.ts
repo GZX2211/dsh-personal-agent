@@ -13,6 +13,7 @@ import { ResolverRegistry } from '../../../src/host/approvals/resolvers.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
 import {
   createApprovalSubmitTool,
+  MAX_ATTACHMENTS,
   resolveAttachments,
   type ApprovalSubmitArgs,
 } from '../../../src/host/tools/pa_approval_submit/index.ts'
@@ -112,10 +113,10 @@ describe('resolveAttachments', () => {
     expect(resolveAttachments(['/tmp/abs.md'], WORK_DIRECTORY)).toEqual(['/tmp/abs.md'])
   })
 
-  it('accepts exactly MAX_ATTACHMENTS entries', () => {
-    const paths = Array.from({ length: 20 }, (_, index) => join(WORK_DIRECTORY, `${index}.md`))
+  it('accepts a full attachment list', () => {
+    const paths = Array.from({ length: MAX_ATTACHMENTS }, (_, index) => join(WORK_DIRECTORY, `${index}.md`))
 
-    expect(resolveAttachments(paths, WORK_DIRECTORY)).toHaveLength(20)
+    expect(resolveAttachments(paths, WORK_DIRECTORY)).toHaveLength(MAX_ATTACHMENTS)
   })
 })
 
@@ -128,7 +129,8 @@ describe('pa_approval_submit', () => {
     const pending = tool.execute(BASE_ARGS, execution(controller.signal)) as Promise<Record<string, unknown>>
     const approvalId = await waitForPending()
     const resolver = resolvers.find(approvalId)
-    expect(resolver).toBeDefined()
+    if (resolver === undefined) throw new Error('resolver was not registered')
+    expect(resolver.approvalId).toBe(approvalId)
 
     await resolver?.deliver({
       decision: { kind: 'selected', index: 1, label: '等等', answer: '先别发' },
@@ -417,5 +419,36 @@ describe('pa_approval_submit', () => {
       ),
     ).rejects.toMatchObject({ code: 'invalid-arguments' })
     expect(store.events().filter(event => event.type === 'approval/pending')).toEqual([])
+  })
+})
+
+describe('presentationMeta', () => {
+  type MetaWriter = (args: unknown, value: unknown) => unknown
+
+  function writeMeta(value: unknown): Record<string, unknown> {
+    const writer = (makeTool().output as { presentationMeta?: MetaWriter }).presentationMeta
+    if (writer === undefined) throw new Error('presentationMeta is missing from the tool output')
+    return writer({}, value) as Record<string, unknown>
+  }
+
+  it('persists exactly the fields the self-heal reader restores', () => {
+    const meta = writeMeta({
+      approvalId: 'a-1',
+      decidedAt: 1_700_000_000_000,
+      decision: { kind: 'selected', index: 1, label: '等等', answer: '先别发' },
+    })
+
+    expect(meta).toEqual({
+      approvalId: 'a-1',
+      decidedAt: 1_700_000_000_000,
+      decision: { kind: 'selected', index: 1, label: '等等', answer: '先别发' },
+    })
+  })
+
+  it('leaves absent decision fields out instead of persisting undefined', () => {
+    const meta = writeMeta({ approvalId: 'a-2', decidedAt: 5, decision: { kind: 'skipped' } })
+
+    expect(meta.decision).toEqual({ kind: 'skipped' })
+    expect(Object.keys(meta.decision as object)).toEqual(['kind'])
   })
 })

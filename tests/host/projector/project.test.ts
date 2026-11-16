@@ -98,7 +98,8 @@ function resumedEvent(
   return event(seq, 'task/resumed', { ticketId, turn: 2, ...payload }, { actor: 'system', ...extra })
 }
 
-function reportedEvent(  seq: number,
+function reportedEvent(
+  seq: number,
   ticketId: string,
   payload: Partial<TaskReportedPayload> = {},
   extra: EnvelopeExtra = {},
@@ -707,5 +708,31 @@ describe('project', () => {
     ])
 
     expect(projection.tickets).toEqual([])
+  })
+
+  it('keeps the first request when the same approval id is appended twice', () => {
+    const projection = project([
+      pendingEvent(1, 'a-1', 't-aaa1112223', { question: '第一次提问' }),
+      pendingEvent(2, 'a-1', 't-aaa1112223', { question: '第二次提问' }),
+    ])
+
+    expect(projection.approvals).toHaveLength(1)
+    expect(projection.approvals[0]?.question).toBe('第一次提问')
+  })
+
+  it('refreshes the brief when a queued ticket is queued again before dispatch', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223', { title: '旧标题', goal: '旧目标', queueReason: 'capacity-full' }),
+      queuedEvent(2, 't-aaa1112223', { title: '新标题', goal: '新目标', queueReason: 'worker-busy' }),
+    ])
+
+    expect(projection.tickets[0]).toEqual(
+      expect.objectContaining({
+        stage: 'queued',
+        title: '新标题',
+        goal: '新目标',
+        queueReason: 'worker-busy',
+      }),
+    )
   })
 })

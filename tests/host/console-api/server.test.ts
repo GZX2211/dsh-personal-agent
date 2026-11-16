@@ -273,4 +273,24 @@ describe('console api', () => {
     expect(captured.status).toBe(400)
     expect(decideApproval).not.toHaveBeenCalled()
   })
+
+  it('rejects a request body larger than 64 KiB before calling the approval service', async () => {
+    const decideApproval = vi.fn()
+    const { response, captured } = makeResponse()
+    const request = makeRequest({ method: 'POST', path: approvalDecidePath('a-1'), headers: sameOriginHeaders })
+    ;(request as unknown as { [Symbol.asyncIterator]: () => AsyncGenerator<Buffer> })[Symbol.asyncIterator] =
+      async function* () {
+        yield Buffer.alloc(64 * 1024 + 1, 0x20)
+      }
+
+    await createConsoleHandler(makeTarget({ decideApproval }))(request, response)
+
+    expect(captured.status).toBe(400)
+    expect(JSON.parse(captured.body)).toMatchObject({
+      ok: false,
+      code: 'bad-request',
+      message: expect.stringContaining('64 KiB'),
+    })
+    expect(decideApproval).not.toHaveBeenCalled()
+  })
 })

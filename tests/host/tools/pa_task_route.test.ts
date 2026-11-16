@@ -118,7 +118,7 @@ describe('pa_task_route', () => {
 
     expect(result.ticketId).toMatch(/^t-[0-9a-f]{10}$/)
     expect(result.status).toBe('running')
-    expect(result.sessionId).toBeDefined()
+    expect(result.sessionId).toMatch(/^session-/)
     expect(store.projection().tickets[0]).toMatchObject({
       id: result.ticketId,
       stage: 'running',

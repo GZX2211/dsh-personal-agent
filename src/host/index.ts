@@ -161,7 +161,7 @@ export function apply(ctx: HostContext, config?: Config): void {
     })
 }
 
-function resolveMaxWorkers(value: number | undefined): number {
+export function resolveMaxWorkers(value: number | undefined): number {
   if (value === undefined) return DEFAULT_MAX_WORKERS
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`personal-agent: maxWorkers must be a positive integer, got ${String(value)}`)

@@ -99,9 +99,19 @@ async function callTool(
   } as unknown as ToolRunContext)
 }
 
-function waitForEvent(type: string): void {
-  const found = store.events().find(event => event.type === type)
-  if (found === undefined) throw new Error(`event ${type} was not written`)
+async function waitUntil(condition: () => boolean, message: string): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (condition()) return
+    await new Promise(resolve => setTimeout(resolve, 5))
+  }
+  throw new Error(message)
+}
+
+async function waitForEvent(type: string): Promise<void> {
+  await waitUntil(
+    () => store.events().some(event => event.type === type),
+    `event ${type} was not written`,
+  )
 }
 
 function assistantMessage(text: string): SessionEvent {
@@ -138,7 +148,7 @@ describe('ticket flow', () => {
     const routed = await dispatch('发布新版本')
 
     expect(routed.status).toBe('running')
-    expect(routed.sessionId).toBeDefined()
+    expect(routed.sessionId).toMatch(/^session-/)
     expect(store.projection().tickets[0]).toMatchObject({ stage: 'running', workerSessionId: routed.sessionId })
     const workerSessionId = routed.sessionId ?? ''
     const brief = agent(workerSessionId).inbox.nextTurn
@@ -163,8 +173,7 @@ describe('ticket flow', () => {
       },
       controller.signal,
     )
-    await new Promise(resolve => setTimeout(resolve, 10))
-    waitForEvent('approval/pending')
+    await waitForEvent('approval/pending')
     const approval = store.projection().approvals[0]
     if (approval === undefined) throw new Error('approval was not projected')
     expect(approval.attachments).toEqual(['D:/pa-work/notes.md'])
@@ -208,7 +217,10 @@ describe('ticket flow', () => {
     host.emitSessionEvent(firstWorker, assistantMessage('第一单完成'))
     host.emitSessionEvent(firstWorker, turnEndCompleted())
     await scheduler.idle()
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await waitUntil(
+      () => store.projection().tickets[0]?.stage === 'ended',
+      'the first ticket never ended',
+    )
 
     expect(store.projection().tickets[0]?.stage).toBe('ended')
     expect(store.projection().tickets[5]?.stage).toBe('running')

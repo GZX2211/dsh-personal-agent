@@ -8,7 +8,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { healPendingApprovals } from '../../../src/host/approvals/heal.ts'
+import { ResolverRegistry } from '../../../src/host/approvals/resolvers.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
+import { createApprovalSubmitTool } from '../../../src/host/tools/pa_approval_submit/index.ts'
 import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
 
 const TICKET_ID = 't-abcdef1234'
@@ -180,5 +182,28 @@ describe('healPendingApprovals', () => {
     await expect(runHeal()).resolves.toBe(0)
 
     expect(logs.some(message => message.includes('self-heal skipped'))).toBe(true)
+  })
+
+  it('recovers from the meta the approval tool actually persists', async () => {
+    seedPending()
+    const tool = createApprovalSubmitTool({ ctx: host.ctx, store, resolvers: new ResolverRegistry() })
+    const writer = (tool.output as { presentationMeta?: (args: unknown, value: unknown) => unknown })
+      .presentationMeta
+    if (writer === undefined) throw new Error('presentationMeta is missing from the tool output')
+    const meta = writer({}, {
+      approvalId: 'a-1',
+      decidedAt: 1_700_000_000_000,
+      decision: { kind: 'selected', index: 0, label: '发布' },
+    })
+    host.sessions.get(WORKER_SESSION)?.events.push({ type: 'tool/result', seq: 9, time: 1, data: { meta } })
+
+    await expect(runHeal()).resolves.toBe(1)
+
+    expect(store.projection().approvals[0]?.decision).toEqual({
+      kind: 'selected',
+      index: 0,
+      label: '发布',
+      transport: 'inline',
+    })
   })
 })
