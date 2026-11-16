@@ -14,7 +14,7 @@ import {
 import type { HostContext } from '../context.ts'
 import { deliverToSession } from '../sessions/delivery.ts'
 import type { EventStore } from '../store/event-store.ts'
-import { approvalCorrelationId } from './ids.ts'
+import { approvalCorrelationId } from '../ids.ts'
 import { formatApprovalDelivery } from './message.ts'
 import type { ResolverRegistry } from './resolvers.ts'
 

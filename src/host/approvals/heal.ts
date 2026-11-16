@@ -10,7 +10,7 @@ import type { HostContext } from '../context.ts'
 import { readSessionEvents } from '../sessions/log-reader.ts'
 import type { EventStore } from '../store/event-store.ts'
 import { isApprovalDecisionRecord } from '../store/payload-spec.ts'
-import { approvalCorrelationId } from './ids.ts'
+import { approvalCorrelationId } from '../ids.ts'
 
 export interface HealOptions {
   ctx: HostContext

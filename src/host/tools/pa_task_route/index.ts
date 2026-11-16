@@ -15,7 +15,7 @@ import { predictQueueReason } from '../../dispatcher/plan.ts'
 import type { Scheduler } from '../../dispatcher/scheduler.ts'
 import type { EventStore } from '../../store/event-store.ts'
 import { shortTicketId } from '../../../shared/tickets.ts'
-import { createTicketId } from '../../tickets/ids.ts'
+import { createTicketId } from '../../ids.ts'
 
 const TASK_ROUTE_TOOL_NAME = 'pa_task_route'
 

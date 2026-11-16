@@ -19,7 +19,7 @@ import {
   type ApprovalOption,
   type ApprovalRisk,
 } from '../../../shared/approvals.ts'
-import { approvalCorrelationId, createApprovalId, shortApprovalId } from '../../approvals/ids.ts'
+import { approvalCorrelationId, createApprovalId, shortApprovalId } from '../../ids.ts'
 import {
   ApprovalCancelledError,
   type ApprovalDelivery,
