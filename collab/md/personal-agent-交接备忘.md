@@ -105,7 +105,7 @@ src/host/sessions/history.ts   汇报摘要（最后一条完整 assistant 文�
 src/host/sessions/log-reader.ts 读会话持久化事件（按页），自愈使用
 src/host/sessions/observer.ts  回合边界 → reported/closed/interrupted/resumed
 src/host/sessions/decorate.ts  agent/created 角色装饰：提示词 section + 工具 + restrict
-src/host/approvals/ids.ts      createApprovalId（a-<10hex>）
+src/host/ids.ts                主键与关联键：createTicketId / createApprovalId / shortApprovalId / approvalCorrelationId
 src/host/approvals/resolvers.ts 阻塞工具登记表（先送达、等 ack）
 src/host/approvals/message.ts  决定消息模板（§6.5）
 src/host/approvals/service.ts  决定三支路（discard / inline / followup）
@@ -113,7 +113,6 @@ src/host/approvals/heal.ts     启动自愈：读 tool/result.meta 补写 decide
 src/host/tools/pa_task_route/  入队工具（参数收窄、失败码、触发调度）
 src/host/tools/pa_approval_submit/ 阻塞审批工具（presentationMeta 供自愈）
 src/host/tools/pa_ledger_query/ 只读紧凑文本查询
-src/host/tickets/ids.ts        createTicketId / shortTicketId
 src/host/state/directory.ts    状态目录解析 + 幂等建目录
 src/client/entry.ts            注册标签类型、正文、标题（无自动打开）；构造动作面
 src/client/actions.ts          动作面：openSession / openFile / showTickets / sessionTitle
