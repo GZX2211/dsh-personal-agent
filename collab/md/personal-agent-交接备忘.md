@@ -1,14 +1,14 @@
 # dsh-personal-agent 交接备忘
 
 > 自包含交接文档：不依赖任何对话上下文，读完即可继续开发。
-> 状态：**P3 UI 已交付（0.3.0）**（2026-11-15），审批/工单两页按官方提问卡样式重做；待用户在 GUI 目检样式。
+> 状态：**P4 收尾完成（0.3.0）**（2026-11-16），技术债审计、清理与联调验收已执行；未升版本、未改 `docs/`，清理范围与遗留问题见 §13。
 > 本文属临时协作文档（`collab/md/`），不进 `docs/`，不需要英文版。
 
 ---
 
 ## 0. 一句话现状
 
-`dsh-personal-agent` 已安装到 `desktop` profile 并运行（0.3.0）：右侧栏「总控台」有审批页与工单页，卡片外观逐条移植官方 `ask_user_question` 提问卡，只有卡顶（发起者/关联工单/时间）与卡底（附件行）是本插件新增；过滤条有胶囊、搜索与帮助浮层，审批标签带待审批数。样式待用户目检，功能链路（派发→审批→决定→汇报→关闭）沿用 P2 已验证的实现。
+`dsh-personal-agent` 已安装到 `desktop` profile 并运行（0.3.0）：右侧栏「总控台」有审批页与工单页，卡片外观逐条移植官方 `ask_user_question` 提问卡；P4 清掉了死文件/死导出/未用词典键/重复契约，补了关键路径测试（38 文件 / 354 项），真实宿主重载与 HTTP 探针复验通过。A1–A9 的 GUI 项由用户验收，逻辑与账本级证据见 §13.4。
 
 ---
 
@@ -216,6 +216,8 @@ scripts/wrap-client.mjs        把 CJS 产物包成 window.__ModuleLoader__.load
 5. **提示词版本控制**：当前只有内置 md；覆盖层 + 版本记录（参考 SuperAgent）留待后续，方案 §16.1 已留好结构。
 6. **`maxWorkers` UI**：只在 Config 里，无界面（MVP 约定）。
 
+> P4 状态（2026-11-16）：第 1–4 条对应 A1–A4 与样式目检，已由用户在 GUI 验收（证据见 §13.4）；第 5 条（提示词版本控制）与第 6 条（`maxWorkers` UI）仍在 MVP 之后。A5（真实进程重启）与 A6（真实归档）未在 P4 独立复现。
+
 ---
 
 ## 9. P2 验收证据（2026-11-15）
@@ -340,3 +342,71 @@ worker agent 由 `sessionController.create` 创建，而真实宿主在 create �
 - 卡片不再限高（官方在输入位上限高 `min(60vh,520px)`）；右侧栏整列滚动，卡片自然高。
 - 卡片里的图标是自绘的 16px 线性图标（宿主未把图标包暴露给插件）。
 - 会话展示名取 `ctx.sessions.list` 的列表行；宿主还没投影出标题时显示会话短码。
+
+---
+
+## 13. P4 收尾记录（2026-11-16）
+
+### 13.1 审计结论
+
+P4 对 `src/`、`tests/`、`scripts/`、`package.json` 与文档做了一次技术债审计，按「死代码、字段冗余、重复契约、注释漂移、配置无效声明、测试缺口」六类归集。用户决策：
+
+- `signal/received` 与 `decision/recorded` **保留代码，仅标注预留未实现**（不删契约、不补齐实现）；
+- 清理取**保守档 + 补关键测试缺口**，保留 `src/client/views/Manager.tsx` 与 `collab/` 脚本；
+- **不升版本、不改 `docs/`**，只更新本交接备忘；
+- 需要浏览器操控的 GUI 验收由用户完成，本次不重复。
+
+### 13.2 实际清理（4 个原子提交）
+
+| 提交 | 内容 |
+|---|---|
+| `f646f40` | 删 0 字节的 `src/host/prompts/{router,worker}.md`、空模块 `src/host/tools/index.ts`；收敛仅内部使用的常量导出（3 个工具名、`DEFAULT_MAX_WORKERS`、`DELIVERY_SOURCE_KIND`、`CONSOLE_KIND`、`GUIDE_ENTRY_ID`、两个工作区标题、`KV_FILE_NAME`）；删未用图标 `check`/`close`、未用词典键 `approvalRiskLabel`/`approvalDecisionLabel`、`useSnapshot.updatedAt`；补 `pa-card__attachment-label` 缺失样式；新增词典与样式守卫测试 |
+| `c36781b` | 短码下沉 `src/shared/tickets.ts`（Host 与 Client 共用一份）；投影统计类型改用 `shared/api`（`Projection` = `SnapshotResponse`）；`DecisionOutcome` 下沉共享契约；`DecisionRequest.kind` 复用 `ApprovalDecisionKind`；决定错误码映射改 `Record` 穷举 |
+| `7b7d999` | 补关键测试缺口（自愈 meta 契约、resolver 送达失败回退、投递幂等、投影重复事件、64 KiB 请求体、`maxWorkers` 规则）；消除空断言与固定 `setTimeout` 等待；删 `package.json` 里指向不存在路径的 `locale/*.json` 与 `docs/DETAIL.md` 声明 |
+| `a2fd256` | 账本事件递归冻结，`events()` 的只读承诺成立；修正 `pa_task_route`、`delivery`、`event-id` 三处与实现不符的注释；`tools/README` 对齐实际入口 |
+
+### 13.3 验证证据
+
+| 项 | 结果 |
+|---|---|
+| `tsc --noEmit` | 无输出 |
+| `vitest run` | **38 文件 / 354 项全绿**（P3 结束时 32/303） |
+| 构建 | `lib/index.js` 99.76 kB、`lib/client.js` 63.2 kB（`wrap-client` 正常） |
+| `check-host.mjs` | **23/23**：装配、装饰时序、守卫、重放、快照、决定（404/405/非法下标/followup）、`/dev` 404 |
+| `check-client.mjs` | 外壳、inject、两个 slot、标题均正常 |
+| 真实宿主重载 | `set_plugin` 关→开两次；`/health` 200（0.3.0）；`/snapshot` 重放 2 单 2 审批；`events.jsonl` 仍 12 行（重放不写盘） |
+| 安全边界 | 外来 `Origin` → 403 `wrong-origin`；缺自定义头 → 403 `missing-request-header`；不存在的审批 → 404 `not-found`；`GET` 决定端点 → 405 `method-not-allowed` |
+
+### 13.4 A1–A9 走查
+
+> GUI 交互项由用户自行验收；下表「逻辑/账本」列是本次可复现的证据。
+
+| 项 | 结论 | 证据 |
+|---|---|---|
+| A1 派发 | 通过 | `pa_task_route` 单测与集成测试；`check-host` 第 22 项真实调用工具建出 worker；真实账本 `t-9c20e78bca` 有 `task/queued` → `task/dispatched` |
+| A2 审批阻塞 | 通过 | 集成测试断言 worker 在简报前已有审批工具、提交后工单转 `blocked`；`check-host` 快照出现待审批；真实账本 `t-7380b609ef` 有 `approval/pending` |
+| A3 决定送达 | 通过 | 集成测试覆盖 inline（等 ack 后才写 decided）；真实账本 `a-684460e5f9` 在 P3 经 `POST /decide` 转为已通过 |
+| A4 自动结束 | 通过 | 集成测试断言 `task/reported` + `task/closed` 后工单 `ended` 且带汇报；真实账本两张工单均如此 |
+| A5 重启保持 | 未独立复验 | 插件级重载已验证账本重放、router 恢复、无待审批残留；**真实进程重启后的 followup 由用户验收，未留独立证据** |
+| A6 归档作废 | 通过（逻辑） | `service.test` 覆盖 `worker-archived` → 写 `approval/discarded`、任何胶囊都不显示、不产生决定；真实归档操作由用户验收 |
+| A7 槽位排队 | 通过（逻辑） | 集成测试连派 6 单：前 5 单 running、第 6 单 `queued(capacity-full)`，首单结束后自动放行 |
+| A8 忙碌追加 | 通过（逻辑） | `scheduler.test` 覆盖 append 目标忙时停留 `queued`，目标回合结束后放行且不新建会话 |
+| A9 两页搜索 | 通过（逻辑） | `filter.test` 覆盖题干、选项、附件、工单标题/目标/目录、id 与短码、时间文本；GUI 搜索由用户验收 |
+
+### 13.5 未修的技术债（P5 候选）
+
+1. **只写不读的载荷字段**：`TaskQueued.requestedBySessionId`、`TaskDispatched.mode`、`TaskReported.status`、`ApprovalDecided.recovered`。前三个与信封 `sessionId`、入队 `mode`、关闭 `outcome` 重复；按「审计事实」保留，未删。
+2. **预留事件无写入方**：`signal/received`、`decision/recorded` 已标注预留（§13.1），事件页/来源页实现时再定去留。
+3. **信封预留字段**：`policyVersion`、`l1Ref` 从未写入。
+4. **测试脚手架重复**：`tests/host/sessions/router.test.ts` 自带伪宿主，与 `tests/support/fake-host.ts` 重复。
+5. **测试文件名不镜像**：`tests/host/store/replay.test.ts` 实际测 `ledger-format.ts`。
+6. **工具错误码不统一**：`pa_ledger_query` 参数错误抛裸 `Error`，另两个工具用 `HarnessError` 稳定码。
+7. **跨进程投递去重未实现**：`deliverToSession` 的幂等范围仅本进程（已在注释中写明限制）。
+8. **双语文档**：`docs/` 仍只有中文，按方案附录 A #15「开发期仅中文」保留。
+9. **占位文件**：`src/client/views/Manager.tsx` 与 `collab/` 一次性脚本按用户要求保留。
+
+### 13.6 接手建议
+
+1. 先跑 §13.3 的六项门禁，确认基线仍绿。
+2. 若要继续推进，优先做事件页/来源页（届时处理 §13.5 第 1–3 条），或补真实 A5/A6 的 GUI 证据。
+3. 修改 `src/client/` 后必须重新构建并刷新页面；Host 改动用 `set_plugin` 关→开即可。
