@@ -39,6 +39,10 @@ interface PayloadSpec {
  *
  * 新增载荷字段必须可选：旧账本行不会被重写，把新字段设为必填会让历史账本
  * 在升级后变成「损坏」。
+ *
+ * `signal/received` 与 `decision/recorded` 两类是预留事件（当前无写入方），
+ * 校验规则仍然登记：只有表覆盖全部 `EventType`，读取侧才能对任意历史账本行
+ * 给出确定判断。
  */
 const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
   [EVENT_TYPES.signalReceived]: {

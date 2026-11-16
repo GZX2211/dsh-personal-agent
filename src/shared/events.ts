@@ -11,7 +11,13 @@ import type {
 } from './approvals.ts'
 import type { QueueReason, TicketOutcome } from './tickets.ts'
 
-/** 事件类型枚举（方案 §3.1）。类型字面量同时是账本行里的 `type` 字段。 */
+/**
+ * 事件类型枚举（方案 §3.1）。类型字面量同时是账本行里的 `type` 字段。
+ *
+ * `signal/received` 与 `decision/recorded` 是**预留**：类型、校验与幂等字段表都已就位，
+ * 但当前版本没有写入方（router 的触发与决定尚未落账）；事件页/来源页实现时由它们
+ * 承接，在那之前投影直接忽略这两类事件。
+ */
 export const EVENT_TYPES = {
   signalReceived: 'signal/received',
   decisionRecorded: 'decision/recorded',
@@ -87,6 +93,7 @@ export interface EventEnvelope<T extends EventType, P extends object> {
   payload: P
 }
 
+/** 预留：当前版本没有写入方，见 {@link EVENT_TYPES}。 */
 export interface SignalReceivedPayload {
   kind: SignalKind
   /** 是否投递给 router；被过滤的信号照样记账，只是不投递。 */
@@ -100,6 +107,7 @@ export interface SignalReceivedPayload {
   rule?: string
 }
 
+/** 预留：当前版本没有写入方，见 {@link EVENT_TYPES}。 */
 export interface DecisionRecordedPayload {
   action: DecisionAction
   /** `true` 表示由系统在回合结束时补记（本次触发没有路由工具调用）。 */

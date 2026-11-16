@@ -9,7 +9,7 @@ import type { HostContext } from '../context.ts'
 import { ensureDirectory } from '../state/directory.ts'
 import { shortTicketId } from '../tickets/ids.ts'
 
-export const WORKER_WORKSPACE_TITLE = '个人代理 · 工单'
+const WORKER_WORKSPACE_TITLE = '个人代理 · 工单'
 
 export interface WorkerSessionSeed {
   ticketId: string

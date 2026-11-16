@@ -635,6 +635,9 @@ export const CONSOLE_CSS = `
   font-size: 13px;
   line-height: 20px;
 }
+.pa-card__attachment-label {
+  color: var(--dsw-alias-label-secondary);
+}
 .pa-card__attachment-file {
   max-width: 100%;
   padding: 0;

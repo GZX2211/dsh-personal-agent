@@ -10,7 +10,7 @@ import type { Projection } from '../../projector/project.ts'
 import type { EventStore } from '../../store/event-store.ts'
 import { shortTicketId } from '../../tickets/ids.ts'
 
-export const LEDGER_QUERY_TOOL_NAME = 'pa_ledger_query'
+const LEDGER_QUERY_TOOL_NAME = 'pa_ledger_query'
 
 export interface LedgerQueryDependencies {
   store: EventStore

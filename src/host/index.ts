@@ -35,7 +35,7 @@ export const inject = [
 ]
 
 /** 执行槽位默认值（方案 §5.3）。 */
-export const DEFAULT_MAX_WORKERS = 5
+const DEFAULT_MAX_WORKERS = 5
 
 export interface Config {
   /** 状态目录覆盖；缺省 `<DSH_HOME>/state/personal-agent`。 */

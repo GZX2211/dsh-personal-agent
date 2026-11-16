@@ -12,7 +12,7 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-export const DELIVERY_SOURCE_KIND = 'dsh-personal-agent' as const
+const DELIVERY_SOURCE_KIND = 'dsh-personal-agent' as const
 
 /** 同一 requestId 永远得到同一个消息 id，这是投递幂等的依据。 */
 export function deliveryMessageId(requestId: string): MessageId {

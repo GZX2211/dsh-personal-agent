@@ -10,7 +10,7 @@ import type { HostContext } from '../context.ts'
 import { ensureDirectory } from '../state/directory.ts'
 import type { KvStore } from '../store/kv-store.ts'
 
-export const ROUTER_WORKSPACE_TITLE = '个人代理'
+const ROUTER_WORKSPACE_TITLE = '个人代理'
 export const ROUTER_SESSION_TITLE = '个人代理 · 路由'
 
 /** 账本 kv 里的技术元数据键：router 身份允许改写。 */

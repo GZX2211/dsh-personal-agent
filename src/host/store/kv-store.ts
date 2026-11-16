@@ -8,7 +8,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ensureDirectory } from '../state/directory.ts'
 
-export const KV_FILE_NAME = 'kv.json'
+const KV_FILE_NAME = 'kv.json'
 
 export interface KvStoreOptions {
   /** 状态目录；kv 落在它下面的 `kv.json`。 */

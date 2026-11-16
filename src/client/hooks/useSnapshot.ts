@@ -16,8 +16,6 @@ export interface SnapshotState {
   snapshot?: SnapshotResponse
   /** 最近一次失败的可读原因；成功后清空。 */
   error?: string
-  /** 最近一次成功刷新的时间。 */
-  updatedAt?: number
 }
 
 export interface SnapshotHandle extends SnapshotState {
@@ -49,7 +47,7 @@ export function useSnapshot(): SnapshotHandle {
         const snapshot = await fetchSnapshot()
         if (disposed) return
         delay = POLL_MS
-        setState({ snapshot, updatedAt: Date.now() })
+        setState({ snapshot })
       } catch (error) {
         if (disposed) return
         delay = BACKOFF_MS

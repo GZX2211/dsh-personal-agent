@@ -29,7 +29,7 @@ import {
 import type { HostContext } from '../../context.ts'
 import type { EventStore } from '../../store/event-store.ts'
 
-export const APPROVAL_SUBMIT_TOOL_NAME = 'pa_approval_submit'
+const APPROVAL_SUBMIT_TOOL_NAME = 'pa_approval_submit'
 
 /** 一次审批能带的文件上限：够说明产物，又不会让卡片变成文件列表。 */
 export const MAX_ATTACHMENTS = 20

@@ -15,7 +15,7 @@ import type { Scheduler } from '../../dispatcher/scheduler.ts'
 import type { EventStore } from '../../store/event-store.ts'
 import { createTicketId, shortTicketId } from '../../tickets/ids.ts'
 
-export const TASK_ROUTE_TOOL_NAME = 'pa_task_route'
+const TASK_ROUTE_TOOL_NAME = 'pa_task_route'
 
 export interface TaskRouteDependencies {
   ctx: HostContext

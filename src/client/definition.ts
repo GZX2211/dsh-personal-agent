@@ -9,10 +9,10 @@ import type { SidebarRightTabDefinition } from '@deepseek-ai/dsh-client-ui-sideb
 export const CONSOLE_ID = 'dsh-personal-agent/console'
 
 /** 类型判别值：`openTab` 用这个名字打开页面。 */
-export const CONSOLE_KIND = 'personal-agent-console'
+const CONSOLE_KIND = 'personal-agent-console'
 
 /** 指南页上的入口 id（同一 provider 内唯一）。 */
-export const GUIDE_ENTRY_ID = 'console'
+const GUIDE_ENTRY_ID = 'console'
 
 export interface ConsoleCopy {
   title: string

@@ -237,7 +237,8 @@ function applyEvent(
     }
     case 'signal/received':
     case 'decision/recorded':
-      // 触发与路由决定不参与工单/审批视图：它们的消费者是事件页与审计。
+      // 触发与路由决定是预留事件：当前版本没有写入方。账本若出现（旧版本或外部
+      // 写入）也不参与工单/审批视图——它们的消费者将是事件页与审计。
       return
   }
 }
