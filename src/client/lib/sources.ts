@@ -4,7 +4,7 @@
 // 传进来；界面文案一律来自词典，只有数字、时间与表达式是本地化格式化的结果。
 
 import { ERROR_CODES } from '../../shared/api.ts'
-import type { ChannelKind, SourceConfigView, SourceStatus, TimerTiming } from '../../shared/sources.ts'
+import type { ChannelKind, SourceConfigView, SourceStatus, TimerTiming, SourceView } from '../../shared/sources.ts'
 import type { Dict, Translate } from '../i18n.ts'
 import { formatTimestamp } from './format.ts'
 
@@ -43,6 +43,36 @@ export function sourceStatusDot(status: SourceStatus): SourceStateDot {
 
 export function threadCountText(t: Translate, count: number): string {
   return t('sourcesThreadCount', { count })
+}
+
+/** 乐观覆盖的键：来源与线程的组合，避免两个来源的同名线程互相覆盖。 */
+export function threadOverrideKey(sourceId: string, threadId: string): string {
+  return `${sourceId}/${threadId}`
+}
+
+/**
+ * 页面里的开关值：有乐观覆盖时用覆盖值，否则回到快照事实。
+ *
+ * 写请求失败时页面清掉覆盖，于是这里自动回到快照——回滚不需要另存一份旧值。
+ */
+export function sourceEnabledOf(
+  source: SourceView,
+  overrides: Readonly<Record<string, boolean>>,
+): boolean {
+  return overrides[source.id] ?? source.enabled
+}
+
+/** 该来源各线程的乐观覆盖值；没有覆盖的线程不出现在结果里。 */
+export function threadOverridesFor(
+  source: SourceView,
+  overrides: Readonly<Record<string, boolean>>,
+): Record<string, boolean> {
+  const record: Record<string, boolean> = {}
+  for (const thread of source.threads) {
+    const value = overrides[threadOverrideKey(source.id, thread.id)]
+    if (value !== undefined) record[thread.id] = value
+  }
+  return record
 }
 
 /** 配置摘要的取值：路径、订阅的事件类型或脚本命令。 */

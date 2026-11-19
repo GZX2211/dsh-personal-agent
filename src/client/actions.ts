@@ -13,6 +13,8 @@ export interface ConsoleActions {
   openFile(path: string, sessionId: string | undefined): void
   /** 会话的展示名；宿主还没投影出标题时返回 undefined，卡片回退到短码。 */
   sessionTitle(sessionId: string): string | undefined
+  /** 切到宿主的自动化任务页；宿主没有该面板时退化为无操作。 */
+  openSchedules(): void
 }
 
 /** 没有动作面时的占位实现：让组件在测试与降级场景下仍可渲染。 */
@@ -20,4 +22,5 @@ export const NO_ACTIONS: ConsoleActions = {
   openSession: () => undefined,
   openFile: () => undefined,
   sessionTitle: () => undefined,
+  openSchedules: () => undefined,
 }

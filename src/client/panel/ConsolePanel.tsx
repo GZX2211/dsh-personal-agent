@@ -3,24 +3,30 @@
 // 总控台正文：顶部一条标签条，下面是当前页。面板本身不再有标题与说明——
 // 标签条上的名字就是它（「总控台」），再放一层标题只是重复。
 //
-// 快照在这里拉一次，两个列表页共用：两页各轮询一次会让同一份数据在同一屏里
+// 快照在这里拉一次，各列表页共用：各页各轮询一次会让同一份数据在同一屏里
 // 出现两种时刻的状态。标签上的待审批数也来自这一次快照。
+//
+// 事件页点结局要跳到工单页：跳转通过「切标签 + 给工单页一个初始搜索词」完成，
+// 工单页用 key 重挂载，因此不需要受控搜索状态。
 
 import { useState, type ReactElement } from 'react'
+import { shortTicketId } from '../../shared/tickets.ts'
 import type { ConsoleActions } from '../actions.ts'
 import { NO_ACTIONS } from '../actions.ts'
 import { ConsoleTabStrip, type ConsoleTab } from '../components/ConsoleTabStrip.tsx'
 import { useSnapshot } from '../hooks/useSnapshot.ts'
 import { CONSOLE_CSS } from '../style.ts'
 import { Approvals } from '../views/Approvals.tsx'
+import { Events } from '../views/Events.tsx'
 import { Placeholder } from '../views/Placeholder.tsx'
+import { Sources } from '../views/Sources.tsx'
 import { Tickets } from '../views/Tickets.tsx'
 import type { Translate } from '../i18n.ts'
 
 export type ConsoleTabId = 'overview' | 'approvals' | 'tickets' | 'events' | 'sources' | 'settings'
 
-/** 已经能承接内容的标签页；其余四个在 MVP 之后实现。 */
-const IMPLEMENTED: readonly ConsoleTabId[] = ['approvals', 'tickets']
+/** 已经能承接内容的标签页；概览与设置在 MVP 之后实现。 */
+const IMPLEMENTED: readonly ConsoleTabId[] = ['approvals', 'tickets', 'events', 'sources']
 
 /**
  * 打开时落在「审批」：MVP 里它是唯一有动作可做的页面，概览等内容要等 MVP 之后。
@@ -44,6 +50,7 @@ export function ConsolePanel({
   actions = NO_ACTIONS,
 }: ConsolePanelProps): ReactElement {
   const [active, setActive] = useState<ConsoleTabId>(INITIAL_TAB)
+  const [ticketFocus, setTicketFocus] = useState<string>()
   const { snapshot, error, refresh } = useSnapshot()
 
   const tabs: ConsoleTab[] = [
@@ -54,6 +61,12 @@ export function ConsolePanel({
     { id: 'sources', label: t('tabSources') },
     { id: 'settings', label: t('tabSettings') },
   ]
+
+  /** 事件页的结局跳到工单页：切标签并让工单页按短码定位。 */
+  const openTicket = (ticketId: string): void => {
+    setTicketFocus(shortTicketId(ticketId))
+    setActive('tickets')
+  }
 
   return (
     <div className="pa-console">
@@ -71,7 +84,35 @@ export function ConsolePanel({
             actions={actions}
           />
         ) : null}
-        {active === 'tickets' ? <Tickets t={t} language={language} snapshot={snapshot} /> : null}
+        {active === 'tickets' ? (
+          <Tickets
+            key={ticketFocus ?? 'all'}
+            t={t}
+            language={language}
+            snapshot={snapshot}
+            initialQuery={ticketFocus}
+          />
+        ) : null}
+        {active === 'events' ? (
+          <Events
+            t={t}
+            language={language}
+            snapshot={snapshot}
+            error={error}
+            refresh={refresh}
+            onOpenTicket={openTicket}
+          />
+        ) : null}
+        {active === 'sources' ? (
+          <Sources
+            t={t}
+            language={language}
+            snapshot={snapshot}
+            error={error}
+            refresh={refresh}
+            actions={actions}
+          />
+        ) : null}
         {IMPLEMENTED.includes(active) ? null : (
           <Placeholder
             title={tabs.find(tab => tab.id === active)?.label ?? t('notAvailable')}

@@ -86,6 +86,55 @@ export function AnimatedRows({ className, role, label, children }: PrimitiveProp
   )
 }
 
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+  title,
+  className,
+}: {
+  checked: boolean
+  onChange: (next: boolean) => void
+  label: string
+  disabled?: boolean
+  title?: string
+  className?: string
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      title={title}
+      className={className}
+      disabled={disabled}
+      data-primitive="switch"
+      onClick={() => onChange(!checked)}
+    />
+  )
+}
+
+export function StateDot({ state, className }: { state?: string; className?: string }): ReactElement {
+  return <span className={className} data-primitive="state-dot" data-state={state} aria-hidden="true" />
+}
+
+export function Toast({
+  text,
+  tone,
+}: {
+  text: string
+  tone?: string
+  onDone?: () => void
+}): ReactElement {
+  return (
+    <div role="status" data-primitive="toast" data-tone={tone}>
+      {text}
+    </div>
+  )
+}
+
 function glyph(name: string): () => ReactElement {
   return function Icon(): ReactElement {
     return <svg data-icon={name} aria-hidden="true" />

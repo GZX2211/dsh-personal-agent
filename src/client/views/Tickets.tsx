@@ -18,11 +18,13 @@ export interface TicketsProps {
   t: Translate
   language: string
   snapshot?: SnapshotResponse
+  /** 初始搜索词：事件页跳工单时用短码定位；变化由父级以 key 重挂载生效。 */
+  initialQuery?: string
 }
 
-export function Tickets({ t, language, snapshot }: TicketsProps): ReactElement {
+export function Tickets({ t, language, snapshot, initialQuery }: TicketsProps): ReactElement {
   const [capsule, setCapsule] = useState<TicketCapsule>('running')
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery ?? '')
 
   const tickets = snapshot?.tickets ?? []
   const visible = filterTickets(tickets, capsule, query, { t, language })

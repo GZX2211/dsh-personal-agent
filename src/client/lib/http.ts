@@ -7,13 +7,24 @@ import {
   approvalDecidePath,
   REQUEST_HEADER,
   REQUEST_HEADER_VALUE,
+  signalQueryPath,
+  sourceRemovePath,
+  sourceTestPath,
+  sourceTogglePath,
   ROUTES,
   type DecisionFailure,
   type DecisionRequest,
   type DecisionResponse,
   type DecisionSuccess,
   type ErrorResponse,
+  type SignalQuery,
+  type SignalQueryResponse,
   type SnapshotResponse,
+  type SourceRemoveResponse,
+  type SourceTestRequest,
+  type SourceTestResponse,
+  type SourceToggleRequest,
+  type SourceToggleResponse,
 } from '../../shared/api.ts'
 
 /** 服务端稳定错误码的载体：调用方按 `code` 分支，不靠文案猜。 */
@@ -55,6 +66,70 @@ export async function decideApproval(
   const payload = await readJson<DecisionResponse>(response)
   if (payload.ok !== true) throw failure(payload, response.status)
   return payload
+}
+
+/** 开关来源或单条线程。 */
+export async function toggleSource(
+  sourceId: string,
+  request: SourceToggleRequest,
+): Promise<SourceToggleResponse> {
+  const response = await fetch(sourceTogglePath(sourceId), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      [REQUEST_HEADER]: REQUEST_HEADER_VALUE,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+  return readJson<SourceToggleResponse>(response)
+}
+
+/** 测试来源：Host 会真实投递一条测试候选。 */
+export async function testSource(
+  sourceId: string,
+  request: SourceTestRequest,
+): Promise<SourceTestResponse> {
+  const response = await fetch(sourceTestPath(sourceId), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      [REQUEST_HEADER]: REQUEST_HEADER_VALUE,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+  return readJson<SourceTestResponse>(response)
+}
+
+/** 删除来源；已删除与不存在都算成功。 */
+export async function removeSource(sourceId: string): Promise<SourceRemoveResponse> {
+  const response = await fetch(sourceRemovePath(sourceId), {
+    method: 'DELETE',
+    credentials: 'same-origin',
+    headers: { [REQUEST_HEADER]: REQUEST_HEADER_VALUE },
+  })
+  return readJson<SourceRemoveResponse>(response)
+}
+
+/** 从账本全量检索信号；`signal` 用于取消过期的搜索。 */
+export async function querySignals(
+  query: SignalQuery,
+  signal?: AbortSignal,
+): Promise<SignalQueryResponse> {
+  const response = await fetch(signalQueryPath(query), {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { [REQUEST_HEADER]: REQUEST_HEADER_VALUE },
+    ...(signal === undefined ? {} : { signal }),
+  })
+  return readJson<SignalQueryResponse>(response)
+}
+
+/** 把任意失败收敛成可读文案：稳定错误码优先，未知失败保留原始信息。 */
+export function errorMessage(error: unknown): string {
+  if (error instanceof ApiError) return `${error.code}: ${error.message}`
+  return error instanceof Error ? error.message : String(error)
 }
 
 async function readJson<T>(response: Response): Promise<T> {

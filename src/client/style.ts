@@ -582,6 +582,268 @@ export const CONSOLE_CSS = `
   line-height: 18px;
 }
 
+/* ── 来源页：说明条 + 两个分区 ──────────────────────────────────────── */
+.pa-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+  min-height: 0;
+  padding-bottom: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.pa-section {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.pa-section__intro {
+  margin: 12px 16px 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+.pa-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px;
+}
+.pa-section__title {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+/* 分区内的列表不自己滚动：整页滚，读起来是一条线。 */
+.pa-list--inline {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 0 16px;
+  overflow: visible;
+}
+
+/* ── 来源卡片与线程行 ───────────────────────────────────────────────── */
+.pa-source__dot,
+.pa-source__channel,
+.pa-source__switch,
+.pa-source__status {
+  flex: 0 0 auto;
+}
+.pa-source__status {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.pa-source__threads-summary {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.pa-source__threads {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pa-thread {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: var(--dsw-radius-sm);
+}
+@media (hover: hover) {
+  .pa-thread:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+.pa-thread__main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.pa-thread__name {
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-thread__counts {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.pa-thread__time {
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.pa-thread__switch {
+  flex: 0 0 auto;
+}
+.pa-source__config {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  margin: 8px 0 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.pa-source__config-label {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+.pa-source__config-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-source__error {
+  margin: 8px 0 0;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.pa-source__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.pa-source__test {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+}
+.pa-source__test-title {
+  margin: 0 0 4px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.pa-source__test-empty {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.pa-source__test-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pa-timer__open {
+  flex: 0 0 auto;
+}
+
+/* ── 事件卡片 ───────────────────────────────────────────────────────── */
+.pa-signal {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--dsw-radius-md);
+  transition: background-color 120ms ease;
+}
+@media (hover: hover) {
+  .pa-signal:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+.pa-signal__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pa-signal__kind,
+.pa-signal__verdict-tag,
+.pa-signal__inferred {
+  flex: 0 0 auto;
+}
+.pa-signal__source {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-signal__time {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.pa-signal__text {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
+}
+.pa-signal__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.pa-signal__verdict {
+  flex: 0 0 auto;
+}
+.pa-signal--compact {
+  padding: 6px 8px;
+}
+.pa-signal--compact .pa-signal__text {
+  -webkit-line-clamp: 2;
+}
+.pa-events__status {
+  margin: 0;
+  padding: 0 16px 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.pa-events__error {
+  margin: 0;
+  padding: 0 16px 8px;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 @media (max-width: 520px) {
   .pa-toolbar {
     align-items: stretch;
@@ -600,7 +862,9 @@ export const CONSOLE_CSS = `
   .pa-detail__option,
   .pa-detail__answer,
   .pa-row__toggle svg,
-  .pa-console__tab {
+  .pa-console__tab,
+  .pa-thread,
+  .pa-signal {
     transition: none;
   }
 }

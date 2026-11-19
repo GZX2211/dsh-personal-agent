@@ -4,20 +4,49 @@
 // 不依赖组件的 DOM 结构。
 
 import { describe, expect, it } from 'vitest'
-import type { SourceConfigView, TimerTiming } from '../../../src/shared/sources.ts'
+import type { SourceConfigView, SourceThreadView, SourceView, TimerTiming } from '../../../src/shared/sources.ts'
 import { translateFor } from '../../../src/client/i18n.ts'
 import {
   channelKindKey,
   formatDuration,
   sourceConfigText,
+  sourceEnabledOf,
   sourceErrorKey,
   sourceStatusDot,
   sourceStatusKey,
   threadCountText,
+  threadOverrideKey,
+  threadOverridesFor,
   timerTimingText,
 } from '../../../src/client/lib/sources.ts'
 
 const t = translateFor('zh')
+
+function thread(overrides: Partial<SourceThreadView> = {}): SourceThreadView {
+  return {
+    id: 'changes',
+    name: '变更',
+    enabled: true,
+    deliveredCount: 0,
+    filteredCount: 0,
+    ...overrides,
+  }
+}
+
+function source(overrides: Partial<SourceView> = {}): SourceView {
+  return {
+    id: 'src-1',
+    name: '本地文件',
+    enabled: true,
+    channelKind: 'fs-watch',
+    config: { kind: 'fs-watch', paths: ['D:/watch'], recursive: false },
+    status: 'running',
+    threads: [thread()],
+    deliveredCount: 0,
+    filteredCount: 0,
+    ...overrides,
+  }
+}
 
 describe('channel labels', () => {
   it('maps every channel kind to a localized label', () => {
@@ -122,5 +151,33 @@ describe('source error keys', () => {
     expect(t(sourceErrorKey('source-invalid'))).toBe('来源参数不合法')
     expect(t(sourceErrorKey('source-start-failed'))).toBe('来源启动失败')
     expect(t(sourceErrorKey('http-error'))).toBe('操作失败，请稍后重试')
+  })
+})
+
+describe('optimistic overrides', () => {
+  it('prefers the override and returns to the snapshot once it is cleared', () => {
+    const view = source()
+
+    expect(sourceEnabledOf(view, {})).toBe(true)
+    expect(sourceEnabledOf(view, { [view.id]: false })).toBe(false)
+    // 失败回滚 = 清掉覆盖，不需要另存旧值。
+    expect(sourceEnabledOf(view, {})).toBe(true)
+  })
+
+  it('keeps each source-thread pair independent', () => {
+    const view = source({
+      threads: [thread({ id: 'a', name: '甲' }), thread({ id: 'b', name: '乙' })],
+    })
+    const overrides = {
+      [threadOverrideKey(view.id, 'a')]: false,
+      [threadOverrideKey('src-2', 'b')]: false,
+    }
+
+    expect(threadOverridesFor(view, overrides)).toEqual({ a: false })
+    expect(threadOverrideKey('src-1', 'a')).not.toBe(threadOverrideKey('src-2', 'a'))
+  })
+
+  it('returns no override for threads that were never touched', () => {
+    expect(threadOverridesFor(source(), {})).toEqual({})
   })
 })
