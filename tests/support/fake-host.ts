@@ -9,6 +9,10 @@ import type { HostContext } from '../../src/host/context.ts'
 export interface FakeDelivered {
   requestId: string
   text: string
+  /** `true` 表示这条消息走的是 steer（插入当前回合的下一步）。 */
+  steered?: boolean
+  /** 原始消息，便于断言 source 与内容块。 */
+  message?: { id: string; source?: unknown }
 }
 
 export interface FakeAgent {
@@ -39,6 +43,7 @@ export interface FakeAgent {
     }
   }
   followup(message: { id: string; content: { type: string; text?: string }[] }): void
+  steer(message: { id: string; content: { type: string; text?: string }[] }): void
 }
 
 export interface FakeSession {
@@ -153,8 +158,19 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
         session.delivered.push({
           requestId: message.id,
           text: message.content.map(block => block.text ?? '').join(''),
+          message: { id: message.id, source: (message as { source?: unknown }).source },
         })
         this.inbox.nextTurn.push(message)
+        options.onFollowup?.(sessionId, message.id)
+      },
+      steer(message) {
+        session.delivered.push({
+          requestId: message.id,
+          text: message.content.map(block => block.text ?? '').join(''),
+          steered: true,
+          message: { id: message.id, source: (message as { source?: unknown }).source },
+        })
+        this.inbox.nextStep.push(message)
         options.onFollowup?.(sessionId, message.id)
       },
     }
