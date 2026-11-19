@@ -1,9 +1,10 @@
 // src/client/components/SignalCard.tsx
 //
-// 事件页的一张卡片：类型、来源行、事实文本、结局与推断标记。
+// 事件页的一张卡片：类型、来源行、事实文本；结局徽标与时间同在右侧一行，
+// 与审批/工单卡片的「徽标 → 时间」排列一致。
 //
-// 结局里有工单时整枚徽标变成按钮：点开总控台的工单页并定位到那个工单；
-// 没有工单的结局（响应 / 待处理 / 已过滤）只是只读事实。
+// 结局里有工单时整枚徽标变成按钮：点开总控台的工单页并定位到那个工单。
+// 可点击与不可点击的结局都用同一个 Tag 渲染尺寸，按钮只负责点击区域。
 
 import { Button, Tag, Tooltip, type TagTone } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
@@ -75,38 +76,37 @@ export function SignalCard({
             {signalSourceText(t, signal)}
           </span>
         )}
-        <Tooltip label={formatTimestamp(language, signal.receivedAt)} side="top">
-          <time className="pa-signal__time" dateTime={new Date(signal.receivedAt).toISOString()}>
-            {formatRelativeTime(t, language, signal.receivedAt, now)}
-          </time>
-        </Tooltip>
+        <div className="pa-signal__aside">
+          {clickable ? (
+            <Tooltip label={t('eventOpenTicket')} side="top">
+              <Button
+                className="pa-signal__verdict"
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenTicket(ticketId)}
+              >
+                {badge}
+              </Button>
+            </Tooltip>
+          ) : (
+            <span className="pa-signal__verdict">{badge}</span>
+          )}
+          {verdict.kind === 'reply' && verdict.inferred ? (
+            <Tooltip label={t('eventInferredHint')} side="top">
+              <Tag tone="quiet" className="pa-signal__inferred">
+                {t('eventInferred')}
+              </Tag>
+            </Tooltip>
+          ) : null}
+          <Tooltip label={formatTimestamp(language, signal.receivedAt)} side="top" align="end">
+            <time className="pa-signal__time" dateTime={new Date(signal.receivedAt).toISOString()}>
+              {formatRelativeTime(t, language, signal.receivedAt, now)}
+            </time>
+          </Tooltip>
+        </div>
       </div>
 
       <p className="pa-signal__text">{signal.text}</p>
-
-      <div className="pa-signal__foot">
-        {clickable ? (
-          <Tooltip label={t('eventOpenTicket')} side="top">
-            <Button
-              className="pa-signal__verdict"
-              variant="ghost"
-              size="sm"
-              onClick={() => onOpenTicket(ticketId)}
-            >
-              {badge}
-            </Button>
-          </Tooltip>
-        ) : (
-          <span className="pa-signal__verdict">{badge}</span>
-        )}
-        {verdict.kind === 'reply' && verdict.inferred ? (
-          <Tooltip label={t('eventInferredHint')} side="top">
-            <Tag tone="quiet" className="pa-signal__inferred">
-              {t('eventInferred')}
-            </Tag>
-          </Tooltip>
-        ) : null}
-      </div>
     </article>
   )
 }

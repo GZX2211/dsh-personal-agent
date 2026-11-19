@@ -10,21 +10,57 @@ import type { Dict, Translate } from '../i18n.ts'
 import { matchesQuery, tokenizeQuery, type FilterContext } from './filter.ts'
 import { formatTimestamp } from './format.ts'
 
-/** 事件页胶囊：`filtered` 按是否投递分类，其余按输入类型。 */
-export type SignalCapsule = 'all' | 'user' | 'timer' | 'perception' | 'filtered'
+/** 事件页第一层筛选：输入类型。 */
+export type SignalKindFilter = 'all' | 'user' | 'timer' | 'perception'
 
-export function matchesSignalCapsule(signal: SignalView, capsule: SignalCapsule): boolean {
-  switch (capsule) {
+/** 事件页第二层筛选：处理方式；`filtered` 对应来源层的忽略。 */
+export type SignalVerdictFilter = 'all' | 'dispatch' | 'append' | 'reply' | 'filtered'
+
+const KIND_FILTERS: Record<Exclude<SignalKindFilter, 'all'>, SignalKind> = {
+  user: 'user-message',
+  timer: 'timer',
+  perception: 'perception',
+}
+
+export function matchesKindFilter(signal: SignalView, filter: SignalKindFilter): boolean {
+  if (filter === 'all') return true
+  return signal.kind === KIND_FILTERS[filter]
+}
+
+export function matchesVerdictFilter(signal: SignalView, filter: SignalVerdictFilter): boolean {
+  if (filter === 'all') return true
+  // 忽略只发生在来源层：有记录、没有决定。
+  if (filter === 'filtered') return !signal.delivered
+  return signal.delivered && signal.decision?.action === filter
+}
+
+/** 类型下拉的当前值文案。 */
+export function kindFilterLabelKey(filter: SignalKindFilter): keyof Dict {
+  switch (filter) {
     case 'all':
-      return true
+      return 'eventsKindAll'
     case 'user':
-      return signal.kind === 'user-message'
+      return 'eventKindUser'
     case 'timer':
-      return signal.kind === 'timer'
+      return 'eventKindTimer'
     case 'perception':
-      return signal.kind === 'perception'
+      return 'eventKindPerception'
+  }
+}
+
+/** 处理方式下拉的当前值文案。 */
+export function verdictFilterLabelKey(filter: SignalVerdictFilter): keyof Dict {
+  switch (filter) {
+    case 'all':
+      return 'eventsVerdictAll'
+    case 'dispatch':
+      return 'eventDispatch'
+    case 'append':
+      return 'eventAppend'
+    case 'reply':
+      return 'eventReply'
     case 'filtered':
-      return !signal.delivered
+      return 'eventsFilterIgnored'
   }
 }
 
@@ -130,37 +166,52 @@ export function signalHaystack(signal: SignalView, ctx: FilterContext): string {
 
 export function filterSignals(
   signals: readonly SignalView[],
-  capsule: SignalCapsule,
+  kind: SignalKindFilter,
+  verdict: SignalVerdictFilter,
   query: string,
   ctx: FilterContext,
 ): SignalView[] {
   const tokens = tokenizeQuery(query)
   return signals.filter(
-    signal => matchesSignalCapsule(signal, capsule) && matchesQuery(signalHaystack(signal, ctx), tokens),
+    signal =>
+      matchesKindFilter(signal, kind) &&
+      matchesVerdictFilter(signal, verdict) &&
+      matchesQuery(signalHaystack(signal, ctx), tokens),
   )
 }
 
 /**
- * 空态文案：先区分「历史还在检索」「搜索没命中」，再按胶囊说清这一类还没有。
+ * 空态文案：先区分「历史还在检索」「搜索没命中」，再按处理方式、类型说清哪一层空。
  *
- * `capsuleHasItems` 用来分辨「这一类确实没有」与「基础列表本身为空」。
+ * 处理方式比类型更具体，因此组合筛选为空时优先说处理方式。
  */
 export function signalEmptyKey(
-  capsule: SignalCapsule,
+  kind: SignalKindFilter,
+  verdict: SignalVerdictFilter,
   searching: boolean,
   loading: boolean,
-  capsuleHasItems: boolean,
 ): keyof Dict {
   if (searching) return loading ? 'eventsSearching' : 'eventsNoMatch'
-  if (capsule === 'all' || capsuleHasItems) return 'eventsEmptyAll'
-  switch (capsule) {
+  switch (verdict) {
+    case 'filtered':
+      return 'eventsEmptyFiltered'
+    case 'dispatch':
+      return 'eventsEmptyDispatch'
+    case 'append':
+      return 'eventsEmptyAppend'
+    case 'reply':
+      return 'eventsEmptyReply'
+    case 'all':
+      break
+  }
+  switch (kind) {
     case 'user':
       return 'eventsEmptyUser'
     case 'timer':
       return 'eventsEmptyTimer'
     case 'perception':
       return 'eventsEmptyPerception'
-    case 'filtered':
-      return 'eventsEmptyFiltered'
+    case 'all':
+      return 'eventsEmptyAll'
   }
 }

@@ -1,25 +1,30 @@
 // tests/client/lib/signals.test.ts
 //
-// 事件页的纯逻辑：胶囊过滤、搜索、结局与来源行。断言落在用户读到的语义上。
+// 事件页的纯逻辑：双筛（事件类型 + 处理方式）、搜索、结局与来源行。
+// 断言落在用户读到的语义上。
 
 import { describe, expect, it } from 'vitest'
 import type { SignalView } from '../../../src/shared/signals.ts'
 import { translateFor } from '../../../src/client/i18n.ts'
 import {
   filterSignals,
-  matchesSignalCapsule,
+  kindFilterLabelKey,
+  matchesKindFilter,
+  matchesVerdictFilter,
   ruleKey,
   signalEmptyKey,
   signalHaystack,
   signalKindKey,
   signalSourceText,
   signalVerdict,
+  verdictFilterLabelKey,
   verdictLabelKey,
   verdictText,
 } from '../../../src/client/lib/signals.ts'
 
 const t = translateFor('zh')
 const NOW = 1_700_000_000_000
+const ctx = { t, language: 'zh' }
 
 function signal(overrides: Partial<SignalView> = {}): SignalView {
   return {
@@ -32,22 +37,45 @@ function signal(overrides: Partial<SignalView> = {}): SignalView {
   }
 }
 
-describe('capsules', () => {
+describe('kind filter', () => {
   it('selects by signal kind', () => {
-    expect(matchesSignalCapsule(signal({ kind: 'user-message' }), 'user')).toBe(true)
-    expect(matchesSignalCapsule(signal({ kind: 'timer' }), 'timer')).toBe(true)
-    expect(matchesSignalCapsule(signal({ kind: 'perception' }), 'perception')).toBe(true)
-    expect(matchesSignalCapsule(signal({ kind: 'perception' }), 'user')).toBe(false)
-  })
-
-  it('treats only an undelivered signal as filtered', () => {
-    expect(matchesSignalCapsule(signal({ delivered: false }), 'filtered')).toBe(true)
-    expect(matchesSignalCapsule(signal({ delivered: false }), 'perception')).toBe(true)
-    expect(matchesSignalCapsule(signal({ delivered: true }), 'filtered')).toBe(false)
+    expect(matchesKindFilter(signal({ kind: 'user-message' }), 'user')).toBe(true)
+    expect(matchesKindFilter(signal({ kind: 'timer' }), 'timer')).toBe(true)
+    expect(matchesKindFilter(signal({ kind: 'perception' }), 'perception')).toBe(true)
+    expect(matchesKindFilter(signal({ kind: 'perception' }), 'user')).toBe(false)
   })
 
   it('keeps everything under all', () => {
-    expect(matchesSignalCapsule(signal({ delivered: false }), 'all')).toBe(true)
+    expect(matchesKindFilter(signal({ kind: 'timer' }), 'all')).toBe(true)
+  })
+})
+
+describe('verdict filter', () => {
+  it('selects a delivered decision by its action', () => {
+    expect(
+      matchesVerdictFilter(signal({ decision: { action: 'dispatch', ticketId: 't-1', at: NOW } }), 'dispatch'),
+    ).toBe(true)
+    expect(
+      matchesVerdictFilter(signal({ decision: { action: 'append', ticketId: 't-1', at: NOW } }), 'append'),
+    ).toBe(true)
+    expect(
+      matchesVerdictFilter(signal({ decision: { action: 'reply', inferred: true, at: NOW } }), 'reply'),
+    ).toBe(true)
+    expect(
+      matchesVerdictFilter(signal({ decision: { action: 'reply', at: NOW } }), 'dispatch'),
+    ).toBe(false)
+  })
+
+  it('treats an undelivered signal as ignored', () => {
+    expect(matchesVerdictFilter(signal({ delivered: false, rule: 'min-gap' }), 'filtered')).toBe(true)
+    expect(matchesVerdictFilter(signal({ delivered: true }), 'filtered')).toBe(false)
+    // 被过滤的信号没有决定，因此不属于任何处理动作。
+    expect(matchesVerdictFilter(signal({ delivered: false }), 'reply')).toBe(false)
+  })
+
+  it('keeps everything under all', () => {
+    expect(matchesVerdictFilter(signal({ delivered: false }), 'all')).toBe(true)
+    expect(matchesVerdictFilter(signal(), 'all')).toBe(true)
   })
 })
 
@@ -56,6 +84,18 @@ describe('kind labels', () => {
     expect(t(signalKindKey('user-message'))).toBe('用户')
     expect(t(signalKindKey('timer'))).toBe('定时')
     expect(t(signalKindKey('perception'))).toBe('感知')
+  })
+
+  it('labels every dropdown value', () => {
+    expect(t(kindFilterLabelKey('all'))).toBe('全部类型')
+    expect(t(kindFilterLabelKey('user'))).toBe('用户')
+    expect(t(kindFilterLabelKey('timer'))).toBe('定时')
+    expect(t(kindFilterLabelKey('perception'))).toBe('感知')
+    expect(t(verdictFilterLabelKey('all'))).toBe('全部处理')
+    expect(t(verdictFilterLabelKey('dispatch'))).toBe('派发')
+    expect(t(verdictFilterLabelKey('append'))).toBe('追加')
+    expect(t(verdictFilterLabelKey('reply'))).toBe('响应')
+    expect(t(verdictFilterLabelKey('filtered'))).toBe('忽略（过滤）')
   })
 })
 
@@ -150,40 +190,44 @@ describe('filterSignals', () => {
     }),
   ]
 
-  it('intersects the capsule with the search', () => {
-    expect(filterSignals(views, 'all', '', { t, language: 'zh' }).map(view => view.signalId)).toEqual([
+  it('intersects the two filters with the search', () => {
+    expect(filterSignals(views, 'all', 'all', '', ctx).map(view => view.signalId)).toEqual([
       's-1',
       's-2',
       's-3',
     ])
-    expect(
-      filterSignals(views, 'perception', '', { t, language: 'zh' }).map(view => view.signalId),
-    ).toEqual(['s-2', 's-3'])
-    expect(
-      filterSignals(views, 'filtered', '', { t, language: 'zh' }).map(view => view.signalId),
-    ).toEqual(['s-3'])
+    expect(filterSignals(views, 'perception', 'all', '', ctx).map(view => view.signalId)).toEqual([
+      's-2',
+      's-3',
+    ])
+    expect(filterSignals(views, 'all', 'filtered', '', ctx).map(view => view.signalId)).toEqual([
+      's-3',
+    ])
+    expect(filterSignals(views, 'perception', 'reply', '', ctx).map(view => view.signalId)).toEqual([
+      's-2',
+    ])
   })
 
   it('searches the text, source and thread names case-insensitively', () => {
-    expect(
-      filterSignals(views, 'all', 'APP.YML', { t, language: 'zh' }).map(view => view.signalId),
-    ).toEqual(['s-3'])
-    expect(
-      filterSignals(views, 'all', '配置文件', { t, language: 'zh' }).map(view => view.signalId),
-    ).toEqual(['s-3'])
-    expect(
-      filterSignals(views, 'all', 'tickets', { t, language: 'zh' }).map(view => view.signalId),
-    ).toEqual(['s-2'])
+    expect(filterSignals(views, 'all', 'all', 'APP.YML', ctx).map(view => view.signalId)).toEqual([
+      's-3',
+    ])
+    expect(filterSignals(views, 'all', 'all', '配置文件', ctx).map(view => view.signalId)).toEqual([
+      's-3',
+    ])
+    expect(filterSignals(views, 'all', 'all', 'tickets', ctx).map(view => view.signalId)).toEqual([
+      's-2',
+    ])
   })
 
   it('also matches the visible verdict copy', () => {
-    expect(
-      filterSignals(views, 'all', '响应', { t, language: 'zh' }).map(view => view.signalId),
-    ).toEqual(['s-2'])
+    expect(filterSignals(views, 'all', 'all', '响应', ctx).map(view => view.signalId)).toEqual([
+      's-2',
+    ])
   })
 
   it('builds the haystack from user-visible fields only', () => {
-    const haystack = signalHaystack(views[0]!, { t, language: 'zh' })
+    const haystack = signalHaystack(views[0]!, ctx)
 
     expect(haystack).toContain('把 readme 改一下')
     expect(haystack).toContain('用户')
@@ -192,19 +236,22 @@ describe('filterSignals', () => {
 
 describe('empty states', () => {
   it('separates searching from no-match', () => {
-    expect(signalEmptyKey('all', true, true, false)).toBe('eventsSearching')
-    expect(signalEmptyKey('all', true, false, false)).toBe('eventsNoMatch')
+    expect(signalEmptyKey('all', 'all', true, true)).toBe('eventsSearching')
+    expect(signalEmptyKey('all', 'all', true, false)).toBe('eventsNoMatch')
   })
 
-  it('names the empty capsule', () => {
-    expect(signalEmptyKey('all', false, false, false)).toBe('eventsEmptyAll')
-    expect(signalEmptyKey('user', false, false, false)).toBe('eventsEmptyUser')
-    expect(signalEmptyKey('timer', false, false, false)).toBe('eventsEmptyTimer')
-    expect(signalEmptyKey('perception', false, false, false)).toBe('eventsEmptyPerception')
-    expect(signalEmptyKey('filtered', false, false, false)).toBe('eventsEmptyFiltered')
+  it('names the empty kind', () => {
+    expect(signalEmptyKey('all', 'all', false, false)).toBe('eventsEmptyAll')
+    expect(signalEmptyKey('user', 'all', false, false)).toBe('eventsEmptyUser')
+    expect(signalEmptyKey('timer', 'all', false, false)).toBe('eventsEmptyTimer')
+    expect(signalEmptyKey('perception', 'all', false, false)).toBe('eventsEmptyPerception')
   })
 
-  it('falls back to the generic copy when the capsule does have items', () => {
-    expect(signalEmptyKey('perception', false, false, true)).toBe('eventsEmptyAll')
+  it('names the empty verdict, which is more specific than the kind', () => {
+    expect(signalEmptyKey('all', 'filtered', false, false)).toBe('eventsEmptyFiltered')
+    expect(signalEmptyKey('all', 'dispatch', false, false)).toBe('eventsEmptyDispatch')
+    expect(signalEmptyKey('all', 'append', false, false)).toBe('eventsEmptyAppend')
+    expect(signalEmptyKey('all', 'reply', false, false)).toBe('eventsEmptyReply')
+    expect(signalEmptyKey('perception', 'reply', false, false)).toBe('eventsEmptyReply')
   })
 })

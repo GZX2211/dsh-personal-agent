@@ -135,6 +135,45 @@ export function Toast({
   )
 }
 
+export function Menu({
+  open,
+  anchor,
+  items,
+  selectedId,
+  onSelect,
+}: {
+  open?: boolean
+  anchor?: ReactNode
+  items?: readonly { id: string; label: ReactNode }[]
+  selectedId?: string
+  onSelect?: (id: string) => void
+  onClose?: () => void
+  align?: string
+  side?: string
+  portal?: boolean
+}): ReactElement {
+  return (
+    <span data-primitive="menu">
+      {anchor}
+      {open === true ? (
+        <div role="menu">
+          {items?.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              data-selected={item.id === selectedId ? 'true' : undefined}
+              onClick={() => onSelect?.(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </span>
+  )
+}
+
 function glyph(name: string): () => ReactElement {
   return function Icon(): ReactElement {
     return <svg data-icon={name} aria-hidden="true" />

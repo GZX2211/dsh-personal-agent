@@ -50,15 +50,15 @@ function render(props: Partial<ComponentProps<typeof Events>> = {}): string {
 }
 
 describe('Events view', () => {
-  it('renders the capsules and the search box', () => {
+  it('renders the two dropdowns and the search box', () => {
     const html = render()
 
-    expect(html).toContain('全部')
-    expect(html).toContain('用户')
-    expect(html).toContain('定时')
-    expect(html).toContain('感知')
-    expect(html).toContain('已过滤')
-    expect(html).toContain('搜索')
+    expect(html).toContain('aria-label="事件类型"')
+    expect(html).toContain('aria-label="处理方式"')
+    expect(html).toContain('全部类型')
+    expect(html).toContain('全部处理')
+    expect(html).toContain('pa-toolbar__search')
+    expect(html).toContain('帮助')
   })
 
   it('explains an empty list', () => {

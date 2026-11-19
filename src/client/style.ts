@@ -165,6 +165,24 @@ export const CONSOLE_CSS = `
 .pa-toolbar__help {
   flex: 0 0 auto;
 }
+/* 下拉筛选：官方 Button 做触发，尾随一个箭头；两个下拉之间留一点呼吸。 */
+.pa-filter-menu__trigger + .pa-filter-menu__trigger {
+  margin-left: 6px;
+}
+.pa-filter-menu__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-filter-menu__chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  color: var(--dsw-alias-label-tertiary);
+}
 .pa-help-text {
   margin: 0 0 8px;
   color: var(--dsw-alias-label-secondary);
@@ -248,6 +266,10 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-tertiary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+/* 标题行里的时间：紧跟状态徽标，不再占满剩余宽度。 */
+.pa-row__time--inline {
+  margin-left: 0;
 }
 .pa-row__summary {
   margin: 0;
@@ -745,9 +767,15 @@ export const CONSOLE_CSS = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pa-signal__aside {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
 .pa-signal__time {
   flex: 0 0 auto;
-  margin-left: auto;
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 18px;
@@ -764,14 +792,23 @@ export const CONSOLE_CSS = `
   -webkit-line-clamp: 3;
   overflow-wrap: anywhere;
 }
-.pa-signal__foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-}
-.pa-signal__verdict {
+/*
+ * 可点击的结局外套一层官方 Button；这里把按钮的盒子收成零，让尺寸完全由里面的
+ * Tag 决定，与只读结局逐像素一致。
+ */
+.pa-signal__verdict.pa-signal__verdict {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.pa-signal__verdict.pa-signal__verdict:hover:not(:disabled) {
+  background: transparent;
 }
 .pa-signal--compact {
   padding: 6px 8px;

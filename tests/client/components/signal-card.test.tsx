@@ -45,6 +45,9 @@ describe('SignalCard', () => {
     expect(html).toContain('响应')
     expect(html).toContain('推断')
     expect(html).toContain('2分钟前')
+    // 结局与推断都在时间左侧，三段同在右侧一行。
+    expect(html.indexOf('推断')).toBeLessThan(html.indexOf('pa-signal__time'))
+    expect(html).toContain('pa-signal__aside')
   })
 
   it('shows the source and thread of a perception signal', () => {
@@ -72,6 +75,10 @@ describe('SignalCard', () => {
 
     expect(html).toContain('派发 #9c20e7')
     expect(html).toContain('data-primitive="button"')
+    // 可点击的结局用同一个 Tag 渲染尺寸，按钮只包一层点击区域。
+    expect(html).toContain('pa-signal__verdict')
+    expect(html).toContain('pa-signal__verdict-tag')
+    expect(html.indexOf('派发 #9c20e7')).toBeLessThan(html.indexOf('pa-signal__time'))
   })
 
   it('keeps the verdict read-only without a ticket opener', () => {

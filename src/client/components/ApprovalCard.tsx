@@ -12,7 +12,7 @@ import type { ApprovalView } from '../../shared/approvals.ts'
 import type { ConsoleActions } from '../actions.ts'
 import type { Translate } from '../i18n.ts'
 import { shortSession, type ApprovalDraft } from '../lib/approvals.ts'
-import { formatTimestamp, riskKey } from '../lib/format.ts'
+import { formatRelativeTime, formatTimestamp, riskKey } from '../lib/format.ts'
 import { stripTicketSuffix } from '../lib/sessions.ts'
 import { CardAnswerField, CardAnswerText } from './card/CardAnswer.tsx'
 import { CardAttachment } from './card/CardAttachment.tsx'
@@ -32,6 +32,8 @@ export interface ApprovalCardProps {
   error?: string
   /** 初始折叠状态；缺省时折叠，列表优先。 */
   defaultCollapsed?: boolean
+  /** 渲染时刻：相对时间与测试用，缺省取当前时钟。 */
+  now?: number
   onSubmit: (draft: ApprovalDraft) => void
 }
 
@@ -44,6 +46,7 @@ export function ApprovalCard({
   busy,
   error,
   defaultCollapsed = true,
+  now = Date.now(),
   onSubmit,
 }: ApprovalCardProps): ReactElement {
   const decided = approval.decidedAt !== undefined
@@ -72,7 +75,11 @@ export function ApprovalCard({
       rowKey={approval.id}
       title={requester}
       summary={approval.question}
-      time={formatTimestamp(language, shownAt)}
+      time={{
+        at: shownAt,
+        label: formatRelativeTime(t, language, shownAt, now),
+        detail: formatTimestamp(language, shownAt),
+      }}
       status={status}
       action={
         <Button

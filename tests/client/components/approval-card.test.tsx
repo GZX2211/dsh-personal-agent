@@ -1,7 +1,7 @@
 // tests/client/components/approval-card.test.tsx
 //
-// 审批列表行的结构契约：三行排版——会话标题 / 题干 / 跳转会话 + 时间；
-// 工单号从会话标题里剥离，标题本身不跳转；展开后保留原卡片的全部字段。
+// 审批列表行的结构契约：三行排版——会话标题（右侧状态徽标与相对时间）/ 题干 /
+// 跳转会话；工单号从会话标题里剥离，标题本身不跳转；展开后保留原卡片的全部字段。
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,8 @@ import { translateFor } from '../../../src/client/i18n.ts'
 
 const t = translateFor('zh')
 const NOW = new Date(2023, 10, 12, 0, 22).getTime()
+/** 渲染时刻：比请求时间晚两小时，相对时间因此稳定。 */
+const CLOCK = NOW + 2 * 3_600_000
 
 const ACTIONS: ConsoleActions = {
   ...NO_ACTIONS,
@@ -36,7 +38,7 @@ function approval(overrides: Partial<ApprovalView> = {}): ApprovalView {
   }
 }
 
-function render(card: ApprovalView, defaultCollapsed?: boolean): string {
+function render(card: ApprovalView, defaultCollapsed?: boolean, now = CLOCK): string {
   return renderToStaticMarkup(
     <ApprovalCard
       t={t}
@@ -45,6 +47,7 @@ function render(card: ApprovalView, defaultCollapsed?: boolean): string {
       actions={ACTIONS}
       busy={false}
       defaultCollapsed={defaultCollapsed}
+      now={now}
       onSubmit={() => undefined}
     />,
   )
@@ -62,9 +65,11 @@ describe('ApprovalCard 折叠行', () => {
     // 第二行：题干，悬停查看完整内容。
     expect(html).toContain('pa-row__summary')
     expect(html).toContain('这是一个三选项测试题。')
-    // 第三行：跳转会话按钮 + 时间。
+    // 第三行：跳转会话按钮。
     expect(html).toContain('跳转会话')
-    expect(html).toContain('11月12日 00:22')
+    // 时间在第一行右侧：默认相对时间，带机器可读的完整时间。
+    expect(html).toContain('2小时前')
+    expect(html).toMatch(/pa-row__time[^"]*"[^>]*dateTime="[^"]+"/)
     expect(html).toContain('data-tone="warning"')
     expect(html).toContain('aria-expanded="false"')
     expect(html).not.toContain('输入你的答案')
@@ -128,7 +133,9 @@ describe('ApprovalCard 已通过', () => {
     expect(html).toContain('data-expanded="false"')
     expect(html).toContain('已通过')
     expect(html).toContain('data-tone="success"')
-    expect(html).toContain('00:23')
+    // 决定时间比请求时间晚一分钟：相对时间按决定时间算。
+    expect(html).toContain('1小时前')
+    expect(html).not.toContain('2小时前')
     expect(html).not.toContain('输入你的答案')
     expect(html).not.toContain('跳过')
   })

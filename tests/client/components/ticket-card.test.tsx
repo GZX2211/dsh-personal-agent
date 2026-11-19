@@ -1,6 +1,6 @@
 // tests/client/components/ticket-card.test.tsx
 //
-// 工单行与审批行同一套三行排版：标题 / 目标 / 工单短码 + 时间；
+// 工单行与审批行同一套三行排版：标题（右侧状态徽标与相对时间）/ 目标 / 工单短码；
 // 没有展开态、没有动作，状态用官方 Tag 表达。
 
 import { describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,7 @@ import { translateFor } from '../../../src/client/i18n.ts'
 
 const t = translateFor('zh')
 const NOW = new Date(2023, 10, 12, 0, 22).getTime()
+const CLOCK = NOW + 2 * 3_600_000
 
 function ticket(overrides: Partial<TicketView> = {}): TicketView {
   return {
@@ -29,7 +30,7 @@ function ticket(overrides: Partial<TicketView> = {}): TicketView {
 }
 
 function render(card: TicketView): string {
-  return renderToStaticMarkup(<TicketCard t={t} language="zh-CN" ticket={card} />)
+  return renderToStaticMarkup(<TicketCard t={t} language="zh-CN" ticket={card} now={CLOCK} />)
 }
 
 describe('TicketCard', () => {
@@ -41,7 +42,9 @@ describe('TicketCard', () => {
     expect(html).toContain('在 D:\\tmp 下创建 hello.txt')
     expect(html).toContain('工单 #9c20e7')
     expect(html).toContain('pa-row__ref')
-    expect(html).toContain('11月12日 00:22')
+    // 时间在标题行右侧，是相对时间；完整时间在悬停提示里。
+    expect(html).toContain('2小时前')
+    expect(html).toMatch(/pa-row__time[^"]*"[^>]*dateTime="[^"]+"/)
   })
 
   it('has no expander, no footer actions and no buttons', () => {
