@@ -13,6 +13,7 @@ import { createApprovalDecider } from './approvals/service.ts'
 import { createConsoleHandler } from './console-api/server.ts'
 import type { HostContext } from './context.ts'
 import { createScheduler } from './dispatcher/scheduler.ts'
+import { PaRolesService } from './roles/index.ts'
 import { createAgentDecorator, decorateLiveWorkerSessions } from './sessions/decorate.ts'
 import { registerWorkerObserver } from './sessions/observer.ts'
 import { ensureRouterSession } from './sessions/router.ts'
@@ -50,6 +51,10 @@ export function apply(ctx: HostContext, config?: Config): void {
   const maxWorkers = resolveMaxWorkers(config?.maxWorkers)
   const origin = ctx.webServer.getOrigin()
 
+  // 只读角色服务：外部插件（能力管理等）靠它判定 router / worker。
+  // PA 不反向依赖任何调用方；账本与 router 身份就绪前 roleOf 返回 undefined。
+  const roles = new PaRolesService(ctx)
+
   // 账本要先读盘重放，因此打开是异步的；路由先挂上，请求等待它就绪。
   // 打不开也不能让插件整个起不来：健康检查与路由仍要可用，错误由快照端点暴露。
   const ledger = EventStore.open({
@@ -83,6 +88,7 @@ export function apply(ctx: HostContext, config?: Config): void {
 
   // 账本与 kv 就绪后装配有状态的服务：调度器、回合观察、角色装饰。
   const ready = Promise.all([ledger, identities]).then(([store, kv]) => {
+    roles.attach(store)
     const scheduler = createScheduler({
       ctx,
       store,
@@ -150,6 +156,7 @@ export function apply(ctx: HostContext, config?: Config): void {
     .then(async ({ store, kv, scheduler, decorator }) => {
       const session = await ensureRouterSession(ctx, stateDir, kv)
       routerSessionId = session.sessionId
+      roles.setRouterSessionId(session.sessionId)
       const resolved = await ctx.sessionController.resolveAgent(session.sessionId)
       if ('agent' in resolved) decorator.decorate(resolved.agent)
       // 重载后活着的 worker 不再发 agent/created，按账本绑定补装饰。

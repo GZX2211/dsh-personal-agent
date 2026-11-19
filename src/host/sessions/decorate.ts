@@ -8,14 +8,15 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ResolverRegistry } from '../approvals/resolvers.ts'
 import type { HostContext } from '../context.ts'
 import type { Scheduler } from '../dispatcher/scheduler.ts'
-import type { Projection } from '../projector/project.ts'
 import { loadPrompt } from '../prompts/index.ts'
+import { roleForSession, type SessionRole } from '../roles/index.ts'
 import type { EventStore } from '../store/event-store.ts'
 import { createApprovalSubmitTool } from '../tools/pa_approval_submit/index.ts'
 import { createLedgerQueryTool } from '../tools/pa_ledger_query/index.ts'
 import { createTaskRouteTool } from '../tools/pa_task_route/index.ts'
 
-export type SessionRole = 'router' | 'worker'
+// 判定与服务同源（roles/）；保留原导出路径，既有调用点与测试不需要跟着改。
+export { roleForSession, type SessionRole }
 
 /** 角色提示词的 section 位置：第一方 section 在 0~10000 之间稀疏分配，900 不冲突。 */
 const ROLE_SECTION_ORDER = 900
@@ -28,16 +29,6 @@ const ROUTER_DENY = ['pwsh', 'bash', 'write', 'edit', 'apply_patch', 'present', 
 
 /** worker 必须通过审批工具找人类，不能用会卡在自己会话里的提问或 UI 工具。 */
 const WORKER_DENY = ['ask_user_question', 'present', 'plugin_manager'] as const
-
-/** 从会话身份判断角色；worker 以「账本里有工单绑定该会话」为准。 */
-export function roleForSession(
-  sessionId: string,
-  routerSessionId: string | undefined,
-  projection: Projection,
-): SessionRole | undefined {
-  if (routerSessionId !== undefined && sessionId === routerSessionId) return 'router'
-  return projection.tickets.some(ticket => ticket.workerSessionId === sessionId) ? 'worker' : undefined
-}
 
 export interface AgentDecoratorOptions {
   ctx: HostContext
