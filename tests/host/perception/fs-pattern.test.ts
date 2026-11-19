@@ -70,4 +70,10 @@ describe('isIgnored', () => {
   it('is not influenced by user patterns when none are given', () => {
     expect(isIgnored('D:/p/a.txt', [])).toBe(false)
   })
+
+  it('ignores the directory itself, not just its contents', () => {
+    // 递归监听把目录自身的变更也报出来，路径就是目录本身。
+    expect(isIgnored('D:/p/node_modules', ['**/node_modules/**'])).toBe(true)
+    expect(isIgnored('D:/p/.git', ['**/.git/**'])).toBe(true)
+  })
 })

@@ -44,8 +44,16 @@ export function globToRegExp(pattern: string): RegExp {
   return new RegExp(source)
 }
 
-/** 路径是否命中任意一个忽略模式。 */
+/**
+ * 路径是否命中任意一个忽略模式。
+ *
+ * 同时尝试带结尾分隔符的形式：`**\/node_modules/**` 要忽略的是「这个目录下的一切」，
+ * 而目录自身的变更事件报出的路径就是 `…/node_modules`——不带结尾分隔符它就漏过去了。
+ */
 export function isIgnored(path: string, patterns: readonly string[]): boolean {
   const normalized = path.replaceAll('\\', '/')
-  return patterns.some(pattern => globToRegExp(pattern).test(normalized))
+  return patterns.some(pattern => {
+    const regex = globToRegExp(pattern)
+    return regex.test(normalized) || regex.test(`${normalized}/`)
+  })
 }
