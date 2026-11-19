@@ -93,6 +93,21 @@ describe('KvStore', () => {
     expect(reopened.get('router.session')).toBeUndefined()
   })
 
+  it('deletes many keys at once and ignores the ones it never had', async () => {
+    const store = await openStore()
+    await store.set('a', '1')
+    await store.set('b', '2')
+    await store.set('c', '3')
+
+    await store.deleteMany(['a', 'b', 'ghost'])
+    await store.close()
+
+    const reopened = await openStore()
+    expect(reopened.get('a')).toBeUndefined()
+    expect(reopened.get('b')).toBeUndefined()
+    expect(reopened.get('c')).toBe('3')
+  })
+
   it('recovers a corrupt file on the next write', async () => {
     await writeFile(kvPath(), 'not json', 'utf8')
     const warnings: string[] = []

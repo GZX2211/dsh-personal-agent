@@ -76,6 +76,19 @@ export class KvStore {
     await this.#persist()
   }
 
+  /** 一次写入删除多个键：删除一个来源时要清掉它全部线程的运行时状态。 */
+  async deleteMany(keys: readonly string[]): Promise<void> {
+    this.#ensureOpen()
+    let changed = false
+    for (const key of keys) {
+      if (!(key in this.#values)) continue
+      delete this.#values[key]
+      changed = true
+    }
+    // 一个键都没命中就不写盘：删除是幂等的，重复调用不该产生写入。
+    if (changed) await this.#persist()
+  }
+
   /** 等排队的写入落地；之后拒绝新的写入。 */
   async close(): Promise<void> {
     this.#closed = true
