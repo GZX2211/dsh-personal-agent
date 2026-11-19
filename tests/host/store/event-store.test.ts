@@ -287,3 +287,78 @@ describe('ledger read isolation', () => {
     expect(store.projection().tickets[0]?.title).toBe('发布新版本')
   })
 })
+
+describe('ledger subscription', () => {
+  it('notifies a listener after an append', async () => {
+    const store = await openStore()
+    const seen: string[] = []
+    store.subscribe(event => seen.push(event.type))
+
+    store.append(queuedDraft())
+
+    expect(seen).toEqual(['task/queued'])
+  })
+
+  it('does not notify on a duplicate append', async () => {
+    const store = await openStore()
+    const seen: number[] = []
+    store.subscribe(event => seen.push(event.seq))
+
+    store.append(queuedDraft())
+    store.append(queuedDraft())
+
+    expect(seen).toEqual([1])
+  })
+
+  it('stops notifying after unsubscribe', async () => {
+    const store = await openStore()
+    const seen: string[] = []
+    const unsubscribe = store.subscribe(event => seen.push(event.type))
+
+    unsubscribe()
+    store.append(queuedDraft())
+
+    expect(seen).toEqual([])
+  })
+
+  it('keeps appending when a listener throws', async () => {
+    const warnings: string[] = []
+    const store = await openStore({ onWarning: message => warnings.push(message) })
+    const seen: string[] = []
+    store.subscribe(() => {
+      throw new Error('listener boom')
+    })
+    store.subscribe(event => seen.push(event.type))
+
+    const result = store.append(queuedDraft())
+
+    expect(result.duplicate).toBe(false)
+    expect(seen).toEqual(['task/queued'])
+    expect(warnings.some(message => message.includes('listener boom'))).toBe(true)
+  })
+
+  it('does not replay already stored events to a new listener', async () => {
+    const first = await openStore()
+    first.append(queuedDraft())
+    first.close()
+
+    const reopened = await openStore()
+    const seen: string[] = []
+    reopened.subscribe(event => seen.push(event.type))
+    reopened.append(dispatchedDraft())
+
+    expect(seen).toEqual(['task/dispatched'])
+  })
+
+  it('notifies a listener registered twice only once', async () => {
+    const store = await openStore()
+    const seen: string[] = []
+    const listener = (event: { type: string }) => seen.push(event.type)
+
+    store.subscribe(listener)
+    store.subscribe(listener)
+    store.append(queuedDraft())
+
+    expect(seen).toEqual(['task/queued'])
+  })
+})

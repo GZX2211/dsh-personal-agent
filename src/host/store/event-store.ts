@@ -18,6 +18,9 @@ export interface AppendResult {
   duplicate: boolean
 }
 
+/** 账本写入通知：只在真正写入成功后同步回调。 */
+export type EventListener = (event: L2Event) => void
+
 export interface EventStoreOptions {
   /** 状态目录；账本落在它下面的 `events.jsonl`。 */
   directory: string
@@ -31,6 +34,8 @@ export class EventStore {
   readonly #now: () => number
   readonly #ledger: L2Event[] = []
   readonly #byEventId = new Map<string, L2Event>()
+  readonly #listeners = new Set<EventListener>()
+  #onWarning: ((message: string) => void) | undefined
   #fd: number | undefined
   /** 已落盘字节数：写入失败时回滚到这里。 */
   #size = 0
@@ -66,6 +71,7 @@ export class EventStore {
     for (const warning of replayed.warnings) options.onWarning?.(warning)
 
     const store = new EventStore(options.now ?? Date.now)
+    store.#onWarning = options.onWarning
     for (const event of replayed.events) {
       // 重放事件与 append 事件走同一条只读边界：账本对象一旦入内存就不再可变。
       deepFreeze(event)
@@ -121,12 +127,43 @@ export class EventStore {
     this.#byEventId.set(eventId, event)
     this.#ledger.push(event)
     this.#projection = undefined
+    // 落盘与内存都更新之后再通知：订阅者看到的事件一定已经在账本里。
+    this.#notify(event)
     return { event, duplicate: false }
+  }
+
+  /**
+   * 订阅新写入的事件，返回注销函数。
+   *
+   * 通知是同步的，发生在 `append` 返回之前；监听器只该做入队与过滤，不能重入
+   * `append`。重放的历史事件不会补发——订阅者要历史就去读投影。
+   */
+  subscribe(listener: EventListener): () => void {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
   }
 
   /** 已落账事件的只读副本：调用方无法借它改写账本视图。 */
   events(): readonly L2Event[] {
     return [...this.#ledger]
+  }
+
+  /**
+   * 逐个通知监听器。
+   *
+   * 监听器抛错降级为告警：事件已经落盘，把一个订阅者的故障冒泡给写入方，会让
+   * 一次成功的写入看起来失败了。
+   */
+  #notify(event: L2Event): void {
+    for (const listener of [...this.#listeners]) {
+      try {
+        listener(event)
+      } catch (error) {
+        this.#onWarning?.(`ledger listener failed: ${describe(error)}`)
+      }
+    }
   }
 
   /** 当前投影；每次 append 后失效，下一次读取时重算。 */
