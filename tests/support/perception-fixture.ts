@@ -50,8 +50,8 @@ export async function createPerceptionFixture(): Promise<PerceptionFixture> {
       service.stop()
       store.close()
       await kv.close()
-      await rm(directory, { recursive: true, force: true })
-      await rm(watchDirectory, { recursive: true, force: true })
+      await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+      await rm(watchDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     },
   }
 }

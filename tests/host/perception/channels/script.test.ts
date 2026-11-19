@@ -27,7 +27,9 @@ beforeEach(async () => {
 
 afterEach(async () => {
   for (const stop of stops.splice(0)) stop()
-  await rm(directory, { recursive: true, force: true })
+  // 子进程收到 kill 之后还要一点时间才释放文件句柄；Windows 上尤其明显。
+  await new Promise(resolve => setTimeout(resolve, 250))
+  await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 })
 
 async function writeScript(body: string): Promise<void> {
