@@ -22,11 +22,12 @@ export interface ChannelDependencies {
 }
 
 export interface ChannelRegistry {
-  factoryFor(kind: ChannelKind): ChannelFactory
+  /** 未注册的 kind 返回 undefined：历史账本可能来自支持更多渠道的版本。 */
+  factoryFor(kind: ChannelKind): ChannelFactory | undefined
 }
 
 export function createChannelRegistry(dependencies: ChannelDependencies): ChannelRegistry {
-  const factories: Record<ChannelKind, ChannelFactory> = {
+  const factories: Partial<Record<ChannelKind, ChannelFactory>> = {
     'host-event': context => createHostEventChannel(context, dependencies),
     'fs-watch': context => createFsWatchChannel(context),
     script: context => createScriptChannel(context, dependencies),

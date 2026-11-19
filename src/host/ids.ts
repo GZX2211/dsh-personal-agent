@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto'
 const LEDGER_ID_HEX_LENGTH = 10
 
 /** 统一的主键形态：前缀 + 10 位十六进制。 */
-function newLedgerId(prefix: 't' | 'a'): string {
+function newLedgerId(prefix: 't' | 'a' | 'src'): string {
   return `${prefix}-${randomUUID().replaceAll('-', '').slice(0, LEDGER_ID_HEX_LENGTH)}`
 }
 
@@ -21,6 +21,11 @@ export function createTicketId(): string {
 /** 新建审批 id：`a-` + 10 位十六进制。 */
 export function createApprovalId(): string {
   return newLedgerId('a')
+}
+
+/** 新建感知来源 id：`src-` + 10 位十六进制。 */
+export function createSourceId(): string {
+  return newLedgerId('src')
 }
 
 /** 审批短码：去掉 `a-` 前缀后的前 6 位，只用于展示。 */

@@ -17,8 +17,10 @@ describe('createChannelRegistry', () => {
 
   it('creates a runtime from the resolved factory', () => {
     const registry = createChannelRegistry({ stateDirectory: 'D:/state' })
+    const factory = registry.factoryFor('host-event')
+    if (factory === undefined) throw new Error('host-event factory is missing')
 
-    const runtime = registry.factoryFor('host-event')({
+    const runtime = factory({
       sourceId: 'src-1',
       channel: { kind: 'host-event', subscriptions: [] },
       threads: [{ id: 't', name: '线程', enabled: true }],

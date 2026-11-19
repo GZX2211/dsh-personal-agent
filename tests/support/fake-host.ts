@@ -91,6 +91,8 @@ export interface FakeHostOptions {
   visibleTools?: string[]
   /** `sessionController.create` 是否像真实宿主一样，在返回前发布 agent/created。 */
   emitAgentCreatedOnCreate?: boolean
+  /** 投递时是否像真实宿主一样发出 inbox splice 事件（观察者据此记账）。 */
+  emitSpliceOnDelivery?: boolean
 }
 
 export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
@@ -110,6 +112,12 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
   const created: string[] = []
 
   function addSession(sessionId: string): FakeSession {
+    const session: FakeSession = {
+      sessionId,
+      delivered: [],
+      events: [],
+      agent: undefined as unknown as FakeAgent,
+    }
     const agent: FakeAgent = {
       id: sessionId,
       session: { id: sessionId },
@@ -155,33 +163,48 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
           followupFailure = undefined
           throw new Error(failure)
         }
-        session.delivered.push({
-          requestId: message.id,
-          text: message.content.map(block => block.text ?? '').join(''),
-          message: { id: message.id, source: (message as { source?: unknown }).source },
-        })
-        this.inbox.nextTurn.push(message)
-        options.onFollowup?.(sessionId, message.id)
+        deliverToInbox(agent, message, false)
       },
       steer(message) {
-        session.delivered.push({
-          requestId: message.id,
-          text: message.content.map(block => block.text ?? '').join(''),
-          steered: true,
-          message: { id: message.id, source: (message as { source?: unknown }).source },
-        })
-        this.inbox.nextStep.push(message)
-        options.onFollowup?.(sessionId, message.id)
+        deliverToInbox(agent, message, true)
       },
     }
-    const session: FakeSession = {
-      sessionId,
-      delivered: [],
-      events: [],
-      agent,
-    }
+    session.agent = agent
     sessions.set(sessionId, session)
     return session
+  }
+
+  /** 记录一次投递；按需模拟真实宿主发出的 inbox splice（观察者据此记账）。 */
+  function deliverToInbox(
+    agent: FakeAgent,
+    message: { id: string; content: { type: string; text?: string }[] },
+    steered: boolean,
+  ): void {
+    const session = sessions.get(agent.session.id)
+    if (session === undefined) throw new Error(`fake host has no session ${agent.session.id}`)
+    session.delivered.push({
+      requestId: message.id,
+      text: message.content.map(block => block.text ?? '').join(''),
+      ...(steered ? { steered: true } : {}),
+      message: { id: message.id, source: (message as { source?: unknown }).source },
+    })
+    if (steered) agent.inbox.nextStep.push(message)
+    else agent.inbox.nextTurn.push(message)
+    options.onFollowup?.(session.sessionId, message.id)
+
+    if (options.emitSpliceOnDelivery !== true) return
+    const event = {
+      type: 'agent/inbox/spliced',
+      seq: session.events.length + 1,
+      time: Date.now(),
+      data: {
+        target: steered ? 'next-step' : 'next-turn',
+        start: 0,
+        inserted: [message],
+      },
+    }
+    session.events.push(event)
+    emit('session/event', { id: session.sessionId, snapshotEvents: () => [...session.events] }, event)
   }
 
   for (const sessionId of options.liveSessionIds ?? []) addSession(sessionId)

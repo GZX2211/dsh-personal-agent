@@ -234,6 +234,7 @@ describe('project', () => {
       signals: [],
       sources: [],
       sourceTallies: new Map(),
+      sourceDefinitions: new Map(),
       stats: {
         tickets: { queued: 0, running: 0, blocked: 0, ended: 0, total: 0 },
         approvals: { pending: 0, decided: 0 },
@@ -1070,5 +1071,12 @@ describe('source projection', () => {
     // 信号事实仍在（事件页要能解释它从哪来），只是来源不再出现在来源页。
     expect(projection.signals).toHaveLength(1)
     expect(projection.sourceTallies.get('src-1')?.delivered).toBe(1)
+  })
+
+  it('exposes the full definition so the runtime can start it', () => {
+    const projection = project([createdEvent(1), removedEvent(2)])
+
+    expect(projection.sourceDefinitions.get('src-1')).toBeUndefined()
+    expect(project([createdEvent(1)]).sourceDefinitions.get('src-1')).toEqual(sourceDefinition())
   })
 })

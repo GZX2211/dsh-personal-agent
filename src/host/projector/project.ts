@@ -34,6 +34,8 @@ export interface Projection {
   sources: SourceSnapshot[]
   /** 按来源聚合的信号计数；定时分区与来源页共用同一份事实。 */
   sourceTallies: ReadonlyMap<string, SourceTally>
+  /** 未删除来源的完整定义；装配时用它还原并启动 Channel。 */
+  sourceDefinitions: ReadonlyMap<string, SourceDefinition>
   stats: SnapshotStats
 }
 
@@ -158,6 +160,7 @@ export function project(events: readonly L2Event[]): Projection {
     signals: toSignalViews(signals),
     sources: toSourceSnapshots(sources, tallies),
     sourceTallies: tallies.sources,
+    sourceDefinitions: sourceDefinitionsOf(sources),
     stats: countStats(ticketViews, visibleApprovals, signals),
   }
 }
@@ -503,6 +506,15 @@ function toSourceSnapshot(
   if (definition.description !== undefined) view.description = definition.description
   if (tally?.lastEventAt !== undefined) view.lastEventAt = tally.lastEventAt
   return view
+}
+
+function sourceDefinitionsOf(sources: ReadonlyMap<string, SourceAccumulator>): Map<string, SourceDefinition> {
+  const definitions = new Map<string, SourceDefinition>()
+  for (const [id, source] of sources) {
+    if (source.removed) continue
+    definitions.set(id, source.definition)
+  }
+  return definitions
 }
 
 function countStats(

@@ -24,7 +24,7 @@ describe('deliverToSession', () => {
     expect(first).toBe('delivered')
     expect(second).toBe('already-queued')
     expect(host.sessions.get(SESSION)?.delivered).toEqual([
-      { requestId: 'pa-delivery:r-1', text: '任务简报' },
+      expect.objectContaining({ requestId: 'pa-delivery:r-1', text: '任务简报' }),
     ])
   })
 

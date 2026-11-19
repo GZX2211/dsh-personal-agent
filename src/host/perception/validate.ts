@@ -83,7 +83,7 @@ export function parseSourceInput(raw: unknown, options: ParseSourceOptions = {})
   const channel = parseChannel(raw.channel, threads ?? [], errors, partial)
   if (channel !== undefined) value.channel = channel
 
-  const script = readText(raw.script, 'script', errors, { required: false })
+  const script = readScript(raw.script, errors)
   if (script !== undefined) {
     if (channel !== undefined && channel.kind !== 'script') {
       errors.push('script 只能用于 script Channel')
@@ -373,6 +373,21 @@ function readText(
     return undefined
   }
   return text
+}
+
+/**
+ * 脚本正文原样保留。
+ *
+ * 不走 `readText` 的 trim：脚本内容属于用户，首尾的空白与换行是他们写下的东西；
+ * 这里只判断它非空、不超限。
+ */
+function readScript(value: unknown, errors: string[]): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    errors.push('script 必须是非空字符串')
+    return undefined
+  }
+  return value
 }
 
 function readTextList(
