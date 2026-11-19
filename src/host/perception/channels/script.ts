@@ -7,10 +7,10 @@
 // 权限），启动前校验文件存在。
 
 import { spawn, type ChildProcess } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { ScriptChannel } from '../../../shared/sources.ts'
+import { statementFingerprint } from '../fingerprint.ts'
 import type { Candidate, ChannelContext, ChannelRuntime } from '../types.ts'
 
 const DEFAULT_RESTART_DELAY_MS = 1_000
@@ -215,15 +215,11 @@ function parseLine(line: string): Candidate | undefined {
     externalId:
       typeof record.externalId === 'string' && record.externalId.length > 0
         ? record.externalId
-        : statementHash(record.statement),
+        : statementFingerprint(record.statement),
     at: typeof record.at === 'number' && Number.isFinite(record.at) ? record.at : undefined,
   }
   if (typeof record.state === 'string') candidate.state = record.state
   return candidate
-}
-
-function statementHash(statement: string): string {
-  return createHash('sha256').update(statement, 'utf8').digest('hex').slice(0, 16)
 }
 
 /** 五秒还没退出就强杀；Windows 需要连同子进程树一起清掉。 */
