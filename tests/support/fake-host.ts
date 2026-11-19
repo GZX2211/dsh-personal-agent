@@ -93,6 +93,8 @@ export interface FakeHostOptions {
   emitAgentCreatedOnCreate?: boolean
   /** 投递时是否像真实宿主一样发出 inbox splice 事件（观察者据此记账）。 */
   emitSpliceOnDelivery?: boolean
+  /** 按服务名注入的可选宿主服务（如 skills），`ctx.get(name)` 读取它们。 */
+  services?: Record<string, unknown>
 }
 
 export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
@@ -223,6 +225,8 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
         warnings.push([format, ...args].map(value => String(value)).join(' '))
       },
     },
+    /** 可选宿主服务：没注入的返回 undefined，与真实宿主的可选依赖一致。 */
+    get: (name: string) => (options.services ?? {})[name],
     effect: (fn: () => (() => void) | void, label: string) => {
       const dispose = fn()
       effects.push(label)

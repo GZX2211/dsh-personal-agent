@@ -13,6 +13,7 @@ import { createAgentDecorator, decorateLiveWorkerSessions, roleForSession } from
 import { createClaimRegistry } from '../../../src/host/signals/claim.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
 import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
+import { perceptionStub } from '../../support/perception-stub.ts'
 
 const WORKER_TICKET = 't-abcdef1234'
 const WORKER_SESSION = 'session-worker'
@@ -62,6 +63,7 @@ function makeDecorator(): ReturnType<typeof createAgentDecorator> {
     scheduler,
     resolvers: new ResolverRegistry(),
     claims: createClaimRegistry(),
+    perception: perceptionStub(),
     maxWorkers: 5,
     currentRouterSessionId: () => routerSessionId,
     log: message => logs.push(message),
@@ -105,7 +107,14 @@ describe('createAgentDecorator', () => {
     const agent = host.sessions.get('session-router')?.agent
     expect(agent?.sections).toHaveLength(1)
     expect(agent?.sections[0]?.text).toContain('pa_task_route')
-    expect(agent?.toolNames).toEqual(['pa_task_route', 'pa_ledger_query'])
+    expect(agent?.toolNames).toEqual([
+      'pa_task_route',
+      'pa_ledger_query',
+      'pa_source_create',
+      'pa_source_update',
+      'pa_source_toggle',
+      'pa_source_remove',
+    ])
     expect(agent?.restrictions).toEqual([
       { deny: ['pwsh', 'write', 'present', 'ask_user_question'] },
     ])
@@ -139,7 +148,7 @@ describe('createAgentDecorator', () => {
     emitCreated('session-router')
     emitCreated('session-router')
 
-    expect(host.sessions.get('session-router')?.agent.toolNames).toHaveLength(2)
+    expect(host.sessions.get('session-router')?.agent.toolNames).toHaveLength(6)
     expect(host.sessions.get('session-router')?.agent.sections).toHaveLength(1)
     decorator.dispose()
   })
@@ -158,6 +167,10 @@ describe('createAgentDecorator', () => {
     expect(host.sessions.get('session-router')?.agent.toolNames).toEqual([
       'pa_task_route',
       'pa_ledger_query',
+      'pa_source_create',
+      'pa_source_update',
+      'pa_source_toggle',
+      'pa_source_remove',
     ])
     decorator.dispose()
   })

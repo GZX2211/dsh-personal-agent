@@ -8,12 +8,17 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ResolverRegistry } from '../approvals/resolvers.ts'
 import type { HostContext } from '../context.ts'
 import type { Scheduler } from '../dispatcher/scheduler.ts'
+import type { PerceptionService } from '../perception/service.ts'
 import { loadPrompt } from '../prompts/index.ts'
 import { roleForSession, type SessionRole } from '../roles/index.ts'
 import type { ClaimRegistry } from '../signals/claim.ts'
 import type { EventStore } from '../store/event-store.ts'
 import { createApprovalSubmitTool } from '../tools/pa_approval_submit/index.ts'
 import { createLedgerQueryTool } from '../tools/pa_ledger_query/index.ts'
+import { createSourceCreateTool } from '../tools/pa_source_create/index.ts'
+import { createSourceRemoveTool } from '../tools/pa_source_remove/index.ts'
+import { createSourceToggleTool } from '../tools/pa_source_toggle/index.ts'
+import { createSourceUpdateTool } from '../tools/pa_source_update/index.ts'
 import { createTaskRouteTool } from '../tools/pa_task_route/index.ts'
 
 // 判定与服务同源（roles/）；保留原导出路径，既有调用点与测试不需要跟着改。
@@ -37,6 +42,7 @@ export interface AgentDecoratorOptions {
   scheduler: Scheduler
   resolvers: ResolverRegistry
   claims: ClaimRegistry
+  perception: PerceptionService
   maxWorkers: number
   /** router 身份是异步确定的，装饰时再读。 */
   currentRouterSessionId: () => string | undefined
@@ -154,6 +160,10 @@ function roleTools(role: SessionRole, options: AgentDecoratorOptions) {
         maxWorkers: options.maxWorkers,
       }),
       createLedgerQueryTool({ store: options.store }),
+      createSourceCreateTool({ perception: options.perception }),
+      createSourceUpdateTool({ perception: options.perception }),
+      createSourceToggleTool({ perception: options.perception }),
+      createSourceRemoveTool({ perception: options.perception }),
     ]
   }
   return [createApprovalSubmitTool({ ctx: options.ctx, store: options.store, resolvers: options.resolvers })]

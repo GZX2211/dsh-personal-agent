@@ -17,6 +17,7 @@ import { registerWorkerObserver } from '../../src/host/sessions/observer.ts'
 import { createClaimRegistry } from '../../src/host/signals/claim.ts'
 import { EventStore } from '../../src/host/store/event-store.ts'
 import { createFakeHost, type FakeHost } from '../support/fake-host.ts'
+import { perceptionStub } from '../support/perception-stub.ts'
 
 const ROUTER_SESSION = 'session-router'
 const CLOCK = 1_700_000_000_000
@@ -57,6 +58,7 @@ beforeEach(async () => {
     scheduler,
     resolvers,
     claims: createClaimRegistry(),
+    perception: perceptionStub(),
     maxWorkers: 5,
     currentRouterSessionId: () => ROUTER_SESSION,
   })

@@ -62,6 +62,30 @@ export function loadPrompt(name: PromptName): string {
   return text
 }
 
+let cachedSkillBody: string | undefined
+
+/**
+ * 读随包分发的技能正文。
+ *
+ * 与提示词不同，技能正文要保留 Markdown 结构（列表、表格、代码块）：它是给人读的
+ * 操作手册，段落拼装会把代码块和表格压成一段。
+ */
+export function loadSkillBody(): string {
+  if (cachedSkillBody !== undefined) return cachedSkillBody
+
+  const path = join(packageRoot(), 'prompts', 'perception-skill.md')
+  let raw: string
+  try {
+    raw = readFileSync(path, 'utf8')
+  } catch (error) {
+    throw new Error(`personal-agent: missing skill file ${path}`, { cause: error })
+  }
+  const text = raw.replaceAll('\r\n', '\n').trim()
+  if (text.length === 0) throw new Error(`personal-agent: empty skill file ${path}`)
+  cachedSkillBody = text
+  return text
+}
+
 let cachedRoot: string | undefined
 
 /** 从模块位置向上找包根：兼容源码运行（src/…）与打包运行（lib/index.js）。 */

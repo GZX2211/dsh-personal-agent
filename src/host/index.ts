@@ -13,6 +13,7 @@ import { createApprovalDecider } from './approvals/service.ts'
 import { createConsoleHandler } from './console-api/server.ts'
 import type { HostContext } from './context.ts'
 import { createScheduler } from './dispatcher/scheduler.ts'
+import { createPerceptionService } from './perception/service.ts'
 import { readTimerSourceViews } from './perception/timers.ts'
 import { PaRolesService } from './roles/index.ts'
 import { createAgentDecorator, decorateLiveWorkerSessions } from './sessions/decorate.ts'
@@ -20,6 +21,7 @@ import { registerWorkerObserver } from './sessions/observer.ts'
 import { ensureRouterSession } from './sessions/router.ts'
 import { createClaimRegistry } from './signals/claim.ts'
 import { registerRouterSignalObserver } from './signals/observer.ts'
+import { registerPerceptionSkill } from './skills/perception.ts'
 import { resolveStateDirectory } from './state/directory.ts'
 import { EventStore } from './store/event-store.ts'
 import { KvStore } from './store/kv-store.ts'
@@ -88,13 +90,24 @@ export function apply(ctx: HostContext, config?: Config): void {
   let disposeObserver: (() => void) | undefined
   let disposeSignalObserver: (() => void) | undefined
   let disposeDecorator: (() => void) | undefined
+  let stopPerception: (() => void) | undefined
   let prepareWorker: ((sessionId: SessionId) => Promise<void>) | undefined
 
-  // 账本与 kv 就绪后装配有状态的服务：调度器、回合观察、角色装饰。
+  // 账本与 kv 就绪后装配有状态的服务：调度器、回合观察、角色装饰、感知来源。
   const ready = Promise.all([ledger, identities]).then(([store, kv]) => {
     roles.attach(store)
     // 信号配对是进程内状态：账本只记信号与决定，配对关系重启即丢。
     const claims = createClaimRegistry()
+    // 来源的渠道在 router 会话就绪之后才启动（投递需要目标会话）。
+    const perception = createPerceptionService({
+      ctx,
+      store,
+      kv,
+      stateDirectory: stateDir,
+      currentRouterSessionId: () => routerSessionId as SessionId | undefined,
+      log: message => logWarning(ctx, message),
+    })
+    stopPerception = perception.stop
     const scheduler = createScheduler({
       ctx,
       store,
@@ -111,6 +124,7 @@ export function apply(ctx: HostContext, config?: Config): void {
       scheduler,
       resolvers,
       claims,
+      perception,
       maxWorkers,
       currentRouterSessionId: () => routerSessionId,
       log: message => logWarning(ctx, message),
@@ -138,11 +152,12 @@ export function apply(ctx: HostContext, config?: Config): void {
         logWarning(ctx, `worker decoration failed for ${sessionId}: ${describe(error)}`)
       }
     }
-    return { store, kv, scheduler, decorator }
+    return { store, kv, scheduler, decorator, perception }
   })
   void ready.catch((error: unknown) => logWarning(ctx, `services unavailable: ${describe(error)}`))
 
   ctx.effect(() => {
+    const disposeSkill = registerPerceptionSkill(ctx, message => logWarning(ctx, message))
     const disposeRoute = ctx.webServer.register({
       kind: 'prefix',
       path: API_PREFIX,
@@ -153,7 +168,7 @@ export function apply(ctx: HostContext, config?: Config): void {
         stateDir,
         startedAt,
         snapshot: async () => {
-          const store = await ledger
+          const { store, perception } = await ready
           const projection = store.projection()
           const timers = await readTimerSourceViews(
             ctx.get('schedule'),
@@ -165,8 +180,7 @@ export function apply(ctx: HostContext, config?: Config): void {
             tickets: projection.tickets,
             approvals: projection.approvals,
             signals: projection.signals,
-            // 感知服务尚未装配时，来源确实没有运行时，如实报「已停止」。
-            sources: projection.sources.map(source => ({ ...source, status: 'stopped' as const })),
+            sources: perception.sources(),
             timers,
             stats: projection.stats,
           }
@@ -176,17 +190,19 @@ export function apply(ctx: HostContext, config?: Config): void {
     })
     return () => {
       disposeRoute()
+      disposeSkill()
       disposeObserver?.()
       disposeSignalObserver?.()
       disposeDecorator?.()
+      stopPerception?.()
       void ledger.then(store => store.close()).catch(() => undefined)
       void identities.then(store => store.close()).catch(() => undefined)
     }
   }, 'personal-agent: console api')
 
-  // 启动收尾：恢复/创建路由会话 → 装饰 router 与活着的 worker → 消化重启前遗留的队列。
+  // 启动收尾：恢复/创建路由会话 → 装饰 router 与活着的 worker → 启动感知来源 → 消化队列。
   void ready
-    .then(async ({ store, kv, scheduler, decorator }) => {
+    .then(async ({ store, kv, scheduler, decorator, perception }) => {
       const session = await ensureRouterSession(ctx, stateDir, kv)
       routerSessionId = session.sessionId
       roles.setRouterSessionId(session.sessionId)
@@ -194,6 +210,8 @@ export function apply(ctx: HostContext, config?: Config): void {
       if ('agent' in resolved) decorator.decorate(resolved.agent)
       // 重载后活着的 worker 不再发 agent/created，按账本绑定补装饰。
       decorateLiveWorkerSessions({ ctx, store, decorator, log: message => logWarning(ctx, message) })
+      // 来源用同一个 router 会话投递，必须等身份确定之后再启动。
+      await perception.start()
       await scheduler.trigger('startup')
     })
     .catch((error: unknown) => {

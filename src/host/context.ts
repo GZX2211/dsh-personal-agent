@@ -15,6 +15,7 @@ import type {} from '@deepseek-ai/dsh-workspace'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import type { ScheduleService } from './perception/timers.ts'
 import type {} from './roles/index.ts'
+import type { SkillService } from './skills/service.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -26,6 +27,13 @@ declare module '@deepseek-ai/cordis' {
      * 的宿主版本不同源，因此这里只声明用到的那个读方法。
      */
     schedule?: ScheduleService
+    /**
+     * 官方 Skill 服务。
+     *
+     * 本插件只往里注册一个内置技能，没有它时感知来源照常工作，只是 router 少了
+     * 写作指南。同为可选依赖。
+     */
+    skills?: SkillService
   }
 }
 
