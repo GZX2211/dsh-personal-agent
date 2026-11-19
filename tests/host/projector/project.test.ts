@@ -984,6 +984,7 @@ describe('source projection', () => {
         name: '本地文件',
         enabled: true,
         channelKind: 'fs-watch',
+        config: { kind: 'fs-watch', paths: ['D:/tmp/a.txt'], recursive: false },
         threads: [
           { id: 'th-changes', name: '变更', enabled: true, deliveredCount: 0, filteredCount: 0 },
           { id: 'th-errors', name: '错误', enabled: false, deliveredCount: 0, filteredCount: 0 },
@@ -992,6 +993,72 @@ describe('source projection', () => {
         filteredCount: 0,
       },
     ])
+  })
+
+  it('summarizes a file source without exposing its ignore patterns', () => {
+    const projection = project([
+      createdEvent(
+        1,
+        sourceDefinition({
+          channel: {
+            kind: 'fs-watch',
+            paths: ['D:/a', 'D:/b'],
+            recursive: true,
+            debounceMs: 300,
+            ignore: ['**/node_modules/**'],
+          },
+        }),
+      ),
+    ])
+
+    expect(projection.sources[0]?.config).toEqual({
+      kind: 'fs-watch',
+      paths: ['D:/a', 'D:/b'],
+      recursive: true,
+      debounceMs: 300,
+    })
+  })
+
+  it('summarizes the subscribed event types of a host-event source', () => {
+    const projection = project([
+      createdEvent(
+        1,
+        sourceDefinition({
+          channel: {
+            kind: 'host-event',
+            subscriptions: [
+              { event: 'task/closed', thread: 'a', statement: '一' },
+              { event: 'task/closed', thread: 'b', statement: '二' },
+              { event: 'approval/pending', thread: 'c', statement: '三' },
+            ],
+          },
+        }),
+      ),
+    ])
+
+    expect(projection.sources[0]?.config).toEqual({
+      kind: 'host-event',
+      events: ['task/closed', 'approval/pending'],
+    })
+  })
+
+  it('summarizes a script source by its command only', () => {
+    const projection = project([
+      createdEvent(
+        1,
+        sourceDefinition({
+          channel: {
+            kind: 'script',
+            command: 'pwsh',
+            args: ['-File', '{script}'],
+            scriptPath: 'perception/src-1/watch.ps1',
+            scriptHash: 'deadbeef',
+          },
+        }),
+      ),
+    ])
+
+    expect(projection.sources[0]?.config).toEqual({ kind: 'script', command: 'pwsh' })
   })
 
   it('folds an update onto the existing source', () => {

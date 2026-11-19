@@ -65,6 +65,7 @@ function sourceView(): SourceView {
     name: '本地文件',
     enabled: true,
     channelKind: 'fs-watch',
+    config: { kind: 'fs-watch', paths: ['D:/tmp/a.txt'], recursive: false },
     status: 'running',
     threads: [{ id: 'changes', name: '变更', enabled: true, deliveredCount: 0, filteredCount: 0 }],
     deliveredCount: 0,

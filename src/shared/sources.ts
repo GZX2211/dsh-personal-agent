@@ -137,6 +137,17 @@ export interface SourceThreadView {
   lastEventAt?: number
 }
 
+/**
+ * 来源的配置摘要：只带来源页要展示的部分。
+ *
+ * 不含脚本文本与哈希、也不含 ignore 模式——它们是实现细节，对「这个来源在盯什么」
+ * 没有帮助，却会把定义全文塞进每次轮询。
+ */
+export type SourceConfigView =
+  | { kind: 'host-event'; events: string[] }
+  | { kind: 'fs-watch'; paths: string[]; recursive: boolean; debounceMs?: number }
+  | { kind: 'script'; command: string }
+
 /** 来源页的一条感知来源卡片。 */
 export interface SourceView {
   id: string
@@ -144,6 +155,7 @@ export interface SourceView {
   description?: string
   enabled: boolean
   channelKind: ChannelKind
+  config: SourceConfigView
   /** 运行时状态；来自内存，不落账。 */
   status: SourceStatus
   lastError?: string

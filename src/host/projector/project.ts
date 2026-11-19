@@ -17,7 +17,12 @@ import type {
 import type { L2Event } from '../../shared/events.ts'
 import type { SignalView } from '../../shared/signals.ts'
 import { SIGNAL_VIEW_LIMIT } from '../../shared/signals.ts'
-import type { SourceDefinition, SourceSnapshot } from '../../shared/sources.ts'
+import type {
+  ChannelDefinition,
+  SourceConfigView,
+  SourceDefinition,
+  SourceSnapshot,
+} from '../../shared/sources.ts'
 import type { QueueReason, TicketOutcome, TicketStage, TicketView } from '../../shared/tickets.ts'
 import { shortTicketId } from '../../shared/tickets.ts'
 import {
@@ -433,6 +438,7 @@ function toSourceSnapshot(
     name: definition.name,
     enabled: definition.enabled,
     channelKind: definition.channel.kind,
+    config: toConfigView(definition.channel),
     threads: definition.threads.map(thread => {
       const counted = byThread?.get(thread.id)
       const threadView: SourceSnapshot['threads'][number] = {
@@ -451,6 +457,24 @@ function toSourceSnapshot(
   if (definition.description !== undefined) view.description = definition.description
   if (tally?.lastEventAt !== undefined) view.lastEventAt = tally.lastEventAt
   return view
+}
+
+/** 配置摘要：只保留「在盯什么」，脚本正文、哈希与忽略模式都不进快照。 */
+function toConfigView(channel: ChannelDefinition): SourceConfigView {
+  switch (channel.kind) {
+    case 'host-event':
+      return { kind: 'host-event', events: [...new Set(channel.subscriptions.map(item => item.event))] }
+    case 'fs-watch': {
+      const base = {
+        kind: 'fs-watch' as const,
+        paths: [...channel.paths],
+        recursive: channel.recursive ?? false,
+      }
+      return channel.debounceMs === undefined ? base : { ...base, debounceMs: channel.debounceMs }
+    }
+    case 'script':
+      return { kind: 'script', command: channel.command }
+  }
 }
 
 function sourceDefinitionsOf(sources: ReadonlyMap<string, SourceAccumulator>): Map<string, SourceDefinition> {
