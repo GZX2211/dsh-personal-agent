@@ -24,6 +24,7 @@ export const REQUEST_HEADER_VALUE = '1'
 export const ROUTES = {
   health: `${API_PREFIX}/health`,
   snapshot: `${API_PREFIX}/snapshot`,
+  signals: `${API_PREFIX}/signals`,
 } as const
 
 /** 审批决定端点的具体路径（带 approvalId）。 */
@@ -36,6 +37,59 @@ export const APPROVAL_DECIDE_PATTERN = new RegExp(
   `^${API_PREFIX}/approvals/([^/]+)/decide$`,
 )
 
+/**
+ * 来源操作端点：开关（可指定线程）、测试、删除。
+ *
+ * 三者都带 sourceId；sourceId 编码后进路径，因此它不能借斜杠改写路由。
+ */
+export function sourceTogglePath(sourceId: string): string {
+  return `${API_PREFIX}/sources/${encodeURIComponent(sourceId)}/toggle`
+}
+
+export const SOURCE_TOGGLE_PATTERN = new RegExp(`^${API_PREFIX}/sources/([^/]+)/toggle$`)
+
+export function sourceTestPath(sourceId: string): string {
+  return `${API_PREFIX}/sources/${encodeURIComponent(sourceId)}/test`
+}
+
+export const SOURCE_TEST_PATTERN = new RegExp(`^${API_PREFIX}/sources/([^/]+)/test$`)
+
+/** 删除没有子动作：路径就是来源本身。 */
+export function sourceRemovePath(sourceId: string): string {
+  return `${API_PREFIX}/sources/${encodeURIComponent(sourceId)}`
+}
+
+export const SOURCE_REMOVE_PATTERN = new RegExp(`^${API_PREFIX}/sources/([^/]+)$`)
+
+/** 信号查询的条数范围：默认值保护轮询，上限保护一次响应的大小。 */
+export const SIGNAL_QUERY_LIMIT = {
+  min: 1,
+  max: 500,
+  default: 200,
+} as const
+
+export interface SignalQuery {
+  /** 匹配 text / sourceName / threadName 的搜索文本；空白视同没有。 */
+  q?: string
+  /** 返回条数上限；越界时收敛到契约范围。 */
+  limit?: number
+}
+
+/** 从账本全量检索信号：搜索要覆盖快照 200 条之外的历史。 */
+export function signalQueryPath(query: SignalQuery = {}): string {
+  const params = new URLSearchParams()
+  const text = query.q?.trim()
+  if (text !== undefined && text.length > 0) params.set('q', text)
+  if (query.limit !== undefined) params.set('limit', String(clampLimit(query.limit)))
+  const search = params.toString()
+  return search.length === 0 ? ROUTES.signals : `${ROUTES.signals}?${search}`
+}
+
+function clampLimit(value: number): number {
+  if (!Number.isFinite(value)) return SIGNAL_QUERY_LIMIT.default
+  return Math.min(SIGNAL_QUERY_LIMIT.max, Math.max(SIGNAL_QUERY_LIMIT.min, Math.trunc(value)))
+}
+
 /** 稳定错误码：客户端按码分支，不吞错。 */
 export const ERROR_CODES = {
   notFound: 'not-found',
@@ -44,6 +98,9 @@ export const ERROR_CODES = {
   missingRequestHeader: 'missing-request-header',
   badRequest: 'bad-request',
   internal: 'internal',
+  sourceNotFound: 'source-not-found',
+  sourceInvalid: 'source-invalid',
+  sourceStartFailed: 'source-start-failed',
 } as const
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
@@ -105,6 +162,40 @@ export interface SnapshotResponse {
   sources: SourceView[]
   timers: TimerSourceView[]
   stats: SnapshotStats
+  /** router 会话；来源页「在对话中创建」用它聚焦那个会话。缺省时按钮不可用。 */
+  routerSessionId?: string
+}
+
+/** 一次全量信号检索的结果；`total` 是匹配总数，不受 `limit` 截断。 */
+export interface SignalQueryResponse {
+  signals: SignalView[]
+  total: number
+}
+
+/** 来源开关：带 `threadId` 时只切那一条线程。 */
+export interface SourceToggleRequest {
+  enabled: boolean
+  threadId?: string
+}
+
+export interface SourceToggleResponse {
+  ok: true
+  source: SourceView
+}
+
+/** 测试来源：`waitMs` 是 script 渠道收集输出的时间窗。 */
+export interface SourceTestRequest {
+  waitMs?: number
+}
+
+export interface SourceTestResponse {
+  ok: true
+  signals: SignalView[]
+}
+
+export interface SourceRemoveResponse {
+  ok: true
+  removed: boolean
 }
 
 /** 提交决定时的稳定失败码（方案 §9.4）；客户端按码给出具体文案。 */
