@@ -20,6 +20,9 @@ const MAX_REATTACH = 3
 const REATTACH_DELAY_MS = 1_000
 
 export function createFsWatchChannel(context: ChannelContext): ChannelRuntime {
+  /** 运行中的测试入口：生成本渠道的一条合成候选。 */
+  let probe: (() => void) | undefined
+
   return {
     start() {
       const channel = requireFsWatchChannel(context.channel)
@@ -41,8 +44,12 @@ export function createFsWatchChannel(context: ChannelContext): ChannelRuntime {
 
       for (const path of paths) attach(path, 0)
 
+      const firstPath = paths[0]
+      probe = firstPath === undefined ? undefined : () => emitFile({ file: firstPath, eventType: 'change' }, true)
+
       return () => {
         stopped = true
+        probe = undefined
         for (const watcher of watchers) watcher.close()
         watchers.clear()
         for (const timer of debounceTimers.values()) clearTimeout(timer)
@@ -105,7 +112,7 @@ export function createFsWatchChannel(context: ChannelContext): ChannelRuntime {
         emitFile(item)
       }
 
-      function emitFile(item: PendingFile): void {
+      function emitFile(item: PendingFile, synthetic = false): void {
         const stat = readStat(item.file)
         const event = resolveEvent(item.eventType, stat !== undefined)
         if (!allowed.has(event)) return
@@ -114,17 +121,21 @@ export function createFsWatchChannel(context: ChannelContext): ChannelRuntime {
         const normalized = item.file.replaceAll('\\', '/')
         const name = basename(item.file)
         const dir = dirname(item.file)
-        const externalId =
-          event === 'unlink'
+        // 合成候选每次都要走一遍投递：沿用真实键会让它与上次测试/真实事件撞去重。
+        const externalId = synthetic
+          ? `test:${normalized}:${now}`
+          : event === 'unlink'
             ? `${normalized}:unlink:${now}`
             : `${normalized}:${stat?.mtimeMs ?? 0}:${stat?.size ?? 0}`
         const state = event === 'unlink' ? `unlink:${now}` : `mtime:${stat?.mtimeMs ?? 0}`
-        const statement = renderTemplate(channel.statement ?? '{event} {path}', {
+        const rendered = renderTemplate(channel.statement ?? '{event} {path}', {
           event,
           path: item.file,
           name,
           dir,
         })
+        // 陈述里标明这是测试：Router 与事件页都能分辨它不是真实发生的事实。
+        const statement = synthetic ? `[test] ${rendered}` : rendered
         const facts = {
           event,
           path: item.file,
@@ -139,6 +150,9 @@ export function createFsWatchChannel(context: ChannelContext): ChannelRuntime {
           context.emit({ thread: thread.id, statement, externalId, at: now, state, facts })
         }
       }
+    },
+    probe() {
+      probe?.()
     },
   }
 }

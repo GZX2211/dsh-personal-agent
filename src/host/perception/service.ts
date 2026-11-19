@@ -11,6 +11,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SignalView } from '../../shared/signals.ts'
 import type {
   ChannelDefinition,
   SourceDefinition,
@@ -54,8 +55,21 @@ export interface PerceptionService {
   definitions(): readonly SourceDefinition[]
   create(raw: unknown): Promise<SourceView>
   update(raw: unknown): Promise<SourceView>
-  toggle(sourceId: string, enabled: boolean): Promise<SourceView>
+  /**
+   * 开关来源或单条线程。
+   *
+   * `threadId` 缺省时切整个来源；已开启但未运行的来源（启动失败）在再次开启时
+   * 重新启动——来源页的「重启」按钮就复用它。
+   */
+  toggle(sourceId: string, enabled: boolean, threadId?: string): Promise<SourceView>
   remove(sourceId: string): Promise<boolean>
+  /**
+   * 测试来源：真实投递一条测试候选，返回该来源最近的信号。
+   *
+   * fs-watch 注入合成候选；script 重启并在 `waitMs` 窗口内收集输出；host-event
+   * 不主动触发，只返回最近信号。
+   */
+  test(sourceId: string, waitMs?: number): Promise<SignalView[]>
 }
 
 export interface PerceptionServiceOptions {
@@ -73,7 +87,17 @@ interface RunningSource {
   stop: () => void
   status: 'running' | 'error'
   lastError?: string
+  /** 等当前候选队列处理完；测试用它确认合成候选已经走完过滤与投递。 */
+  drain: () => Promise<void>
+  /** 渠道自带的测试入口（fs-watch 注入合成候选）。 */
+  probe?: () => void
 }
+
+/** 测试时给脚本渠道的默认收集窗口。 */
+const DEFAULT_TEST_WAIT_MS = 1_500
+const MAX_TEST_WAIT_MS = 5_000
+/** 测试结果只回最近几条：它解释「这一下有没有通」，不是历史查询。 */
+const TEST_SIGNAL_LIMIT = 5
 
 export function createPerceptionService(options: PerceptionServiceOptions): PerceptionService {
   const now = options.now ?? Date.now
@@ -128,6 +152,7 @@ export function createPerceptionService(options: PerceptionServiceOptions): Perc
         stop: () => undefined,
         status: 'error',
         lastError: `不支持的渠道：${definition.channel.kind}`,
+        drain: () => Promise.resolve(),
       })
       return
     }
@@ -164,10 +189,21 @@ export function createPerceptionService(options: PerceptionServiceOptions): Perc
     }
 
     try {
-      const stopChannel = factory(context).start()
-      running.set(definition.id, { stop: stopChannel, status: 'running' })
+      const channelRuntime = factory(context)
+      const stopChannel = channelRuntime.start()
+      running.set(definition.id, {
+        stop: stopChannel,
+        status: 'running',
+        drain: () => queue,
+        ...(channelRuntime.probe === undefined ? {} : { probe: () => channelRuntime.probe?.() }),
+      })
     } catch (error) {
-      running.set(definition.id, { stop: () => undefined, status: 'error', lastError: describe(error) })
+      running.set(definition.id, {
+        stop: () => undefined,
+        status: 'error',
+        lastError: describe(error),
+        drain: () => queue,
+      })
     }
   }
 
@@ -259,6 +295,87 @@ export function createPerceptionService(options: PerceptionServiceOptions): Perc
     }
   }
 
+  function recentSignalsOf(sourceId: string): SignalView[] {
+    return options.store
+      .projection()
+      .signals.filter(signal => signal.sourceId === sourceId)
+      .slice(0, TEST_SIGNAL_LIMIT)
+  }
+
+  /** 开启且未运行时补一次启动；已运行则什么都不做。 */
+  function ensureRunning(definition: SourceDefinition): void {
+    const current = running.get(definition.id)
+    if (current !== undefined && current.status === 'running') return
+    stopSource(definition.id)
+    startSource(definition)
+  }
+
+  function toggleSource(sourceId: string, enabled: boolean, threadId?: string): SourceView {
+    const current = definitionOf(sourceId)
+    if (current === undefined) throw new PerceptionError(`来源不存在：${sourceId}`, 'source-not-found')
+
+    if (threadId !== undefined) {
+      const index = current.threads.findIndex(thread => thread.id === threadId)
+      if (index < 0) throw new PerceptionError(`来源里没有线程：${threadId}`, 'source-invalid')
+      if (current.threads[index]?.enabled === enabled) return viewOf(sourceId)
+      const threads = current.threads.map(thread =>
+        thread.id === threadId ? { ...thread, enabled } : thread,
+      )
+      updateSource({ ...current, threads, updatedAt: now() })
+      return viewOf(sourceId)
+    }
+
+    if (current.enabled === enabled) {
+      // 同一状态下的重复开启是「重启」：启动失败的来源需要一个重新启动的机会。
+      if (enabled) ensureRunning(current)
+      return viewOf(sourceId)
+    }
+
+    updateSource({ ...current, enabled, updatedAt: now() })
+    return viewOf(sourceId)
+  }
+
+  async function testSource(sourceId: string, waitMs?: number): Promise<SignalView[]> {
+    const definition = definitionOf(sourceId)
+    if (definition === undefined) {
+      throw new PerceptionError(`来源不存在：${sourceId}`, 'source-not-found')
+    }
+    if (!definition.enabled) {
+      throw new PerceptionError('来源已关闭，先打开再测试', 'source-invalid')
+    }
+
+    ensureRunning(definition)
+    const runtime = running.get(sourceId)
+    if (runtime === undefined || runtime.status !== 'running') {
+      throw new PerceptionError(runtime?.lastError ?? '来源未能启动', 'source-start-failed')
+    }
+
+    switch (definition.channel.kind) {
+      case 'fs-watch': {
+        runtime.probe?.()
+        await runtime.drain()
+        break
+      }
+      case 'script': {
+        // 脚本通常在启动时输出：不重启就测不到任何东西。
+        stopSource(sourceId)
+        startSource(definition)
+        const restarted = running.get(sourceId)
+        if (restarted === undefined || restarted.status !== 'running') {
+          throw new PerceptionError(restarted?.lastError ?? '来源未能启动', 'source-start-failed')
+        }
+        await sleep(clampTestWait(waitMs))
+        await restarted.drain()
+        break
+      }
+      case 'host-event':
+        // 不主动触发任何事件：测试只回它最近的信号。
+        break
+    }
+
+    return recentSignalsOf(sourceId)
+  }
+
   return {
     async start() {
       if (started) return
@@ -340,13 +457,12 @@ export function createPerceptionService(options: PerceptionServiceOptions): Perc
       return viewOf(sourceId)
     },
 
-    async toggle(sourceId, enabled) {
-      const current = definitionOf(sourceId)
-      if (current === undefined) throw new PerceptionError(`来源不存在：${sourceId}`, 'source-not-found')
-      if (current.enabled === enabled) return viewOf(sourceId)
+    async toggle(sourceId, enabled, threadId) {
+      return toggleSource(sourceId, enabled, threadId)
+    },
 
-      updateSource({ ...current, enabled, updatedAt: now() })
-      return viewOf(sourceId)
+    async test(sourceId, waitMs) {
+      return testSource(sourceId, waitMs)
     },
 
     async remove(sourceId) {
@@ -371,6 +487,15 @@ export function createPerceptionService(options: PerceptionServiceOptions): Perc
 
 function invalid(errors: readonly string[]): PerceptionError {
   return new PerceptionError(`来源参数不合法：\n${errors.join('\n')}`, 'source-invalid')
+}
+
+function clampTestWait(waitMs: number | undefined): number {
+  if (waitMs === undefined || !Number.isFinite(waitMs)) return DEFAULT_TEST_WAIT_MS
+  return Math.min(MAX_TEST_WAIT_MS, Math.max(0, Math.trunc(waitMs)))
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 function readSourceId(raw: unknown): string {

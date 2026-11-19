@@ -35,6 +35,13 @@ export interface ChannelContext {
 /** 一个 Channel 的运行体；`start` 失败应抛错，由服务把来源标记为 error。 */
 export interface ChannelRuntime {
   start(): () => void
+  /**
+   * 可选：注入一条合成候选，供来源页的「测试」用。
+   *
+   * 只产生候选，不改变渠道的长期状态；候选照常走过滤与投递，因此测试看到的
+   * 就是真实链路的结果。
+   */
+  probe?(): void
 }
 
 export type ChannelFactory = (context: ChannelContext) => ChannelRuntime

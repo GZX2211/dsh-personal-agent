@@ -20,6 +20,9 @@ export function perceptionStub(): PerceptionService {
     toggle: async () => {
       throw new Error('perception stub: toggle is not available in this test')
     },
+    test: async () => {
+      throw new Error('perception stub: test is not available in this test')
+    },
     remove: async () => false,
   }
 }

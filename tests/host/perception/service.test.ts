@@ -156,6 +156,16 @@ describe('toggle', () => {
   it('reports an unknown source', async () => {
     await expect(service.toggle('src-ghost', true)).rejects.toMatchObject({ code: 'source-not-found' })
   })
+
+  it('does not record a repeated switch to the same state', async () => {
+    const view = await service.create(watchInput())
+    await service.toggle(view.id, false)
+    const eventsBefore = store.events().length
+
+    await service.toggle(view.id, false)
+
+    expect(store.events()).toHaveLength(eventsBefore)
+  })
 })
 
 describe('update', () => {
@@ -312,6 +322,158 @@ describe('script storage', () => {
     if (updated?.channel.kind !== 'script') throw new Error('expected a script channel')
     expect(updated.channel.scriptHash).not.toBe(definition.channel.scriptHash)
     restarted.stop()
+  })
+})
+
+describe('thread toggle', () => {
+  it('stops only the thread that is switched off', async () => {
+    const view = await service.create({
+      name: '双线程来源',
+      channel: { kind: 'fs-watch', paths: [watchDirectory], debounceMs: 40 },
+      threads: [
+        { id: 'markdown', name: 'Markdown', enabled: true },
+        { id: 'logs', name: '日志', enabled: true },
+      ],
+    })
+
+    const updated = await service.toggle(view.id, false, 'logs')
+
+    expect(updated.threads.map(thread => [thread.id, thread.enabled])).toEqual([
+      ['markdown', true],
+      ['logs', false],
+    ])
+    expect(updated.enabled).toBe(true)
+
+    await writeFile(join(watchDirectory, 'note.md'), 'hello', 'utf8')
+    await vi.waitFor(() => expect(store.projection().signals.length).toBe(1), {
+      timeout: 3_000,
+      interval: 20,
+    })
+    expect(store.projection().signals.map(signal => signal.threadId)).toEqual(['markdown'])
+  })
+
+  it('reports an unknown thread', async () => {
+    const view = await service.create(watchInput())
+
+    await expect(service.toggle(view.id, false, 'ghost')).rejects.toMatchObject({
+      code: 'source-invalid',
+    })
+  })
+
+  it('does not record anything when the thread is already in that state', async () => {
+    const view = await service.create(watchInput())
+    const eventsBefore = store.events().length
+
+    const unchanged = await service.toggle(view.id, true, 'changes')
+
+    expect(unchanged.threads[0]?.enabled).toBe(true)
+    expect(store.events()).toHaveLength(eventsBefore)
+  })
+})
+
+describe('restart', () => {
+  it('starts an enabled source again after a failed start', async () => {
+    const view = await service.create(watchInput())
+    await service.toggle(view.id, false)
+    await rm(watchDirectory, { recursive: true, force: true })
+
+    const failed = await service.toggle(view.id, true)
+    expect(failed).toMatchObject({ enabled: true, status: 'error' })
+
+    await mkdir(watchDirectory, { recursive: true })
+    const restarted = await service.toggle(view.id, true)
+
+    expect(restarted).toMatchObject({ enabled: true, status: 'running' })
+    expect(restarted.lastError).toBeUndefined()
+    // 重启只动运行时：定义没变，账本不该多出一条事实。
+    expect(store.events().map(event => event.type)).toEqual([
+      'source/created',
+      'source/updated',
+      'source/updated',
+    ])
+  })
+})
+
+describe('test', () => {
+  it('delivers a synthetic fact for a file source', async () => {
+    const view = await service.create(watchInput())
+
+    const signals = await service.test(view.id)
+
+    expect(signals).toHaveLength(1)
+    expect(signals[0]).toMatchObject({
+      kind: 'perception',
+      delivered: true,
+      sourceId: view.id,
+      threadId: 'changes',
+    })
+    expect(signals[0]?.text).toContain('[test]')
+    expect(host.sessions.get(ROUTER)?.delivered).toHaveLength(1)
+  })
+
+  it('collects the output of a script source within the wait window', async () => {
+    const view = await service.create({
+      name: '脚本来源',
+      script:
+        'process.stdout.write(JSON.stringify({thread:"out",statement:"脚本说 "+Date.now(),externalId:String(Date.now())})+"\\n")\n',
+      channel: { kind: 'script', command: process.execPath, args: ['{script}'], restart: 'never' },
+      threads: [{ id: 'out', name: '输出', enabled: true }],
+    })
+
+    const signals = await service.test(view.id, 3_000)
+
+    expect(signals.length).toBeGreaterThan(0)
+    expect(signals[0]?.text).toMatch(/^脚本说 \d+$/)
+  })
+
+  it('reports the latest signals of a host-event source without firing it again', async () => {
+    const view = await service.create({
+      name: '事件来源',
+      channel: {
+        kind: 'host-event',
+        subscriptions: [{ event: 'task/closed', thread: 'closed', statement: '工单 {payload.ticketId} 结束' }],
+      },
+      threads: [{ id: 'closed', name: '关闭', enabled: true }],
+    })
+    store.append({
+      type: 'task/closed',
+      actor: 'system',
+      correlationId: 't-1',
+      payload: { ticketId: 't-1', outcome: 'completed' },
+    })
+    await vi.waitFor(() => expect(store.projection().signals.length).toBe(1), {
+      timeout: 3_000,
+      interval: 20,
+    })
+
+    const signals = await service.test(view.id)
+
+    expect(signals.map(signal => signal.text)).toEqual(['工单 t-1 结束'])
+    expect(store.projection().signals).toHaveLength(1)
+  })
+
+  it('rejects testing a switched-off source', async () => {
+    const view = await service.create({ ...watchInput(), enabled: false })
+
+    await expect(service.test(view.id)).rejects.toMatchObject({ code: 'source-invalid' })
+  })
+
+  it('reports an unknown source', async () => {
+    await expect(service.test('src-ghost')).rejects.toMatchObject({ code: 'source-not-found' })
+  })
+
+  it('reports a failed restart instead of returning an empty list', async () => {
+    const view = await service.create({
+      name: '会消失的脚本',
+      script: 'process.stdout.write("{\\"thread\\":\\"out\\",\\"statement\\":\\"OK\\"}\\n")\n',
+      channel: { kind: 'script', command: process.execPath, args: ['{script}'], restart: 'never' },
+      threads: [{ id: 'out', name: '输出', enabled: true }],
+    })
+    const definition = store.projection().sourceDefinitions.get(view.id)
+    if (definition?.channel.kind !== 'script') throw new Error('expected a script channel')
+    await rm(join(directory, definition.channel.scriptPath), { force: true })
+
+    await expect(service.test(view.id, 0)).rejects.toMatchObject({ code: 'source-start-failed' })
   })
 })
 
