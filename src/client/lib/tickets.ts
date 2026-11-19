@@ -1,12 +1,27 @@
 // src/client/lib/tickets.ts
 //
-// 工单页的纯展示逻辑：胶囊归属、副标签与词典键映射。不读环境。
+// 工单页的纯展示逻辑：顺序、胶囊归属、副标签与词典键映射。不读环境。
 
 import type { QueueReason, TicketOutcome, TicketStage, TicketView } from '../../shared/tickets.ts'
 import type { Dict } from '../i18n.ts'
 
 /** 工单页胶囊；`blocked` 归入进行中，不单独成胶囊（方案 §5.1）。 */
 export type TicketCapsule = 'queued' | 'running' | 'ended' | 'all'
+
+/**
+ * 工单页顺序：最新更新的在最上面。
+ *
+ * 工单卡片显示的就是 `updatedAt`，列表顺序与卡片上的时间一致才不让人困惑；
+ * 同一时刻回退到创建时间与 id，保证两次轮询之间不会抖动。
+ */
+export function sortTicketsNewestFirst(tickets: readonly TicketView[]): TicketView[] {
+  return [...tickets].sort(
+    (left, right) =>
+      right.updatedAt - left.updatedAt ||
+      right.createdAt - left.createdAt ||
+      left.id.localeCompare(right.id),
+  )
+}
 
 /** 工单卡片上的副标签；只有这两种，状态重复的信息不再做徽标。 */
 export type TicketTag = 'blocked' | 'interrupted'

@@ -1,7 +1,7 @@
 // tests/client/lib/tickets.test.ts
 //
-// 工单页的纯展示逻辑：胶囊归属（blocked 算进行中）与头部徽标
-// （一个状态徽标，阻塞中与已中断优先显示）。
+// 工单页的纯展示逻辑：胶囊归属（blocked 算进行中）、头部徽标
+// （一个状态徽标，阻塞中与已中断优先显示）与「最新在最上面」的顺序。
 
 import { describe, expect, it } from 'vitest'
 import type { TicketView } from '../../../src/shared/tickets.ts'
@@ -9,6 +9,7 @@ import {
   matchesTicketCapsule,
   outcomeKey,
   queueReasonKey,
+  sortTicketsNewestFirst,
   stageKey,
   ticketBadge,
   ticketTags,
@@ -95,5 +96,32 @@ describe('label keys', () => {
     expect(stageKey('blocked')).toBe('ticketStageBlocked')
     expect(queueReasonKey('capacity-full')).toBe('ticketQueueCapacityFull')
     expect(outcomeKey('failed')).toBe('ticketOutcomeFailed')
+  })
+})
+
+describe('sortTicketsNewestFirst', () => {
+  it('puts the most recently updated ticket first', () => {
+    const older = ticket({ id: 't-old', title: '旧', createdAt: NOW, updatedAt: NOW + 100 })
+    const newer = ticket({ id: 't-new', title: '新', createdAt: NOW - 1_000, updatedAt: NOW + 200 })
+
+    expect(sortTicketsNewestFirst([older, newer]).map(card => card.id)).toEqual(['t-new', 't-old'])
+  })
+
+  it('falls back to creation time, then id, so the order stays deterministic', () => {
+    const a = ticket({ id: 't-a', createdAt: NOW, updatedAt: NOW })
+    const b = ticket({ id: 't-b', createdAt: NOW + 10, updatedAt: NOW })
+    const c = ticket({ id: 't-c', createdAt: NOW + 10, updatedAt: NOW })
+
+    expect(sortTicketsNewestFirst([a, b, c]).map(card => card.id)).toEqual(['t-b', 't-c', 't-a'])
+  })
+
+  it('does not mutate the input list', () => {
+    const older = ticket({ id: 't-old', updatedAt: NOW })
+    const newer = ticket({ id: 't-new', updatedAt: NOW + 1 })
+    const input = [older, newer]
+
+    sortTicketsNewestFirst(input)
+
+    expect(input.map(card => card.id)).toEqual(['t-old', 't-new'])
   })
 })

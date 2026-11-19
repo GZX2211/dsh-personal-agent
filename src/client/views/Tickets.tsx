@@ -1,7 +1,7 @@
 // src/client/views/Tickets.tsx
 //
 // 工单页：胶囊（待处理 / 进行中 / 已结束 / 全部）+ 搜索；卡片与审批页同款，
-// 只是没有展开态与动作按钮。
+// 只是没有展开态与动作按钮。列表按最新更新排在最上面。
 
 import { AnimatedRows } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState, type ReactElement } from 'react'
@@ -10,7 +10,7 @@ import { FilterBar } from '../components/FilterBar.tsx'
 import { TicketCard } from '../components/TicketCard.tsx'
 import type { Translate } from '../i18n.ts'
 import { filterTickets } from '../lib/filter.ts'
-import { matchesTicketCapsule, type TicketCapsule } from '../lib/tickets.ts'
+import { matchesTicketCapsule, sortTicketsNewestFirst, type TicketCapsule } from '../lib/tickets.ts'
 
 const CAPSULES: readonly TicketCapsule[] = ['queued', 'running', 'ended', 'all']
 
@@ -27,8 +27,9 @@ export function Tickets({ t, language, snapshot, initialQuery }: TicketsProps): 
   const [query, setQuery] = useState(initialQuery ?? '')
 
   const tickets = snapshot?.tickets ?? []
-  const visible = filterTickets(tickets, capsule, query, { t, language })
-  const capsuleHasItems = tickets.some(ticket => matchesTicketCapsule(ticket, capsule))
+  const ordered = sortTicketsNewestFirst(tickets)
+  const visible = filterTickets(ordered, capsule, query, { t, language })
+  const capsuleHasItems = ordered.some(ticket => matchesTicketCapsule(ticket, capsule))
 
   return (
     <>
