@@ -76,6 +76,26 @@ export const zh = {
   ticketTagBlocked: '阻塞中',
   ticketTagInterrupted: '已中断',
 
+  sourceChannelHostEvent: '内部事件',
+  sourceChannelFsWatch: '本地文件',
+  sourceChannelScript: '脚本',
+  sourceStatusRunning: '运行中',
+  sourceStatusStopped: '已停止',
+  sourceStatusError: '错误',
+  sourcesThreadCount: '线程 {count}',
+  timerAfter: '倒计时',
+  timerEvery: '周期',
+  timerAt: '定时',
+  timerDaily: '每天',
+  timerWeekly: '每周',
+  timerCron: 'Cron',
+  timerRrule: '重复规则',
+  timeJustNow: '刚刚',
+  sourceErrorNotFound: '来源不存在或已删除',
+  sourceErrorInvalid: '来源参数不合法',
+  sourceErrorStartFailed: '来源启动失败',
+  sourceErrorUnknown: '操作失败，请稍后重试',
+
   decisionErrorAlreadyDecided: '这条审批已经处理过',
   decisionErrorNotFound: '审批不存在或已作废',
   decisionErrorWorkerArchived: '执行会话已归档，审批已作废',
@@ -86,8 +106,16 @@ export const zh = {
 
 export type Dict = typeof zh
 
-/** 组件拿到的翻译函数：键受词典约束，语言每次渲染都取自 locale 服务。 */
-export type Translate = (key: keyof Dict) => string
+/** 文案模板里的占位参数：`{count}` 这类花括号名字。 */
+export type TranslateParams = Readonly<Record<string, string | number>>
+
+/**
+ * 组件拿到的翻译函数：键受词典约束，语言每次渲染都取自 locale 服务。
+ *
+ * 带占位符的文案（如「线程 {count}」）用第二个参数填充；缺省值原样保留占位符，
+ * 让漏传参数在界面上可见，而不是静默变成空白。
+ */
+export type Translate = (key: keyof Dict, params?: TranslateParams) => string
 
 export const en: Dict = {
   consoleTitle: 'Console',
@@ -161,6 +189,26 @@ export const en: Dict = {
   ticketTagBlocked: 'Blocked',
   ticketTagInterrupted: 'Interrupted',
 
+  sourceChannelHostEvent: 'Host events',
+  sourceChannelFsWatch: 'Local files',
+  sourceChannelScript: 'Script',
+  sourceStatusRunning: 'Running',
+  sourceStatusStopped: 'Stopped',
+  sourceStatusError: 'Error',
+  sourcesThreadCount: 'Threads {count}',
+  timerAfter: 'Countdown',
+  timerEvery: 'Every',
+  timerAt: 'At',
+  timerDaily: 'Daily',
+  timerWeekly: 'Weekly',
+  timerCron: 'Cron',
+  timerRrule: 'Recurrence',
+  timeJustNow: 'just now',
+  sourceErrorNotFound: 'The source does not exist or was removed',
+  sourceErrorInvalid: 'The source arguments are invalid',
+  sourceErrorStartFailed: 'The source failed to start',
+  sourceErrorUnknown: 'The action failed, try again later',
+
   decisionErrorAlreadyDecided: 'This approval was already handled',
   decisionErrorNotFound: 'Approval not found or discarded',
   decisionErrorWorkerArchived: 'The worker session is archived; the approval was discarded',
@@ -176,7 +224,14 @@ export function text(language: string | null | undefined): Dict {
 /** 按语言码给出该语言的翻译函数。 */
 export function translateFor(language: string | null | undefined): Translate {
   const dict = text(language)
-  return key => dict[key]
+  return (key, params) => interpolate(dict[key], params)
+}
+
+function interpolate(template: string, params: TranslateParams | undefined): string {
+  if (params === undefined) return template
+  return template.replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in params ? String(params[name]) : match,
+  )
 }
 
 /** 从 locale 服务取值中提取语言码 */

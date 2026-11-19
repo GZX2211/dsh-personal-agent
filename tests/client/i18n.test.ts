@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { en, zh } from '../../src/client/i18n.ts'
+import { en, translateFor, zh } from '../../src/client/i18n.ts'
 
 const CLIENT_DIR = join(process.cwd(), 'src', 'client')
 const DICTIONARY_FILE = join(CLIENT_DIR, 'i18n.ts')
@@ -42,5 +42,22 @@ describe('i18n 词典', () => {
     const used = usedKeys(sourceFiles(CLIENT_DIR))
     const unused = Object.keys(zh).filter(key => !used.has(key))
     expect(unused).toEqual([])
+  })
+})
+
+describe('translateFor', () => {
+  it('fills template parameters', () => {
+    expect(translateFor('zh')('sourcesThreadCount', { count: 2 })).toBe('线程 2')
+    expect(translateFor('en')('sourcesThreadCount', { count: 2 })).toBe('Threads 2')
+  })
+
+  it('keeps a placeholder whose parameter is missing instead of blanking it', () => {
+    expect(translateFor('zh')('sourcesThreadCount')).toBe('线程 {count}')
+    expect(translateFor('zh')('sourcesThreadCount', {})).toBe('线程 {count}')
+  })
+
+  it('picks the dictionary by language prefix', () => {
+    expect(translateFor('zh-CN')('tabEvents')).toBe('事件')
+    expect(translateFor('en-US')('tabEvents')).toBe('Events')
   })
 })
