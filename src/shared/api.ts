@@ -5,6 +5,7 @@
 
 import type { ApprovalView, ApprovalDecisionKind, ApprovalTransport } from './approvals.ts'
 import type { SignalView } from './signals.ts'
+import type { SourceView, TimerSourceView } from './sources.ts'
 import type { TicketView } from './tickets.ts'
 
 /** 插件 HTTP 面挂载前缀；Host 以 prefix 路由注册，Client 以此为唯一网络入口。 */
@@ -94,11 +95,15 @@ export interface SnapshotStats {
  *
  * `signals` 只带最近 `SIGNAL_VIEW_LIMIT` 条：完整历史在账本里，检索历史走查询，
  * 而不是把整本账塞进每次轮询。
+ *
+ * `sources` 的运行时状态由感知服务在组装时补上；`timers` 来自官方调度器，只读。
  */
 export interface SnapshotResponse {
   tickets: TicketView[]
   approvals: ApprovalView[]
   signals: SignalView[]
+  sources: SourceView[]
+  timers: TimerSourceView[]
   stats: SnapshotStats
 }
 

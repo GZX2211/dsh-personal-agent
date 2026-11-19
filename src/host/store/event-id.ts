@@ -18,10 +18,16 @@ import type { EventDraft, EventType } from '../../shared/events.ts'
  *
  * 信号只按 `signalId` 定身份，不掺入到达时间、文本等观测细节：同一条消息被再次
  * 观察时这些细节都会变，掺进去幂等就失效了。决定同理——一条决定属于一条信号。
+ *
+ * `source/updated` 以整份定义参与身份：同一来源的每次变更都是新事实，而重复提交
+ * 一份完全相同的定义应当被幂等掉。
  */
 const KEY_FIELDS: Record<EventType, readonly string[]> = {
   'signal/received': ['signalId'],
   'decision/recorded': ['signalId'],
+  'source/created': ['sourceId'],
+  'source/updated': ['sourceId', 'definition'],
+  'source/removed': ['sourceId'],
   'task/queued': ['ticketId'],
   'task/dispatched': ['ticketId'],
   'task/interrupted': ['ticketId', 'turn', 'reason'],

@@ -13,6 +13,7 @@ import { createApprovalDecider } from './approvals/service.ts'
 import { createConsoleHandler } from './console-api/server.ts'
 import type { HostContext } from './context.ts'
 import { createScheduler } from './dispatcher/scheduler.ts'
+import { readTimerSourceViews } from './perception/timers.ts'
 import { PaRolesService } from './roles/index.ts'
 import { createAgentDecorator, decorateLiveWorkerSessions } from './sessions/decorate.ts'
 import { registerWorkerObserver } from './sessions/observer.ts'
@@ -151,7 +152,25 @@ export function apply(ctx: HostContext, config?: Config): void {
         origin,
         stateDir,
         startedAt,
-        snapshot: async () => (await ledger).projection(),
+        snapshot: async () => {
+          const store = await ledger
+          const projection = store.projection()
+          const timers = await readTimerSourceViews(
+            ctx.get('schedule'),
+            routerSessionId,
+            projection.sourceTallies,
+            message => logWarning(ctx, message),
+          )
+          return {
+            tickets: projection.tickets,
+            approvals: projection.approvals,
+            signals: projection.signals,
+            // 感知服务尚未装配时，来源确实没有运行时，如实报「已停止」。
+            sources: projection.sources.map(source => ({ ...source, status: 'stopped' as const })),
+            timers,
+            stats: projection.stats,
+          }
+        },
         decideApproval: async (approvalId, request) => (await decider).decide(approvalId, request),
       }),
     })

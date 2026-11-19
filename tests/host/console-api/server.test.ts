@@ -27,6 +27,8 @@ function emptySnapshot(): SnapshotResponse {
     tickets: [],
     approvals: [],
     signals: [],
+    sources: [],
+    timers: [],
     stats: {
       tickets: { queued: 0, running: 0, blocked: 0, ended: 0, total: 0 },
       approvals: { pending: 0, decided: 0 },

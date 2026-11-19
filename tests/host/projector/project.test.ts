@@ -20,6 +20,7 @@ import type {
   TaskResumedPayload,
 } from '../../../src/shared/events.ts'
 import { SIGNAL_VIEW_LIMIT } from '../../../src/shared/signals.ts'
+import type { SourceDefinition } from '../../../src/shared/sources.ts'
 import { project } from '../../../src/host/projector/project.ts'
 
 const BASE_TIME = 1_700_000_000_000
@@ -231,6 +232,8 @@ describe('project', () => {
       tickets: [],
       approvals: [],
       signals: [],
+      sources: [],
+      sourceTallies: new Map(),
       stats: {
         tickets: { queued: 0, running: 0, blocked: 0, ended: 0, total: 0 },
         approvals: { pending: 0, decided: 0 },
@@ -915,5 +918,157 @@ describe('signal projection', () => {
     expect(projection.signals[0]?.decision).toEqual(
       expect.objectContaining({ action: 'reply', inferred: true }),
     )
+  })
+})
+
+function sourceDefinition(overrides: Partial<SourceDefinition> = {}): SourceDefinition {
+  return {
+    id: 'src-1',
+    name: '本地文件',
+    enabled: true,
+    channel: { kind: 'fs-watch', paths: ['D:/tmp/a.txt'] },
+    threads: [
+      { id: 'th-changes', name: '变更', enabled: true },
+      { id: 'th-errors', name: '错误', enabled: false },
+    ],
+    createdAt: BASE_TIME + 1,
+    updatedAt: BASE_TIME + 1,
+    ...overrides,
+  }
+}
+
+function createdEvent(seq: number, definition = sourceDefinition()): L2Event {
+  return event(seq, 'source/created', { sourceId: definition.id, definition }, { correlationId: definition.id })
+}
+
+function updatedEvent(seq: number, definition = sourceDefinition()): L2Event {
+  return event(seq, 'source/updated', { sourceId: definition.id, definition }, { correlationId: definition.id })
+}
+
+function removedEvent(seq: number, sourceId = 'src-1'): L2Event {
+  return event(seq, 'source/removed', { sourceId }, { correlationId: sourceId })
+}
+
+function sourceSignal(
+  seq: number,
+  sourceId: string,
+  threadId: string,
+  payload: Partial<SignalReceivedPayload> = {},
+): L2Event {
+  const signalId = `s-${String(seq).padStart(10, '0')}`
+  return event(
+    seq,
+    'signal/received',
+    {
+      kind: 'perception',
+      delivered: true,
+      receivedAt: BASE_TIME + seq,
+      signalId,
+      sourceId,
+      threadId,
+      text: `感知 ${seq}`,
+      ...payload,
+    },
+    { correlationId: signalId },
+  )
+}
+
+describe('source projection', () => {
+  it('projects a created source with its channel and threads', () => {
+    const projection = project([createdEvent(1)])
+
+    expect(projection.sources).toEqual([
+      {
+        id: 'src-1',
+        name: '本地文件',
+        enabled: true,
+        channelKind: 'fs-watch',
+        threads: [
+          { id: 'th-changes', name: '变更', enabled: true, deliveredCount: 0, filteredCount: 0 },
+          { id: 'th-errors', name: '错误', enabled: false, deliveredCount: 0, filteredCount: 0 },
+        ],
+        deliveredCount: 0,
+        filteredCount: 0,
+      },
+    ])
+  })
+
+  it('folds an update onto the existing source', () => {
+    const projection = project([
+      createdEvent(1),
+      updatedEvent(2, sourceDefinition({ name: '改名后的来源', description: '盯一个文件' })),
+    ])
+
+    expect(projection.sources[0]).toMatchObject({ id: 'src-1', name: '改名后的来源', description: '盯一个文件' })
+    expect(projection.sources).toHaveLength(1)
+  })
+
+  it('keeps the first definition when the same source is created twice', () => {
+    const projection = project([
+      createdEvent(1),
+      createdEvent(2, sourceDefinition({ name: '第二次创建' })),
+    ])
+
+    expect(projection.sources[0]?.name).toBe('本地文件')
+  })
+
+  it('ignores an update for a source that was never created', () => {
+    const projection = project([updatedEvent(1, sourceDefinition({ id: 'src-ghost' }))])
+
+    expect(projection.sources).toEqual([])
+  })
+
+  it('hides a removed source and does not resurrect it by a later update', () => {
+    const projection = project([
+      createdEvent(1),
+      updatedEvent(2, sourceDefinition({ name: '删除前' })),
+      removedEvent(3),
+      updatedEvent(4, sourceDefinition({ name: '删除后' })),
+    ])
+
+    expect(projection.sources).toEqual([])
+  })
+
+  it('orders sources by creation time', () => {
+    const projection = project([
+      createdEvent(1, sourceDefinition({ id: 'src-late', createdAt: BASE_TIME + 300 })),
+      createdEvent(2, sourceDefinition({ id: 'src-early', createdAt: BASE_TIME + 100 })),
+    ])
+
+    expect(projection.sources.map(source => source.id)).toEqual(['src-early', 'src-late'])
+  })
+
+  it('counts delivered and filtered signals per source and per thread', () => {
+    const projection = project([
+      createdEvent(1),
+      sourceSignal(2, 'src-1', 'th-changes'),
+      sourceSignal(3, 'src-1', 'th-changes', { delivered: false, rule: 'min-gap' }),
+      sourceSignal(4, 'src-1', 'th-errors'),
+    ])
+
+    expect(projection.sources[0]).toMatchObject({
+      deliveredCount: 2,
+      filteredCount: 1,
+      lastEventAt: BASE_TIME + 4,
+      threads: [
+        { id: 'th-changes', deliveredCount: 1, filteredCount: 1, lastEventAt: BASE_TIME + 3 },
+        { id: 'th-errors', deliveredCount: 1, filteredCount: 0, lastEventAt: BASE_TIME + 4 },
+      ],
+    })
+    expect(projection.sourceTallies.get('src-1')).toEqual({
+      delivered: 2,
+      filtered: 1,
+      lastEventAt: BASE_TIME + 4,
+      lastDeliveredAt: BASE_TIME + 4,
+    })
+  })
+
+  it('ignores signals of sources that no longer exist', () => {
+    const projection = project([createdEvent(1), sourceSignal(2, 'src-1', 'th-changes'), removedEvent(3)])
+
+    expect(projection.sources).toEqual([])
+    // 信号事实仍在（事件页要能解释它从哪来），只是来源不再出现在来源页。
+    expect(projection.signals).toHaveLength(1)
+    expect(projection.sourceTallies.get('src-1')?.delivered).toBe(1)
   })
 })

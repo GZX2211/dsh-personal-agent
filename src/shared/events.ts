@@ -9,6 +9,7 @@ import type {
   ApprovalRisk,
   ApprovalTransport,
 } from './approvals.ts'
+import type { SourceDefinition } from './sources.ts'
 import type { QueueReason, TicketOutcome } from './tickets.ts'
 
 /**
@@ -20,6 +21,9 @@ import type { QueueReason, TicketOutcome } from './tickets.ts'
 export const EVENT_TYPES = {
   signalReceived: 'signal/received',
   decisionRecorded: 'decision/recorded',
+  sourceCreated: 'source/created',
+  sourceUpdated: 'source/updated',
+  sourceRemoved: 'source/removed',
   taskQueued: 'task/queued',
   taskDispatched: 'task/dispatched',
   taskInterrupted: 'task/interrupted',
@@ -137,6 +141,21 @@ export interface DecisionRecordedPayload {
   reason?: string
 }
 
+/** `source/updated` 同时承载定义变更、来源开关与线程开关：投影只折叠最后一条。 */
+export interface SourceCreatedPayload {
+  sourceId: string
+  definition: SourceDefinition
+}
+
+export interface SourceUpdatedPayload {
+  sourceId: string
+  definition: SourceDefinition
+}
+
+export interface SourceRemovedPayload {
+  sourceId: string
+}
+
 export interface TaskQueuedPayload {
   ticketId: string
   title: string
@@ -219,6 +238,9 @@ export interface ApprovalDiscardedPayload {
 
 export type SignalReceivedEvent = EventEnvelope<typeof EVENT_TYPES.signalReceived, SignalReceivedPayload>
 export type DecisionRecordedEvent = EventEnvelope<typeof EVENT_TYPES.decisionRecorded, DecisionRecordedPayload>
+export type SourceCreatedEvent = EventEnvelope<typeof EVENT_TYPES.sourceCreated, SourceCreatedPayload>
+export type SourceUpdatedEvent = EventEnvelope<typeof EVENT_TYPES.sourceUpdated, SourceUpdatedPayload>
+export type SourceRemovedEvent = EventEnvelope<typeof EVENT_TYPES.sourceRemoved, SourceRemovedPayload>
 export type TaskQueuedEvent = EventEnvelope<typeof EVENT_TYPES.taskQueued, TaskQueuedPayload>
 export type TaskDispatchedEvent = EventEnvelope<typeof EVENT_TYPES.taskDispatched, TaskDispatchedPayload>
 export type TaskInterruptedEvent = EventEnvelope<typeof EVENT_TYPES.taskInterrupted, TaskInterruptedPayload>
@@ -233,6 +255,9 @@ export type ApprovalDiscardedEvent = EventEnvelope<typeof EVENT_TYPES.approvalDi
 export type L2Event =
   | SignalReceivedEvent
   | DecisionRecordedEvent
+  | SourceCreatedEvent
+  | SourceUpdatedEvent
+  | SourceRemovedEvent
   | TaskQueuedEvent
   | TaskDispatchedEvent
   | TaskInterruptedEvent

@@ -18,6 +18,7 @@ import {
   TASK_MODES,
   type EventType,
 } from '../../shared/events.ts'
+import { CHANNEL_KINDS } from '../../shared/sources.ts'
 import { QUEUE_REASONS, TICKET_OUTCOMES } from '../../shared/tickets.ts'
 
 type FieldRule =
@@ -28,6 +29,7 @@ type FieldRule =
   | { type: 'strings' }
   | { type: 'options' }
   | { type: 'decision' }
+  | { type: 'source-definition' }
 
 interface PayloadSpec {
   required: Record<string, FieldRule>
@@ -69,6 +71,15 @@ const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
       signalId: { type: 'string' },
     },
     optional: { inferred: { type: 'boolean' }, reason: { type: 'string' }, ticketId: { type: 'string' } },
+  },
+  [EVENT_TYPES.sourceCreated]: {
+    required: { sourceId: { type: 'string' }, definition: { type: 'source-definition' } },
+  },
+  [EVENT_TYPES.sourceUpdated]: {
+    required: { sourceId: { type: 'string' }, definition: { type: 'source-definition' } },
+  },
+  [EVENT_TYPES.sourceRemoved]: {
+    required: { sourceId: { type: 'string' } },
   },
   [EVENT_TYPES.taskQueued]: {
     required: {
@@ -185,6 +196,8 @@ function matches(value: unknown, rule: FieldRule): boolean {
       )
     case 'decision':
       return isApprovalDecisionRecord(value)
+    case 'source-definition':
+      return isSourceDefinitionRecord(value)
   }
 }
 
@@ -198,6 +211,8 @@ function expectation(rule: FieldRule): string {
       return 'must be a non-empty array of { label, description }'
     case 'decision':
       return 'must be an approval decision'
+    case 'source-definition':
+      return 'must be a source definition'
     default:
       return `must be a ${rule.type}`
   }
@@ -225,6 +240,23 @@ export function isApprovalDecisionRecord(value: unknown): boolean {
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * 来源定义的浅校验：只判断「还能被读回来」。
+ *
+ * 业务规则（上限、枚举、路径合法性）由感知服务在写入前校验；这里拒绝的是结构本身
+ * 已经坏掉的行，那样投影无从折叠，也不该算作合法历史。
+ */
+function isSourceDefinitionRecord(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  if (typeof value.id !== 'string' || value.id.length === 0) return false
+  if (typeof value.name !== 'string' || value.name.length === 0) return false
+  if (typeof value.enabled !== 'boolean') return false
+  if (typeof value.createdAt !== 'number' || typeof value.updatedAt !== 'number') return false
+  if (!Array.isArray(value.threads)) return false
+  if (!isRecord(value.channel)) return false
+  return isOneOf(value.channel.kind, CHANNEL_KINDS)
 }
 
 function isOneOf<T extends string>(value: unknown, values: readonly T[]): value is T {

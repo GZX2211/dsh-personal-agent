@@ -67,8 +67,8 @@ function eventAt<P extends object, T extends L2Event['type']>(seq: number, type:
 }
 
 /**
- * 覆盖契约里全部 11 类事件的合法账本（含两类预留事件）：契约新增字段或改必填时，
- * 这条测试先坏。
+ * 覆盖契约里全部 14 类事件的合法账本（含信号、决定与来源三类）：契约新增字段或
+ * 改必填时，这条测试先坏。
  */
 function fullLedger(): L2Event[] {
   return [
@@ -114,7 +114,25 @@ function fullLedger(): L2Event[] {
     }),
     eventAt(10, 'task/interrupted', { ticketId: TICKET_ID, turn: 2, reason: 'turn-aborted' }),
     eventAt(11, 'task/resumed', { ticketId: TICKET_ID, turn: 3 }),
+    eventAt(12, 'source/created', { sourceId: 'src-1', definition: sourceDefinition() }),
+    eventAt(13, 'source/updated', {
+      sourceId: 'src-1',
+      definition: { ...sourceDefinition(), enabled: false, updatedAt: 1_700_000_000_013 },
+    }),
+    eventAt(14, 'source/removed', { sourceId: 'src-1' }),
   ]
+}
+
+function sourceDefinition() {
+  return {
+    id: 'src-1',
+    name: '本地文件',
+    enabled: true,
+    channel: { kind: 'fs-watch', paths: ['D:/tmp/a.txt'] },
+    threads: [{ id: 'th-1', name: '变更', enabled: true }],
+    createdAt: 1_700_000_000_012,
+    updatedAt: 1_700_000_000_012,
+  }
 }
 
 describe('replayLedger', () => {
@@ -258,7 +276,7 @@ describe('replayLedger', () => {
     const result = replayLedger(ledgerBytes(...ledger.map(event => encodeLedgerLine(event))))
 
     expect(result.events).toEqual(ledger)
-    expect(result.lastSeq).toBe(11)
+    expect(result.lastSeq).toBe(14)
     expect(result.warnings).toEqual([])
   })
 
@@ -297,5 +315,28 @@ describe('replayLedger', () => {
     const broken = { ...queuedEvent(1), payload: { ...queuedEvent(1).payload, mode: 'later' } }
 
     expect(() => replayLedger(ledgerBytes(`${JSON.stringify(broken)}\n`))).toThrow(/line 1.*mode/i)
+  })
+
+  it('rejects a source definition that cannot be read back', () => {
+    const created = fullLedger().find(event => event.type === 'source/created')
+    if (created === undefined) throw new Error('source/created missing')
+    const broken = { ...created, seq: 1, payload: { sourceId: 'src-1', definition: { id: 'src-1' } } }
+
+    expect(() => replayLedger(ledgerBytes(`${JSON.stringify(broken)}\n`))).toThrow(/payload.definition/i)
+  })
+
+  it('rejects a source definition whose channel kind is unknown', () => {
+    const created = fullLedger().find(event => event.type === 'source/created')
+    if (created === undefined) throw new Error('source/created missing')
+    const broken = {
+      ...created,
+      seq: 1,
+      payload: {
+        sourceId: 'src-1',
+        definition: { ...sourceDefinition(), channel: { kind: 'webhook' } },
+      },
+    }
+
+    expect(() => replayLedger(ledgerBytes(`${JSON.stringify(broken)}\n`))).toThrow(/payload.definition/i)
   })
 })
