@@ -80,12 +80,13 @@ export function signalQueryPath(query: SignalQuery = {}): string {
   const params = new URLSearchParams()
   const text = query.q?.trim()
   if (text !== undefined && text.length > 0) params.set('q', text)
-  if (query.limit !== undefined) params.set('limit', String(clampLimit(query.limit)))
+  if (query.limit !== undefined) params.set('limit', String(clampSignalLimit(query.limit)))
   const search = params.toString()
   return search.length === 0 ? ROUTES.signals : `${ROUTES.signals}?${search}`
 }
 
-function clampLimit(value: number): number {
+/** 把任意输入收敛到契约范围：越界与非有限值都不该改变响应的大小承诺。 */
+export function clampSignalLimit(value: number): number {
   if (!Number.isFinite(value)) return SIGNAL_QUERY_LIMIT.default
   return Math.min(SIGNAL_QUERY_LIMIT.max, Math.max(SIGNAL_QUERY_LIMIT.min, Math.trunc(value)))
 }

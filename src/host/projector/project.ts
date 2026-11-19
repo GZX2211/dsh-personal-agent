@@ -14,12 +14,17 @@ import type {
   SnapshotStats,
   TicketStats,
 } from '../../shared/api.ts'
-import type { L2Event, SignalKind } from '../../shared/events.ts'
-import type { SignalDecisionView, SignalView } from '../../shared/signals.ts'
+import type { L2Event } from '../../shared/events.ts'
+import type { SignalView } from '../../shared/signals.ts'
 import { SIGNAL_VIEW_LIMIT } from '../../shared/signals.ts'
 import type { SourceDefinition, SourceSnapshot } from '../../shared/sources.ts'
 import type { QueueReason, TicketOutcome, TicketStage, TicketView } from '../../shared/tickets.ts'
 import { shortTicketId } from '../../shared/tickets.ts'
+import {
+  applySignalEvent,
+  toSignalViews,
+  type SignalAccumulator,
+} from './signal-query.ts'
 
 /**
  * 账本投影：总控台一次刷新所需的派生状态。
@@ -76,24 +81,6 @@ interface ApprovalAccumulator {
   discarded: boolean
 }
 
-interface SignalAccumulator {
-  signalId: string
-  kind: SignalKind
-  receivedAt: number
-  delivered: boolean
-  rule?: string
-  sourceId?: string
-  sourceName?: string
-  threadId?: string
-  threadName?: string
-  externalId?: string
-  text: string
-  messageId?: string
-  decision?: SignalDecisionView
-  /** 决定所属的账本序号：同一信号被记了多条决定时，后写的赢。 */
-  decisionSeq?: number
-}
-
 interface SourceAccumulator {
   definition: SourceDefinition
   /** 已删除的来源不再出现在视图里；它的历史信号仍以 sourceId 作为坐标。 */
@@ -127,8 +114,9 @@ export function project(events: readonly L2Event[]): Projection {
   const signals = new Map<string, SignalAccumulator>()
   const sources = new Map<string, SourceAccumulator>()
 
-  for (const event of [...events].sort((left, right) => left.seq - right.seq)) {
-    applyEvent(tickets, approvals, signals, sources, event)
+  for (const event of orderedBySeq(events)) {
+    applySignalEvent(signals, event)
+    applyDomainEvent(tickets, approvals, sources, event)
   }
 
   const pendingTickets = new Set<string>()
@@ -157,7 +145,7 @@ export function project(events: readonly L2Event[]): Projection {
   return {
     tickets: ticketViews,
     approvals: [...pendingApprovals, ...decidedApprovals].map(toApprovalView),
-    signals: toSignalViews(signals),
+    signals: toSignalViews(signals, SIGNAL_VIEW_LIMIT),
     sources: toSourceSnapshots(sources, tallies),
     sourceTallies: tallies.sources,
     sourceDefinitions: sourceDefinitionsOf(sources),
@@ -165,10 +153,30 @@ export function project(events: readonly L2Event[]): Projection {
   }
 }
 
-function applyEvent(
+/**
+ * 全量信号投影：事件页搜索用它翻历史，快照只取其中最近一段。
+ *
+ * 与 `project()` 共用同一套折叠规则（`applySignalEvent`），因此两处的结局与去重
+ * 口径不会走散。
+ */
+export function projectSignals(events: readonly L2Event[]): SignalView[] {
+  const signals = new Map<string, SignalAccumulator>()
+  for (const event of orderedBySeq(events)) applySignalEvent(signals, event)
+  return toSignalViews(signals)
+}
+
+/**
+ * 输入可能乱序（重放、调用方拼接），投影先按 `seq` 稳定排序。
+ *
+ * 阶段由序列先后决定，不由墙钟决定；时间戳只用于展示。
+ */
+function orderedBySeq(events: readonly L2Event[]): L2Event[] {
+  return [...events].sort((left, right) => left.seq - right.seq)
+}
+
+function applyDomainEvent(
   tickets: Map<string, TicketAccumulator>,
   approvals: Map<string, ApprovalAccumulator>,
-  signals: Map<string, SignalAccumulator>,
   sources: Map<string, SourceAccumulator>,
   event: L2Event,
 ): void {
@@ -303,39 +311,6 @@ function applyEvent(
       approval.discarded = true
       return
     }
-    case 'signal/received': {
-      // 同一 signalId 只建立一次：重放的同一条事实不改写已记录的身份与时刻。
-      if (signals.has(event.payload.signalId)) return
-      signals.set(event.payload.signalId, {
-        signalId: event.payload.signalId,
-        kind: event.payload.kind,
-        receivedAt: event.payload.receivedAt,
-        delivered: event.payload.delivered,
-        rule: event.payload.rule,
-        sourceId: event.payload.sourceId,
-        sourceName: event.payload.sourceName,
-        threadId: event.payload.threadId,
-        threadName: event.payload.threadName,
-        externalId: event.payload.externalId,
-        text: event.payload.text ?? '',
-        messageId: event.payload.messageId,
-      })
-      return
-    }
-    case 'decision/recorded': {
-      const signal = signals.get(event.payload.signalId)
-      // 没有信号的决定是孤儿：它解释不了任何一次输入，投影不凭空造一条信号。
-      if (signal === undefined) return
-      if (signal.decisionSeq !== undefined && signal.decisionSeq > event.seq) return
-      signal.decision = {
-        action: event.payload.action,
-        ...(event.payload.ticketId === undefined ? {} : { ticketId: event.payload.ticketId }),
-        ...(event.payload.inferred === undefined ? {} : { inferred: event.payload.inferred }),
-        at: event.time,
-      }
-      signal.decisionSeq = event.seq
-      return
-    }
   }
 }
 
@@ -385,36 +360,6 @@ function toApprovalView(approval: ApprovalAccumulator): ApprovalView {
   if (approval.risk !== undefined) view.risk = approval.risk
   if (approval.decidedAt !== undefined) view.decidedAt = approval.decidedAt
   if (approval.decision !== undefined) view.decision = approval.decision
-  return view
-}
-
-function toSignalViews(signals: Map<string, SignalAccumulator>): SignalView[] {
-  // 视图只带最近一段；统计仍按全部信号算，历史事实不因展示截断而消失。
-  return [...signals.values()]
-    .sort(
-      (left, right) =>
-        right.receivedAt - left.receivedAt || right.signalId.localeCompare(left.signalId),
-    )
-    .slice(0, SIGNAL_VIEW_LIMIT)
-    .map(toSignalView)
-}
-
-function toSignalView(signal: SignalAccumulator): SignalView {
-  const view: SignalView = {
-    signalId: signal.signalId,
-    kind: signal.kind,
-    receivedAt: signal.receivedAt,
-    delivered: signal.delivered,
-    text: signal.text,
-  }
-  if (signal.rule !== undefined) view.rule = signal.rule
-  if (signal.sourceId !== undefined) view.sourceId = signal.sourceId
-  if (signal.sourceName !== undefined) view.sourceName = signal.sourceName
-  if (signal.threadId !== undefined) view.threadId = signal.threadId
-  if (signal.threadName !== undefined) view.threadName = signal.threadName
-  if (signal.externalId !== undefined) view.externalId = signal.externalId
-  if (signal.messageId !== undefined) view.messageId = signal.messageId
-  if (signal.decision !== undefined) view.decision = signal.decision
   return view
 }
 
