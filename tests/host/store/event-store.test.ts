@@ -59,12 +59,20 @@ function dispatchedDraft(ticketId = TICKET_ID): EventDraft {
   }
 }
 
-function signalDraft(receivedAt = 1): EventDraft {
+/** 用同一个种子决定身份与到达时间：同一账本里的多次追加必须是不同的事实。 */
+function signalDraft(seed = 1): EventDraft {
+  const signalId = `s-${String(seed).padStart(10, '0')}`
   return {
     type: 'signal/received',
     actor: 'system',
-    correlationId: 'corr-1',
-    payload: { kind: 'user-message', delivered: true, receivedAt, text: '你好' },
+    correlationId: signalId,
+    payload: {
+      kind: 'user-message',
+      delivered: true,
+      receivedAt: seed,
+      signalId,
+      text: '你好',
+    },
   }
 }
 
@@ -148,7 +156,12 @@ describe('EventStore', () => {
       time: 1_700_000_000_000,
       actor: 'system',
       correlationId: 'corr-1',
-      payload: { kind: 'user-message', delivered: true, receivedAt: 1_700_000_000_000 },
+      payload: {
+        kind: 'user-message',
+        delivered: true,
+        receivedAt: 1_700_000_000_000,
+        signalId: 's-bbbbbbbbbb',
+      },
     })
     await writeFile(ledgerPath(), `${complete}{"seq":2,"eventId":`, 'utf8')
     const warnings: string[] = []

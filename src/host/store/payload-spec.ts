@@ -40,9 +40,9 @@ interface PayloadSpec {
  * 新增载荷字段必须可选：旧账本行不会被重写，把新字段设为必填会让历史账本
  * 在升级后变成「损坏」。
  *
- * `signal/received` 与 `decision/recorded` 两类是预留事件（当前无写入方），
- * 校验规则仍然登记：只有表覆盖全部 `EventType`，读取侧才能对任意历史账本行
- * 给出确定判断。
+ * `signalId` 是例外：`signal/received` 与 `decision/recorded` 在引入 `signalId`
+ * 之前从未有过写入方，历史账本里不存在按旧形状写下的这类行，因此它可以必填。
+ * 读取侧仍然拒绝「有信号无身份」的行——那是一条无法关联到任何决定的事实。
  */
 const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
   [EVENT_TYPES.signalReceived]: {
@@ -50,16 +50,24 @@ const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
       kind: { type: 'enum', values: SIGNAL_KINDS },
       delivered: { type: 'boolean' },
       receivedAt: { type: 'number' },
+      signalId: { type: 'string' },
     },
     optional: {
       sourceId: { type: 'string' },
+      sourceName: { type: 'string' },
+      threadId: { type: 'string' },
+      threadName: { type: 'string' },
       externalId: { type: 'string' },
       text: { type: 'string' },
       rule: { type: 'string' },
+      messageId: { type: 'string' },
     },
   },
   [EVENT_TYPES.decisionRecorded]: {
-    required: { action: { type: 'enum', values: DECISION_ACTIONS } },
+    required: {
+      action: { type: 'enum', values: DECISION_ACTIONS },
+      signalId: { type: 'string' },
+    },
     optional: { inferred: { type: 'boolean' }, reason: { type: 'string' }, ticketId: { type: 'string' } },
   },
   [EVENT_TYPES.taskQueued]: {

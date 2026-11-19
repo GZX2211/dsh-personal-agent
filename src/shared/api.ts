@@ -4,6 +4,7 @@
 // Host 与 Client 共用，调用点不得硬编码这些字面量。
 
 import type { ApprovalView, ApprovalDecisionKind, ApprovalTransport } from './approvals.ts'
+import type { SignalView } from './signals.ts'
 import type { TicketView } from './tickets.ts'
 
 /** 插件 HTTP 面挂载前缀；Host 以 prefix 路由注册，Client 以此为唯一网络入口。 */
@@ -75,15 +76,29 @@ export interface ApprovalStats {
   decided: number
 }
 
+/** 信号按「是否投递」分计；`total` 是全部信号数而不是某类数。 */
+export interface SignalStats {
+  delivered: number
+  filtered: number
+  total: number
+}
+
 export interface SnapshotStats {
   tickets: TicketStats
   approvals: ApprovalStats
+  signals: SignalStats
 }
 
-/** 总控台一次刷新所需的全部派生状态；作废审批不出现在任何列表里。 */
+/**
+ * 总控台一次刷新所需的全部派生状态；作废审批不出现在任何列表里。
+ *
+ * `signals` 只带最近 `SIGNAL_VIEW_LIMIT` 条：完整历史在账本里，检索历史走查询，
+ * 而不是把整本账塞进每次轮询。
+ */
 export interface SnapshotResponse {
   tickets: TicketView[]
   approvals: ApprovalView[]
+  signals: SignalView[]
   stats: SnapshotStats
 }
 

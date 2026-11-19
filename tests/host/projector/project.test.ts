@@ -8,8 +8,10 @@ import type {
   ApprovalDecidedPayload,
   ApprovalDiscardedPayload,
   ApprovalPendingPayload,
+  DecisionRecordedPayload,
   EventActor,
   L2Event,
+  SignalReceivedPayload,
   TaskClosedPayload,
   TaskDispatchedPayload,
   TaskInterruptedPayload,
@@ -17,6 +19,7 @@ import type {
   TaskReportedPayload,
   TaskResumedPayload,
 } from '../../../src/shared/events.ts'
+import { SIGNAL_VIEW_LIMIT } from '../../../src/shared/signals.ts'
 import { project } from '../../../src/host/projector/project.ts'
 
 const BASE_TIME = 1_700_000_000_000
@@ -126,6 +129,41 @@ function closedEvent(
   )
 }
 
+function signalEvent(
+  seq: number,
+  signalId: string,
+  payload: Partial<SignalReceivedPayload> = {},
+  extra: EnvelopeExtra = {},
+): L2Event {
+  return event(
+    seq,
+    'signal/received',
+    {
+      kind: 'user-message',
+      delivered: true,
+      receivedAt: BASE_TIME + seq,
+      signalId,
+      text: `信号 ${signalId}`,
+      ...payload,
+    },
+    { correlationId: signalId, ...extra },
+  )
+}
+
+function decisionEvent(
+  seq: number,
+  signalId: string,
+  payload: Partial<DecisionRecordedPayload> = {},
+  extra: EnvelopeExtra = {},
+): L2Event {
+  return event(
+    seq,
+    'decision/recorded',
+    { action: 'reply', signalId, ...payload },
+    { correlationId: signalId, ...extra },
+  )
+}
+
 function pendingEvent(
   seq: number,
   approvalId: string,
@@ -192,9 +230,11 @@ describe('project', () => {
     expect(projection).toEqual({
       tickets: [],
       approvals: [],
+      signals: [],
       stats: {
         tickets: { queued: 0, running: 0, blocked: 0, ended: 0, total: 0 },
         approvals: { pending: 0, decided: 0 },
+        signals: { delivered: 0, filtered: 0, total: 0 },
       },
     })
   })
@@ -436,21 +476,17 @@ describe('project', () => {
     expect(projection.stats).toEqual({
       tickets: { queued: 1, running: 1, blocked: 1, ended: 1, total: 4 },
       approvals: { pending: 1, decided: 1 },
+      signals: { delivered: 0, filtered: 0, total: 0 },
     })
   })
 
-  it('does not project from signal or decision events', () => {
-    const projection = project([
-      event(1, 'signal/received', { kind: 'user-message', delivered: true, receivedAt: BASE_TIME }),
-      event(2, 'decision/recorded', { action: 'reply', inferred: true }),
-    ])
+  it('keeps signals out of the ticket and approval views', () => {
+    const projection = project([signalEvent(1, 's-aaaa'), decisionEvent(2, 's-aaaa')])
 
     expect(projection.tickets).toEqual([])
     expect(projection.approvals).toEqual([])
-    expect(projection.stats).toEqual({
-      tickets: { queued: 0, running: 0, blocked: 0, ended: 0, total: 0 },
-      approvals: { pending: 0, decided: 0 },
-    })
+    expect(projection.stats.tickets.total).toBe(0)
+    expect(projection.stats.approvals).toEqual({ pending: 0, decided: 0 })
   })
 
   it('derives the same stage for an appended ticket', () => {
@@ -733,6 +769,151 @@ describe('project', () => {
         goal: '新目标',
         queueReason: 'worker-busy',
       }),
+    )
+  })
+})
+
+describe('signal projection', () => {
+  it('attaches the decision to its signal', () => {
+    const projection = project([
+      signalEvent(1, 's-aaaaaaaaaa'),
+      decisionEvent(2, 's-aaaaaaaaaa', { action: 'dispatch', ticketId: 't-abcdef1234' }),
+    ])
+
+    expect(projection.signals).toEqual([
+      expect.objectContaining({
+        signalId: 's-aaaaaaaaaa',
+        kind: 'user-message',
+        delivered: true,
+        text: '信号 s-aaaaaaaaaa',
+        decision: { action: 'dispatch', ticketId: 't-abcdef1234', at: BASE_TIME + 2 },
+      }),
+    ])
+  })
+
+  it('leaves a signal pending when no decision exists', () => {
+    const projection = project([signalEvent(1, 's-aaaaaaaaaa')])
+
+    expect(projection.signals[0]).not.toHaveProperty('decision')
+  })
+
+  it('keeps a filtered signal with its rule and no decision', () => {
+    const projection = project([
+      signalEvent(1, 's-ffffffffff', {
+        kind: 'perception',
+        delivered: false,
+        rule: 'min-gap',
+        sourceId: 'src-1',
+        sourceName: '线上日志',
+        threadId: 'th-1',
+        threadName: '错误',
+      }),
+    ])
+
+    expect(projection.signals[0]).toEqual(
+      expect.objectContaining({
+        kind: 'perception',
+        delivered: false,
+        rule: 'min-gap',
+        sourceName: '线上日志',
+        threadName: '错误',
+      }),
+    )
+    expect(projection.signals[0]).not.toHaveProperty('decision')
+  })
+
+  it('orders signals newest first, breaking ties by signal id', () => {
+    const projection = project([
+      signalEvent(1, 's-bbbbbbbbbb', { receivedAt: BASE_TIME + 100 }),
+      signalEvent(2, 's-aaaaaaaaaa', { receivedAt: BASE_TIME + 100 }),
+      signalEvent(3, 's-cccccccccc', { receivedAt: BASE_TIME + 50 }),
+    ])
+
+    expect(projection.signals.map(signal => signal.signalId)).toEqual([
+      's-bbbbbbbbbb',
+      's-aaaaaaaaaa',
+      's-cccccccccc',
+    ])
+  })
+
+  it('keeps only the newest signals in the view', () => {
+    const events = Array.from({ length: SIGNAL_VIEW_LIMIT + 50 }, (_, index) =>
+      signalEvent(index + 1, `s-${String(index).padStart(10, '0')}`, {
+        receivedAt: BASE_TIME + index,
+      }),
+    )
+
+    const projection = project(events)
+
+    expect(projection.signals).toHaveLength(SIGNAL_VIEW_LIMIT)
+    expect(projection.signals[0]?.receivedAt).toBe(BASE_TIME + SIGNAL_VIEW_LIMIT + 49)
+    expect(projection.signals.at(-1)?.receivedAt).toBe(BASE_TIME + 50)
+  })
+
+  it('counts every signal, including those beyond the view limit', () => {
+    const total = SIGNAL_VIEW_LIMIT + 50
+    const filtered = total / 5
+    const events = Array.from({ length: total }, (_, index) =>
+      signalEvent(index + 1, `s-${String(index).padStart(10, '0')}`, {
+        delivered: index % 5 !== 0,
+      }),
+    )
+
+    const projection = project(events)
+
+    expect(projection.signals).toHaveLength(SIGNAL_VIEW_LIMIT)
+    expect(projection.stats.signals).toEqual({ delivered: total - filtered, filtered, total })
+  })
+
+  it('lets a later decision win over an earlier one', () => {
+    const projection = project([
+      signalEvent(1, 's-aaaaaaaaaa'),
+      decisionEvent(2, 's-aaaaaaaaaa', { action: 'reply', inferred: true }),
+      decisionEvent(3, 's-aaaaaaaaaa', { action: 'dispatch', ticketId: 't-abcdef1234' }),
+    ])
+
+    expect(projection.signals[0]?.decision).toEqual({
+      action: 'dispatch',
+      ticketId: 't-abcdef1234',
+      at: BASE_TIME + 3,
+    })
+  })
+
+  it('ignores a decision for a signal that was never recorded', () => {
+    const projection = project([decisionEvent(1, 's-ghost00000', { action: 'reply' })])
+
+    expect(projection.signals).toEqual([])
+    expect(projection.stats.signals).toEqual({ delivered: 0, filtered: 0, total: 0 })
+  })
+
+  it('keeps the first account when the same signal is appended twice', () => {
+    const projection = project([
+      signalEvent(1, 's-aaaaaaaaaa', { text: '第一次观察' }),
+      signalEvent(2, 's-aaaaaaaaaa', { text: '第二次观察', receivedAt: BASE_TIME + 999 }),
+    ])
+
+    expect(projection.signals).toEqual([
+      expect.objectContaining({ text: '第一次观察', receivedAt: BASE_TIME + 1 }),
+    ])
+    expect(projection.stats.signals.total).toBe(1)
+  })
+
+  it('reports an absent account as empty text', () => {
+    const projection = project([
+      signalEvent(1, 's-aaaaaaaaaa', { kind: 'timer', text: undefined }),
+    ])
+
+    expect(projection.signals[0]?.text).toBe('')
+  })
+
+  it('carries the fallback marker of an inferred decision', () => {
+    const projection = project([
+      signalEvent(1, 's-aaaaaaaaaa'),
+      decisionEvent(2, 's-aaaaaaaaaa', { action: 'reply', inferred: true, reason: 'aborted' }),
+    ])
+
+    expect(projection.signals[0]?.decision).toEqual(
+      expect.objectContaining({ action: 'reply', inferred: true }),
     )
   })
 })

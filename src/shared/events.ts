@@ -14,9 +14,8 @@ import type { QueueReason, TicketOutcome } from './tickets.ts'
 /**
  * 事件类型枚举（方案 §3.1）。类型字面量同时是账本行里的 `type` 字段。
  *
- * `signal/received` 与 `decision/recorded` 是**预留**：类型、校验与幂等字段表都已就位，
- * 但当前版本没有写入方（router 的触发与决定尚未落账）；事件页/来源页实现时由它们
- * 承接，在那之前投影直接忽略这两类事件。
+ * `signal/received` 记录一次到达 router 的输入，`decision/recorded` 记录它的处理结局；
+ * 一条决定对应一个信号，两者用同一个 `correlationId`（即 signalId）串联。
  */
 export const EVENT_TYPES = {
   signalReceived: 'signal/received',
@@ -38,13 +37,18 @@ export const EVENT_ACTORS = ['router', 'worker', 'human', 'system'] as const
 
 export type EventActor = (typeof EVENT_ACTORS)[number]
 
-/** 到达 router 的输入种类；`worker-reply` 默认被过滤，但仍会记账（方案 §4.1）。 */
-export const SIGNAL_KINDS = ['user-message', 'worker-reply', 'trigger', 'timer'] as const
+/** 到达 router 的输入种类：用户消息、定时事件、感知事件（方案 §2）。 */
+export const SIGNAL_KINDS = ['user-message', 'timer', 'perception'] as const
 
 export type SignalKind = (typeof SIGNAL_KINDS)[number]
 
-/** router 的处理决定（方案 §4.4）。 */
-export const DECISION_ACTIONS = ['dispatch', 'append', 'reply', 'ignore'] as const
+/**
+ * router 的处理决定（方案 §2）。
+ *
+ * 没有 `ignore`：被忽略的输入在来源层就只记 `delivered:false`，不进入处理环节，
+ * 因此也不存在「忽略」这个结算动作。
+ */
+export const DECISION_ACTIONS = ['dispatch', 'append', 'reply'] as const
 
 export type DecisionAction = (typeof DECISION_ACTIONS)[number]
 
@@ -93,27 +97,44 @@ export interface EventEnvelope<T extends EventType, P extends object> {
   payload: P
 }
 
-/** 预留：当前版本没有写入方，见 {@link EVENT_TYPES}。 */
+/**
+ * 一次到达 router 的输入。
+ *
+ * `signalId` 是信号的自身身份，同时决定账本幂等：同一条消息无论被观察多少次，
+ * 都只能入账一次。
+ */
 export interface SignalReceivedPayload {
   kind: SignalKind
-  /** 是否投递给 router；被过滤的信号照样记账，只是不投递。 */
+  /** 是否投递给 router；被来源层过滤的信号照样记账，只是不投递。 */
   delivered: boolean
   receivedAt: number
+  signalId: string
+  /** 感知来源 id；定时事件为官方 schedule id；用户消息不存在。 */
   sourceId?: string
-  /** 外部来源的去重键；MVP 只有用户消息，因此通常不存在。 */
+  /** 来源名称快照：来源可能在之后被删，历史记录要能解释自己从哪里来。 */
+  sourceName?: string
+  threadId?: string
+  threadName?: string
+  /** 来源侧去重键（感知事件）。 */
   externalId?: string
+  /** 事实陈述（感知）、提醒正文（定时）或用户消息摘要。 */
   text?: string
-  /** 命中过滤规则时的规则 id，如 `default-silent`。 */
+  /** 被过滤时命中的规则 id：`match` / `min-gap` / `no-change`。 */
   rule?: string
+  /** 已投递时 router 会话里的消息 id，用于 L1 反查与认领关联。 */
+  messageId?: string
 }
 
-/** 预留：当前版本没有写入方，见 {@link EVENT_TYPES}。 */
+/** router 对一条信号的处理结局。 */
 export interface DecisionRecordedPayload {
   action: DecisionAction
-  /** `true` 表示由系统在回合结束时补记（本次触发没有路由工具调用）。 */
+  /** 一条决定对应一个信号。 */
+  signalId: string
+  /** dispatch / append 时关联的工单。 */
+  ticketId?: string
+  /** `true` 表示回合结束兜底推断：该信号没有触发任何处理类工具。 */
   inferred?: boolean
   reason?: string
-  ticketId?: string
 }
 
 export interface TaskQueuedPayload {

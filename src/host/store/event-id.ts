@@ -11,15 +11,17 @@ import type { EventDraft, EventType } from '../../shared/events.ts'
  * 各类事件的身份字段。
  *
  * 只列关键字段：标题、目标、选项文案这类展示字段一旦参与，改一个错别字就会让
- * 同一条事实重复入账。整张表是显式契约，新增事件类型时必须在此登记；
- * 预留事件（`signal/received`、`decision/recorded`）同样登记，表保持全覆盖。
+ * 同一条事实重复入账。整张表是显式契约，新增事件类型时必须在此登记。
  *
  * `task/reported.summary` 是关键字段的例外：它是汇报文本本身，同一段汇报重复
  * 入账应当被幂等掉，而不是当成一次新汇报。
+ *
+ * 信号只按 `signalId` 定身份，不掺入到达时间、文本等观测细节：同一条消息被再次
+ * 观察时这些细节都会变，掺进去幂等就失效了。决定同理——一条决定属于一条信号。
  */
 const KEY_FIELDS: Record<EventType, readonly string[]> = {
-  'signal/received': ['kind', 'sourceId', 'externalId', 'text', 'receivedAt', 'rule'],
-  'decision/recorded': ['action', 'inferred', 'ticketId', 'reason'],
+  'signal/received': ['signalId'],
+  'decision/recorded': ['signalId'],
   'task/queued': ['ticketId'],
   'task/dispatched': ['ticketId'],
   'task/interrupted': ['ticketId', 'turn', 'reason'],

@@ -2,6 +2,7 @@
 //
 // 账本投影：纯函数，输入即全部事实，不读环境。工单阶段不落库，每次从事件序列
 // 现算——这样"已结束 / 阻塞中"永远与账本一致，不会出现被改写的状态字段。
+// 信号同理：它的事实是账本里的 `signal/received` 与 `decision/recorded`。
 
 import type {
   ApprovalRisk,
@@ -14,7 +15,9 @@ import type {
   SnapshotStats,
   TicketStats,
 } from '../../shared/api.ts'
-import type { L2Event } from '../../shared/events.ts'
+import type { L2Event, SignalKind } from '../../shared/events.ts'
+import type { SignalDecisionView, SignalView } from '../../shared/signals.ts'
+import { SIGNAL_VIEW_LIMIT } from '../../shared/signals.ts'
 import type { QueueReason, TicketOutcome, TicketStage, TicketView } from '../../shared/tickets.ts'
 import { shortTicketId } from '../../shared/tickets.ts'
 
@@ -58,6 +61,24 @@ interface ApprovalAccumulator {
   discarded: boolean
 }
 
+interface SignalAccumulator {
+  signalId: string
+  kind: SignalKind
+  receivedAt: number
+  delivered: boolean
+  rule?: string
+  sourceId?: string
+  sourceName?: string
+  threadId?: string
+  threadName?: string
+  externalId?: string
+  text: string
+  messageId?: string
+  decision?: SignalDecisionView
+  /** 决定所属的账本序号：同一信号被记了多条决定时，后写的赢。 */
+  decisionSeq?: number
+}
+
 /**
  * 从全部事件派生视图。
  *
@@ -67,9 +88,10 @@ interface ApprovalAccumulator {
 export function project(events: readonly L2Event[]): Projection {
   const tickets = new Map<string, TicketAccumulator>()
   const approvals = new Map<string, ApprovalAccumulator>()
+  const signals = new Map<string, SignalAccumulator>()
 
   for (const event of [...events].sort((left, right) => left.seq - right.seq)) {
-    applyEvent(tickets, approvals, event)
+    applyEvent(tickets, approvals, signals, event)
   }
 
   const pendingTickets = new Set<string>()
@@ -96,13 +118,15 @@ export function project(events: readonly L2Event[]): Projection {
   return {
     tickets: ticketViews,
     approvals: [...pendingApprovals, ...decidedApprovals].map(toApprovalView),
-    stats: countStats(ticketViews, visibleApprovals),
+    signals: toSignalViews(signals),
+    stats: countStats(ticketViews, visibleApprovals, signals),
   }
 }
 
 function applyEvent(
   tickets: Map<string, TicketAccumulator>,
   approvals: Map<string, ApprovalAccumulator>,
+  signals: Map<string, SignalAccumulator>,
   event: L2Event,
 ): void {
   switch (event.type) {
@@ -218,11 +242,39 @@ function applyEvent(
       approval.discarded = true
       return
     }
-    case 'signal/received':
-    case 'decision/recorded':
-      // 触发与路由决定是预留事件：当前版本没有写入方。账本若出现（旧版本或外部
-      // 写入）也不参与工单/审批视图——它们的消费者将是事件页与审计。
+    case 'signal/received': {
+      // 同一 signalId 只建立一次：重放的同一条事实不改写已记录的身份与时刻。
+      if (signals.has(event.payload.signalId)) return
+      signals.set(event.payload.signalId, {
+        signalId: event.payload.signalId,
+        kind: event.payload.kind,
+        receivedAt: event.payload.receivedAt,
+        delivered: event.payload.delivered,
+        rule: event.payload.rule,
+        sourceId: event.payload.sourceId,
+        sourceName: event.payload.sourceName,
+        threadId: event.payload.threadId,
+        threadName: event.payload.threadName,
+        externalId: event.payload.externalId,
+        text: event.payload.text ?? '',
+        messageId: event.payload.messageId,
+      })
       return
+    }
+    case 'decision/recorded': {
+      const signal = signals.get(event.payload.signalId)
+      // 没有信号的决定是孤儿：它解释不了任何一次输入，投影不凭空造一条信号。
+      if (signal === undefined) return
+      if (signal.decisionSeq !== undefined && signal.decisionSeq > event.seq) return
+      signal.decision = {
+        action: event.payload.action,
+        ...(event.payload.ticketId === undefined ? {} : { ticketId: event.payload.ticketId }),
+        ...(event.payload.inferred === undefined ? {} : { inferred: event.payload.inferred }),
+        at: event.time,
+      }
+      signal.decisionSeq = event.seq
+      return
+    }
   }
 }
 
@@ -275,18 +327,55 @@ function toApprovalView(approval: ApprovalAccumulator): ApprovalView {
   return view
 }
 
+function toSignalViews(signals: Map<string, SignalAccumulator>): SignalView[] {
+  // 视图只带最近一段；统计仍按全部信号算，历史事实不因展示截断而消失。
+  return [...signals.values()]
+    .sort(
+      (left, right) =>
+        right.receivedAt - left.receivedAt || right.signalId.localeCompare(left.signalId),
+    )
+    .slice(0, SIGNAL_VIEW_LIMIT)
+    .map(toSignalView)
+}
+
+function toSignalView(signal: SignalAccumulator): SignalView {
+  const view: SignalView = {
+    signalId: signal.signalId,
+    kind: signal.kind,
+    receivedAt: signal.receivedAt,
+    delivered: signal.delivered,
+    text: signal.text,
+  }
+  if (signal.rule !== undefined) view.rule = signal.rule
+  if (signal.sourceId !== undefined) view.sourceId = signal.sourceId
+  if (signal.sourceName !== undefined) view.sourceName = signal.sourceName
+  if (signal.threadId !== undefined) view.threadId = signal.threadId
+  if (signal.threadName !== undefined) view.threadName = signal.threadName
+  if (signal.externalId !== undefined) view.externalId = signal.externalId
+  if (signal.messageId !== undefined) view.messageId = signal.messageId
+  if (signal.decision !== undefined) view.decision = signal.decision
+  return view
+}
+
 function countStats(
   tickets: readonly TicketView[],
   approvals: readonly ApprovalAccumulator[],
+  signals: ReadonlyMap<string, SignalAccumulator>,
 ): SnapshotStats {
   const stats: SnapshotStats = {
     tickets: { queued: 0, running: 0, blocked: 0, ended: 0, total: tickets.length },
     approvals: { pending: 0, decided: 0 },
+    signals: { delivered: 0, filtered: 0, total: 0 },
   }
   for (const ticket of tickets) stats.tickets[ticket.stage] += 1
   for (const approval of approvals) {
     if (approval.decidedAt === undefined) stats.approvals.pending += 1
     else stats.approvals.decided += 1
+  }
+  for (const signal of signals.values()) {
+    if (signal.delivered) stats.signals.delivered += 1
+    else stats.signals.filtered += 1
+    stats.signals.total += 1
   }
   return stats
 }

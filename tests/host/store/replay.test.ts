@@ -26,8 +26,13 @@ function signalEvent(seq: number, eventId = eventIdFor(seq)): SignalReceivedEven
     type: 'signal/received',
     time: 1_700_000_000_000 + seq,
     actor: 'system',
-    correlationId: 'corr-1',
-    payload: { kind: 'user-message', delivered: true, receivedAt: 1_700_000_000_000 + seq },
+    correlationId: `s-signal000${seq}`,
+    payload: {
+      kind: 'user-message',
+      delivered: true,
+      receivedAt: 1_700_000_000_000 + seq,
+      signalId: `s-signal000${seq}`,
+    },
   }
 }
 
@@ -67,8 +72,18 @@ function eventAt<P extends object, T extends L2Event['type']>(seq: number, type:
  */
 function fullLedger(): L2Event[] {
   return [
-    eventAt(1, 'signal/received', { kind: 'user-message', delivered: true, receivedAt: 1, text: '发布 v2' }),
-    eventAt(2, 'decision/recorded', { action: 'dispatch', ticketId: TICKET_ID }),
+    eventAt(1, 'signal/received', {
+      kind: 'user-message',
+      delivered: true,
+      receivedAt: 1,
+      signalId: 's-fullLedger1',
+      text: '发布 v2',
+    }),
+    eventAt(2, 'decision/recorded', {
+      action: 'dispatch',
+      signalId: 's-fullLedger1',
+      ticketId: TICKET_ID,
+    }),
     eventAt(3, 'task/queued', { ticketId: TICKET_ID, title: '发布', goal: '发布出去', mode: 'dispatch' }),
     eventAt(4, 'task/dispatched', {
       ticketId: TICKET_ID,

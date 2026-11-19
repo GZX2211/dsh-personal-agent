@@ -84,19 +84,9 @@ describe('deriveEventId', () => {
     expect(deriveEventId(reported('发布完成'))).not.toBe(deriveEventId(reported('发布失败')))
   })
 
-  it('treats a missing optional key field as absent', () => {
-    const explicit: EventDraft = {
-      type: 'signal/received',
-      actor: 'system',
-      correlationId: 'corr-1',
-      payload: { kind: 'user-message', delivered: true, receivedAt: 1, sourceId: undefined },
-    }
-    const implicit: EventDraft = {
-      type: 'signal/received',
-      actor: 'system',
-      correlationId: 'corr-1',
-      payload: { kind: 'user-message', delivered: true, receivedAt: 1 },
-    }
+  it('treats a missing optional envelope field as absent', () => {
+    const explicit = queuedDraft({}, { causationId: undefined })
+    const implicit = queuedDraft()
 
     expect(deriveEventId(explicit)).toBe(deriveEventId(implicit))
   })
@@ -108,14 +98,26 @@ describe('deriveEventId', () => {
     )
   })
 
-  it('changes when the arrival time of a signal changes', () => {
+  it('changes with the signal it identifies', () => {
+    const signal = (signalId: string): EventDraft => ({
+      type: 'signal/received',
+      actor: 'system',
+      correlationId: signalId,
+      payload: { kind: 'user-message', delivered: true, receivedAt: 1, signalId },
+    })
+
+    expect(deriveEventId(signal('s-aaaaaaaaaa'))).not.toBe(deriveEventId(signal('s-bbbbbbbbbb')))
+  })
+
+  it('keeps the identity of a signal when only its arrival time changes', () => {
+    // 同一条消息被再次观察时会得到新的 receivedAt；若它参与身份，重放就会重复入账。
     const signal = (receivedAt: number): EventDraft => ({
       type: 'signal/received',
       actor: 'system',
-      correlationId: 'corr-1',
-      payload: { kind: 'user-message', delivered: true, receivedAt, text: '你好' },
+      correlationId: 's-aaaaaaaaaa',
+      payload: { kind: 'user-message', delivered: true, receivedAt, signalId: 's-aaaaaaaaaa' },
     })
 
-    expect(deriveEventId(signal(1))).not.toBe(deriveEventId(signal(2)))
+    expect(deriveEventId(signal(1))).toBe(deriveEventId(signal(2)))
   })
 })
