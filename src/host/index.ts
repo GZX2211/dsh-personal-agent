@@ -6,15 +6,18 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { API_PREFIX } from '../shared/api.ts'
+import { API_PREFIX, ERROR_CODES } from '../shared/api.ts'
 import { healPendingApprovals } from './approvals/heal.ts'
 import { ResolverRegistry } from './approvals/resolvers.ts'
 import { createApprovalDecider } from './approvals/service.ts'
+import { sourceFailure, type FailureOutcome } from './console-api/errors.ts'
 import { createConsoleHandler } from './console-api/server.ts'
 import type { HostContext } from './context.ts'
 import { createScheduler } from './dispatcher/scheduler.ts'
-import { createPerceptionService } from './perception/service.ts'
+import { createPerceptionService, PerceptionError } from './perception/service.ts'
 import { readTimerSourceViews } from './perception/timers.ts'
+import { projectSignals } from './projector/project.ts'
+import { querySignals as searchSignals } from './projector/signal-query.ts'
 import { PaRolesService } from './roles/index.ts'
 import { createAgentDecorator, decorateLiveWorkerSessions } from './sessions/decorate.ts'
 import { registerWorkerObserver } from './sessions/observer.ts'
@@ -176,16 +179,49 @@ export function apply(ctx: HostContext, config?: Config): void {
             projection.sourceTallies,
             message => logWarning(ctx, message),
           )
-          return {
+          const response = {
             tickets: projection.tickets,
             approvals: projection.approvals,
             signals: projection.signals,
             sources: perception.sources(),
             timers,
             stats: projection.stats,
+            ...(routerSessionId === undefined ? {} : { routerSessionId }),
           }
+          return response
         },
         decideApproval: async (approvalId, request) => (await decider).decide(approvalId, request),
+        toggleSource: async (sourceId, request) => {
+          const { perception } = await ready
+          try {
+            const source = await perception.toggle(sourceId, request.enabled, request.threadId)
+            return { status: 200, body: { ok: true, source } }
+          } catch (error) {
+            return failureOf(error)
+          }
+        },
+        testSource: async (sourceId, request) => {
+          const { perception } = await ready
+          try {
+            const signals = await perception.test(sourceId, request.waitMs)
+            return { status: 200, body: { ok: true, signals } }
+          } catch (error) {
+            return failureOf(error)
+          }
+        },
+        removeSource: async sourceId => {
+          const { perception } = await ready
+          try {
+            const removed = await perception.remove(sourceId)
+            return { status: 200, body: { ok: true, removed } }
+          } catch (error) {
+            return failureOf(error)
+          }
+        },
+        querySignals: async query => {
+          const { store } = await ready
+          return searchSignals(projectSignals(store.events()), query)
+        },
       }),
     })
     return () => {
@@ -241,6 +277,12 @@ function readPackageVersion(): string {
 
 function logWarning(ctx: HostContext, message: string): void {
   ctx.logger?.warn('personal-agent: %s', message)
+}
+
+/** 把服务层异常换成协议失败体：感知错误保留自己的稳定码，其余按 internal。 */
+function failureOf(error: unknown): FailureOutcome {
+  if (error instanceof PerceptionError) return sourceFailure(error.code, error.message)
+  return sourceFailure(ERROR_CODES.internal, describe(error))
 }
 
 function describe(error: unknown): string {

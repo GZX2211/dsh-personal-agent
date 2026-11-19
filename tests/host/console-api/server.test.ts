@@ -10,8 +10,13 @@ import {
   approvalDecidePath,
   REQUEST_HEADER,
   REQUEST_HEADER_VALUE,
+  ROUTES,
+  sourceRemovePath,
+  sourceTestPath,
+  sourceTogglePath,
   type SnapshotResponse,
 } from '../../../src/shared/api.ts'
+import type { SourceView } from '../../../src/shared/sources.ts'
 import { createConsoleHandler, type ConsoleTarget } from '../../../src/host/console-api/server.ts'
 
 const ORIGIN = 'http://127.0.0.1:52810'
@@ -46,7 +51,24 @@ function makeTarget(overrides: Partial<ConsoleTarget> = {}): ConsoleTarget {
     startedAt: Date.now() - 1_000,
     snapshot: () => emptySnapshot(),
     decideApproval: async () => ({ status: 200, body: { ok: true, transport: 'inline' } }),
+    toggleSource: async () => ({ status: 200, body: { ok: true, source: sourceView() } }),
+    testSource: async () => ({ status: 200, body: { ok: true, signals: [] } }),
+    removeSource: async () => ({ status: 200, body: { ok: true, removed: true } }),
+    querySignals: () => ({ signals: [], total: 0 }),
     ...overrides,
+  }
+}
+
+function sourceView(): SourceView {
+  return {
+    id: 'src-1',
+    name: '本地文件',
+    enabled: true,
+    channelKind: 'fs-watch',
+    status: 'running',
+    threads: [{ id: 'changes', name: '变更', enabled: true, deliveredCount: 0, filteredCount: 0 }],
+    deliveredCount: 0,
+    filteredCount: 0,
   }
 }
 
@@ -296,5 +318,204 @@ describe('console api', () => {
       message: expect.stringContaining('64 KiB'),
     })
     expect(decideApproval).not.toHaveBeenCalled()
+  })
+})
+
+describe('source routes', () => {
+  it('forwards a source toggle', async () => {
+    const toggleSource = vi.fn(async () => ({
+      status: 200,
+      body: { ok: true as const, source: sourceView() },
+    }))
+
+    const { captured, json } = await call(makeTarget({ toggleSource }), {
+      method: 'POST',
+      path: sourceTogglePath('src-1'),
+      headers: sameOriginHeaders,
+      body: { enabled: false, threadId: 'changes' },
+    })
+
+    expect(captured.status).toBe(200)
+    expect(toggleSource).toHaveBeenCalledWith('src-1', { enabled: false, threadId: 'changes' })
+    expect(json).toEqual({ ok: true, source: sourceView() })
+  })
+
+  it('rejects a toggle body without a boolean enabled', async () => {
+    const toggleSource = vi.fn()
+
+    const { captured } = await call(makeTarget({ toggleSource }), {
+      method: 'POST',
+      path: sourceTogglePath('src-1'),
+      headers: sameOriginHeaders,
+      body: { enabled: 'yes' },
+    })
+
+    expect(captured.status).toBe(400)
+    expect(JSON.parse(captured.body)).toMatchObject({ ok: false, code: 'bad-request' })
+    expect(toggleSource).not.toHaveBeenCalled()
+  })
+
+  it('rejects a thread id that is not a string', async () => {
+    const toggleSource = vi.fn()
+
+    const { captured } = await call(makeTarget({ toggleSource }), {
+      method: 'POST',
+      path: sourceTogglePath('src-1'),
+      headers: sameOriginHeaders,
+      body: { enabled: true, threadId: 7 },
+    })
+
+    expect(captured.status).toBe(400)
+    expect(toggleSource).not.toHaveBeenCalled()
+  })
+
+  it('forwards the service outcome of a failed toggle unchanged', async () => {
+    const target = makeTarget({
+      toggleSource: async () => ({
+        status: 404,
+        body: { ok: false, code: 'source-not-found', message: '来源不存在：src-1' },
+      }),
+    })
+
+    const { captured, json } = await call(target, {
+      method: 'POST',
+      path: sourceTogglePath('src-1'),
+      headers: sameOriginHeaders,
+      body: { enabled: true },
+    })
+
+    expect(captured.status).toBe(404)
+    expect(json).toEqual({ ok: false, code: 'source-not-found', message: '来源不存在：src-1' })
+  })
+
+  it('forwards a source test without a body', async () => {
+    const testSource = vi.fn(async () => ({ status: 200, body: { ok: true as const, signals: [] } }))
+
+    const { captured, json } = await call(makeTarget({ testSource }), {
+      method: 'POST',
+      path: sourceTestPath('src-1'),
+      headers: sameOriginHeaders,
+    })
+
+    expect(captured.status).toBe(200)
+    expect(testSource).toHaveBeenCalledWith('src-1', {})
+    expect(json).toEqual({ ok: true, signals: [] })
+  })
+
+  it('forwards the wait window of a source test', async () => {
+    const testSource = vi.fn(async () => ({ status: 200, body: { ok: true as const, signals: [] } }))
+
+    await call(makeTarget({ testSource }), {
+      method: 'POST',
+      path: sourceTestPath('src-1'),
+      headers: sameOriginHeaders,
+      body: { waitMs: 800 },
+    })
+
+    expect(testSource).toHaveBeenCalledWith('src-1', { waitMs: 800 })
+  })
+
+  it('rejects a wait window that is not a finite number', async () => {
+    const testSource = vi.fn()
+
+    const { captured } = await call(makeTarget({ testSource }), {
+      method: 'POST',
+      path: sourceTestPath('src-1'),
+      headers: sameOriginHeaders,
+      body: { waitMs: 'soon' },
+    })
+
+    expect(captured.status).toBe(400)
+    expect(testSource).not.toHaveBeenCalled()
+  })
+
+  it('forwards a source removal', async () => {
+    const removeSource = vi.fn(async () => ({ status: 200, body: { ok: true as const, removed: true } }))
+
+    const { captured, json } = await call(makeTarget({ removeSource }), {
+      method: 'DELETE',
+      path: sourceRemovePath('src-1'),
+      headers: sameOriginHeaders,
+    })
+
+    expect(captured.status).toBe(200)
+    expect(removeSource).toHaveBeenCalledWith('src-1')
+    expect(json).toEqual({ ok: true, removed: true })
+  })
+
+  it('requires DELETE for removal', async () => {
+    const removeSource = vi.fn()
+
+    const { captured } = await call(makeTarget({ removeSource }), {
+      path: sourceRemovePath('src-1'),
+      headers: sameOriginHeaders,
+    })
+
+    expect(captured.status).toBe(405)
+    expect(captured.headers.allow).toBe('DELETE')
+    expect(removeSource).not.toHaveBeenCalled()
+  })
+
+  it('guards every source route', async () => {
+    const toggleSource = vi.fn()
+
+    const { captured, json } = await call(makeTarget({ toggleSource }), {
+      method: 'POST',
+      path: sourceTogglePath('src-1'),
+      body: { enabled: true },
+    })
+
+    expect(captured.status).toBe(403)
+    expect(json).toEqual({ ok: false, code: 'missing-request-header', message: expect.any(String) })
+    expect(toggleSource).not.toHaveBeenCalled()
+  })
+})
+
+describe('signal query', () => {
+  it('parses the search text and limit', async () => {
+    const querySignals = vi.fn(() => ({ signals: [], total: 0 }))
+
+    const { captured, json } = await call(makeTarget({ querySignals }), {
+      path: `${ROUTES.signals}?q=${encodeURIComponent('配置 变更')}&limit=50`,
+      headers: sameOriginHeaders,
+    })
+
+    expect(captured.status).toBe(200)
+    expect(querySignals).toHaveBeenCalledWith({ q: '配置 变更', limit: 50 })
+    expect(json).toEqual({ signals: [], total: 0 })
+  })
+
+  it('drops a limit that is not a finite number', async () => {
+    const querySignals = vi.fn(() => ({ signals: [], total: 0 }))
+
+    await call(makeTarget({ querySignals }), {
+      path: `${ROUTES.signals}?limit=abc`,
+      headers: sameOriginHeaders,
+    })
+
+    expect(querySignals).toHaveBeenCalledWith({})
+  })
+
+  it('requires GET for the query', async () => {
+    const querySignals = vi.fn(() => ({ signals: [], total: 0 }))
+
+    const { captured } = await call(makeTarget({ querySignals }), {
+      method: 'POST',
+      path: ROUTES.signals,
+      headers: sameOriginHeaders,
+    })
+
+    expect(captured.status).toBe(405)
+    expect(captured.headers.allow).toBe('GET')
+    expect(querySignals).not.toHaveBeenCalled()
+  })
+
+  it('guards the query like other state endpoints', async () => {
+    const querySignals = vi.fn(() => ({ signals: [], total: 0 }))
+
+    const { captured } = await call(makeTarget({ querySignals }), { path: ROUTES.signals })
+
+    expect(captured.status).toBe(403)
+    expect(querySignals).not.toHaveBeenCalled()
   })
 })

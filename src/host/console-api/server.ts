@@ -8,12 +8,38 @@ import {
   APPROVAL_DECIDE_PATTERN,
   ERROR_CODES,
   ROUTES,
+  SOURCE_REMOVE_PATTERN,
+  SOURCE_TEST_PATTERN,
+  SOURCE_TOGGLE_PATTERN,
   type DecisionOutcome,
   type ErrorResponse,
   type HealthResponse,
+  type SignalQuery,
+  type SignalQueryResponse,
   type SnapshotResponse,
+  type SourceRemoveResponse,
+  type SourceTestRequest,
+  type SourceTestResponse,
+  type SourceToggleRequest,
+  type SourceToggleResponse,
 } from '../../shared/api.ts'
 import { guardRequest } from './guard.ts'
+
+/** 来源操作的响应：成功体或稳定错误体，状态码由装配层按错误语义给出。 */
+export interface SourceToggleOutcome {
+  status: number
+  body: SourceToggleResponse | ErrorResponse
+}
+
+export interface SourceTestOutcome {
+  status: number
+  body: SourceTestResponse | ErrorResponse
+}
+
+export interface SourceRemoveOutcome {
+  status: number
+  body: SourceRemoveResponse | ErrorResponse
+}
 
 export interface ConsoleTarget {
   plugin: string
@@ -25,6 +51,14 @@ export interface ConsoleTarget {
   snapshot: () => Promise<SnapshotResponse> | SnapshotResponse
   /** 提交一次审批决定；请求体未经校验，由审批服务收窄。 */
   decideApproval: (approvalId: string, request: unknown) => Promise<DecisionOutcome>
+  /** 开关来源或单条线程；请求体已由协议层收窄。 */
+  toggleSource: (sourceId: string, request: SourceToggleRequest) => Promise<SourceToggleOutcome>
+  /** 测试来源；请求体已由协议层收窄。 */
+  testSource: (sourceId: string, request: SourceTestRequest) => Promise<SourceTestOutcome>
+  /** 删除来源；已删除与不存在都返回同一个结果，避免重复删除报错。 */
+  removeSource: (sourceId: string) => Promise<SourceRemoveOutcome>
+  /** 从账本全量检索信号。 */
+  querySignals: (query: SignalQuery) => Promise<SignalQueryResponse> | SignalQueryResponse
 }
 
 /** 把 HTTP 面挂到 prefix 路由上的处理函数。 */
@@ -73,6 +107,11 @@ async function dispatch(
     return sendJson(response, 200, await target.snapshot())
   }
 
+  if (path === ROUTES.signals) {
+    if (method !== 'GET') return sendMethodNotAllowed(response, 'GET')
+    return sendJson(response, 200, await target.querySignals(readSignalQuery(request, target.origin)))
+  }
+
   const decision = APPROVAL_DECIDE_PATTERN.exec(path)
   if (decision !== null) {
     if (method !== 'POST') return sendMethodNotAllowed(response, 'POST')
@@ -91,11 +130,114 @@ async function dispatch(
     return sendJson(response, outcome.status, outcome.body)
   }
 
+  const toggle = SOURCE_TOGGLE_PATTERN.exec(path)
+  if (toggle !== null) {
+    if (method !== 'POST') return sendMethodNotAllowed(response, 'POST')
+    const body = await readBodyOrBadRequest(response, request)
+    if (body === BAD_REQUEST) return
+    let parsed: SourceToggleRequest
+    try {
+      parsed = readToggleRequest(body)
+    } catch (error) {
+      return sendJson(response, 400, failure(ERROR_CODES.badRequest, describe(error)))
+    }
+    const outcome = await target.toggleSource(decodeURIComponent(toggle[1] ?? ''), parsed)
+    return sendJson(response, outcome.status, outcome.body)
+  }
+
+  const test = SOURCE_TEST_PATTERN.exec(path)
+  if (test !== null) {
+    if (method !== 'POST') return sendMethodNotAllowed(response, 'POST')
+    const body = await readBodyOrBadRequest(response, request)
+    if (body === BAD_REQUEST) return
+    let parsed: SourceTestRequest
+    try {
+      parsed = readTestRequest(body)
+    } catch (error) {
+      return sendJson(response, 400, failure(ERROR_CODES.badRequest, describe(error)))
+    }
+    const outcome = await target.testSource(decodeURIComponent(test[1] ?? ''), parsed)
+    return sendJson(response, outcome.status, outcome.body)
+  }
+
+  const removal = SOURCE_REMOVE_PATTERN.exec(path)
+  if (removal !== null) {
+    if (method !== 'DELETE') return sendMethodNotAllowed(response, 'DELETE')
+    const outcome = await target.removeSource(decodeURIComponent(removal[1] ?? ''))
+    return sendJson(response, outcome.status, outcome.body)
+  }
+
   return sendJson(response, 404, failure(ERROR_CODES.notFound, `no route for ${path}`))
+}
+
+/**
+ * 读取可选请求体：空体是合法的（测试与开关都不必带内容）。
+ *
+ * 非法 JSON 与超限都当场回 400，返回哨兵让调用方直接结束。
+ */
+const BAD_REQUEST = Symbol('bad-request')
+
+async function readBodyOrBadRequest(
+  response: ServerResponse,
+  request: IncomingMessage,
+): Promise<unknown | typeof BAD_REQUEST> {
+  try {
+    return await readJson(request)
+  } catch (error) {
+    sendJson(response, 400, failure(ERROR_CODES.badRequest, describe(error)))
+    return BAD_REQUEST
+  }
+}
+
+function readToggleRequest(body: unknown): SourceToggleRequest {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    throw new Error('toggle body must be an object')
+  }
+  const record = body as { enabled?: unknown; threadId?: unknown }
+  if (typeof record.enabled !== 'boolean') {
+    throw new Error('toggle body requires a boolean enabled')
+  }
+  if (record.threadId !== undefined && typeof record.threadId !== 'string') {
+    throw new Error('toggle threadId must be a string')
+  }
+  const parsed: SourceToggleRequest = { enabled: record.enabled }
+  if (record.threadId !== undefined) parsed.threadId = record.threadId
+  return parsed
+}
+
+function readTestRequest(body: unknown): SourceTestRequest {
+  if (body === undefined) return {}
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    throw new Error('test body must be an object')
+  }
+  const waitMs = (body as { waitMs?: unknown }).waitMs
+  if (waitMs === undefined) return {}
+  if (typeof waitMs !== 'number' || !Number.isFinite(waitMs)) {
+    throw new Error('test waitMs must be a finite number')
+  }
+  return { waitMs }
+}
+
+function readSignalQuery(request: IncomingMessage, origin: string): SignalQuery {
+  const url = new URL(request.url ?? '/', origin)
+  const query: SignalQuery = {}
+  const text = url.searchParams.get('q')
+  if (text !== null) query.q = text
+  const rawLimit = url.searchParams.get('limit')
+  if (rawLimit !== null && rawLimit.trim().length > 0) {
+    const limit = Number(rawLimit)
+    // 非数字交给契约缺省，而不是把它当成 0 条。
+    if (Number.isFinite(limit)) query.limit = limit
+  }
+  return query
 }
 
 function failure(code: ErrorResponse['code'], message: string): ErrorResponse {
   return { ok: false, code, message }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function sendMethodNotAllowed(response: ServerResponse, allow: string): void {
