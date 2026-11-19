@@ -1,10 +1,11 @@
 // src/client/components/card/CardAttachment.tsx
 //
-// 附件行：worker 随审批带上的文件，人只读。没有附件时整行不渲染
-// （「未填不显示该项」），所以这里不处理空列表文案。
+// 附件行：worker 随审批带上的文件，人只读。列表只显示文件名，完整路径放在
+// title 里悬停可查；没有附件时整行不渲染（「未填不显示该项」）。
 
-import { IconPaperclipOutlineRegular, PathLabel } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPaperclipOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
+import { fileName } from '../../lib/files.ts'
 
 export interface CardAttachmentProps {
   paths: readonly string[]
@@ -33,7 +34,7 @@ export function CardAttachment({ paths, label, openHint, onOpen }: CardAttachmen
             title={path}
             onClick={() => onOpen?.(path)}
           >
-            <PathLabel path={path} />
+            {fileName(path)}
           </button>
         ))}
         <span className="pa-detail__attachment-hint">

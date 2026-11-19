@@ -1,17 +1,19 @@
 // src/client/components/ApprovalCard.tsx
 //
-// 审批列表行：默认折叠，展开后是详情面板，保留原卡片的全部字段——
-// 完整题干、选项、回答、附件、风险、分页与动作。
+// 审批列表行：三行排版——会话标题 / 题干 / 跳转会话 + 时间。标题不跳转，
+// 工单号已从会话标题剥离；悬停看全文只属于第二行题干。
 //
-// 状态由决定派生：待审批（warning）/ 已通过（success）/ 已跳过（neutral）。
+// 展开后是详情面板，保留原卡片的全部字段：完整题干、选项、回答、附件、
+// 风险、分页与动作。状态由决定派生：待审批 / 已通过 / 已跳过。
 
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconLinkOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState, type ReactElement } from 'react'
 import type { ApprovalView } from '../../shared/approvals.ts'
 import type { ConsoleActions } from '../actions.ts'
 import type { Translate } from '../i18n.ts'
 import { shortSession, type ApprovalDraft } from '../lib/approvals.ts'
 import { formatTimestamp, riskKey } from '../lib/format.ts'
+import { stripTicketSuffix } from '../lib/sessions.ts'
 import { CardAnswerField, CardAnswerText } from './card/CardAnswer.tsx'
 import { CardAttachment } from './card/CardAttachment.tsx'
 import { CardFooter } from './card/CardFooter.tsx'
@@ -52,42 +54,41 @@ export function ApprovalCard({
   const locked = decided || busy
 
   const panelId = `pa-approval-detail-${approval.id}`
-  const requester = actions.sessionTitle(approval.requestedBySessionId) ?? shortSession(approval.requestedBySessionId)
+  const projected = actions.sessionTitle(approval.requestedBySessionId)
+  const requester =
+    stripTicketSuffix(projected ?? '') || shortSession(approval.requestedBySessionId)
   const shownAt = decided ? (approval.decidedAt ?? approval.createdAt) : approval.createdAt
 
   const status: ListRowStatus = decided
     ? skipped
-      ? { tone: 'neutral', label: t('approvalSkippedTitle'), dot: 'idle' }
-      : { tone: 'success', label: t('approvalDecidedTitle'), dot: 'done' }
-    : { tone: 'warning', label: t('approvalStatusPending'), dot: 'warning' }
+      ? { tone: 'neutral', label: t('approvalSkippedTitle') }
+      : { tone: 'success', label: t('approvalDecidedTitle') }
+    : { tone: 'warning', label: t('approvalStatusPending') }
 
   const toggle = (): void => setCollapsed(current => !current)
 
   return (
     <ListRow
       rowKey={approval.id}
-      title={approval.question}
+      title={requester}
+      summary={approval.question}
+      time={formatTimestamp(language, shownAt)}
       status={status}
+      action={
+        <Button
+          className="pa-row__session"
+          variant="ghost"
+          size="sm"
+          icon={<IconLinkOutlineRegular />}
+          onClick={() => actions.openSession(approval.requestedBySessionId)}
+        >
+          {t('approvalOpenSession')}
+        </Button>
+      }
       expanded={!collapsed}
       onToggle={toggle}
       toggleLabel={t(collapsed ? 'approvalExpand' : 'approvalCollapse')}
       panelId={panelId}
-      meta={
-        <>
-          <button
-            type="button"
-            className="pa-row__meta-link"
-            title={requester}
-            onClick={() => actions.openSession(approval.requestedBySessionId)}
-          >
-            {requester}
-          </button>
-          <span className="pa-row__meta-sep" aria-hidden="true">
-            {'\u00B7'}
-          </span>
-          <span className="pa-row__time">{formatTimestamp(language, shownAt)}</span>
-        </>
-      }
     >
       <div className="pa-detail">
         <p className="pa-detail__question">{approval.question}</p>

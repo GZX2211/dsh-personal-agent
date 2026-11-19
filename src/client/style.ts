@@ -2,9 +2,9 @@
 //
 // 面板样式：颜色/圆角/字号/阴影一律取宿主 design token，不复制设计变量。
 //
-// 官方的控件（Button / Pill / Input / Modal / Tag / StateDot / PathLabel）
-// 直接由 @deepseek-ai/dsh-client-ui-primitives 提供，本文件不再定义它们的
-// 外观；这里只保留官方没有的三类东西：面板骨架、列表行、审批详情。
+// 官方的控件（Button / Pill / Input / Modal / Tag / Tooltip）直接由
+// `@deepseek-ai/dsh-client-ui-primitives` 提供，本文件不再定义它们的外观；
+// 这里只保留官方没有的三类东西：面板骨架、列表行、审批详情。
 //
 // 排版跟宿主主界面同一套刻度：
 //   · 字号：14 正文 / 13 次要 / 12 小字与时间 / 11 徽标
@@ -146,10 +146,21 @@ export const CONSOLE_CSS = `
   min-width: 0;
 }
 .pa-toolbar__search {
-  flex: 1 1 auto;
-  width: 220px;
-  max-width: 260px;
-  min-width: 140px;
+  flex: 0 1 auto;
+  width: 180px;
+  max-width: 200px;
+  min-width: 120px;
+  height: 28px;
+  border-radius: var(--dsw-radius-sm);
+}
+/* 官方 Input 默认 14/32；工具条里收一档，与 24px 的 Pill 同一行不抢视线。 */
+.pa-toolbar__search input {
+  font-size: 13px;
+  line-height: 18px;
+}
+.pa-toolbar__search svg {
+  width: 14px;
+  height: 14px;
 }
 .pa-toolbar__help {
   flex: 0 0 auto;
@@ -179,6 +190,7 @@ export const CONSOLE_CSS = `
   min-height: 0;
   margin: 0 16px 16px;
   padding: 4px;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 0.5px solid var(--dsw-alias-border-l2);
@@ -206,13 +218,6 @@ export const CONSOLE_CSS = `
   min-width: 0;
   padding: 10px 12px;
 }
-.pa-row__leading {
-  display: inline-flex;
-  flex: 0 0 10px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 6px;
-}
 .pa-row__body {
   display: flex;
   flex: 1 1 auto;
@@ -220,7 +225,15 @@ export const CONSOLE_CSS = `
   gap: 2px;
   min-width: 0;
 }
+.pa-row__titleline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .pa-row__title {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   overflow: hidden;
   color: var(--dsw-alias-label-primary);
@@ -230,61 +243,40 @@ export const CONSOLE_CSS = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pa-row__meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0 6px;
-  min-width: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
-}
-.pa-row__meta-link {
-  max-width: 100%;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.pa-row__meta-link:hover {
-  color: var(--dsw-alias-state-business-primary);
-}
-.pa-row__meta-link:focus-visible {
-  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-.pa-row__meta-sep {
-  color: var(--dsw-alias-label-caption);
-}
 .pa-row__time {
+  margin-left: auto;
   color: var(--dsw-alias-label-tertiary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .pa-row__summary {
-  display: -webkit-box;
   margin: 0;
   overflow: hidden;
   color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 20px;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-row__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-top: 2px;
+  min-width: 0;
+}
+.pa-row__session {
+  flex: 0 0 auto;
+}
+.pa-row__ref {
+  flex: 0 0 auto;
 }
 .pa-row__aside {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 4px;
-  margin-top: 1px;
 }
 .pa-row__status {
   flex: 0 0 auto;
@@ -307,7 +299,7 @@ export const CONSOLE_CSS = `
 }
 .pa-row__detail {
   min-width: 0;
-  padding: 0 12px 12px 30px;
+  padding: 0 12px 12px;
 }
 
 /* ── 审批详情：官方没有的字段容器，材质与行一致 ─────────────────────── */
@@ -507,6 +499,8 @@ export const CONSOLE_CSS = `
   background: transparent;
   color: inherit;
   font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 .pa-detail__attachment-file:hover {

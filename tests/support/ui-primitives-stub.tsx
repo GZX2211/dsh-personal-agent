@@ -63,18 +63,6 @@ export function Tag({ tone = 'outline', className, children }: PrimitiveProps): 
   )
 }
 
-export function StateDot({ state }: PrimitiveProps): ReactElement {
-  return <span data-primitive="state-dot" data-state={state} />
-}
-
-export function PathLabel({ path, className }: PrimitiveProps): ReactElement {
-  return (
-    <span className={className} data-primitive="path-label" title={path}>
-      {path}
-    </span>
-  )
-}
-
 export function Modal({ open, title, closeLabel, children, footer }: PrimitiveProps): ReactElement | null {
   if (open !== true) return null
   return (
@@ -105,6 +93,7 @@ function glyph(name: string): () => ReactElement {
 }
 
 export const IconChevronDownOutlineRegular = glyph('chevron-down')
+export const IconLinkOutlineRegular = glyph('link')
 export const IconPaperclipOutlineRegular = glyph('paperclip')
 export const IconQuestionOutlineRegular = glyph('question')
 export const IconSearchOutlineRegular = glyph('search')

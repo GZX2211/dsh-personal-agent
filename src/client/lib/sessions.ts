@@ -26,3 +26,14 @@ export function sessionTitleOf(list: unknown, sessionId: string): string | undef
   if (typeof row !== 'object' || row === null) return undefined
   return text(row.title) ?? text(row.displayTitle)
 }
+
+/**
+ * worker 会话标题以 ` · 工单 #<短码>` 结尾（Host 建会话时写入）。总控台的审批行
+ * 只展示会话名，工单归属由工单页承担，所以展示前剥离这个后缀；剥离后为空时
+ * 由调用方回退到短码。
+ */
+const TICKET_SUFFIX = /(?:^|\s*·\s*)工单\s*#[0-9A-Za-z]+\s*$/u
+
+export function stripTicketSuffix(title: string): string {
+  return title.replace(TICKET_SUFFIX, '').trim()
+}

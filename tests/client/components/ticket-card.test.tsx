@@ -1,7 +1,7 @@
 // tests/client/components/ticket-card.test.tsx
 //
-// 工单行与审批行共用同一套列表行，但没有展开态、没有动作；状态用官方 Tag
-// 与 StateDot 表达，目标摘要最多两行。
+// 工单行与审批行同一套三行排版：标题 / 目标 / 工单短码 + 时间；
+// 没有展开态、没有动作，状态用官方 Tag 表达。
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -33,17 +33,18 @@ function render(card: TicketView): string {
 }
 
 describe('TicketCard', () => {
-  it('heads with the short code and the title, and keeps the goal as the summary', () => {
+  it('lays out the title, goal and ticket reference in three lines', () => {
     const html = render(ticket())
 
-    expect(html).toContain('工单 #9c20e7')
-    expect(html).toContain('建文件')
-    expect(html).toContain('在 D:\\tmp 下创建 hello.txt')
+    expect(html).toContain('>建文件</h3>')
     expect(html).toContain('pa-row__summary')
+    expect(html).toContain('在 D:\\tmp 下创建 hello.txt')
+    expect(html).toContain('工单 #9c20e7')
+    expect(html).toContain('pa-row__ref')
     expect(html).toContain('11月12日 00:22')
   })
 
-  it('has no expander, no footer and no action buttons', () => {
+  it('has no expander, no footer actions and no buttons', () => {
     const html = render(ticket())
 
     expect(html).not.toContain('pa-row__toggle')
@@ -69,15 +70,11 @@ describe('TicketCard', () => {
     expect(interrupted).not.toContain('进行中')
   })
 
-  it('maps the status to the official tag tone and state dot', () => {
+  it('maps the status to the official tag tone', () => {
     expect(render(ticket({ stage: 'queued' }))).toContain('data-tone="neutral"')
-    expect(render(ticket({ stage: 'queued' }))).toContain('data-state="idle"')
     expect(render(ticket({ stage: 'running' }))).toContain('data-tone="info"')
-    expect(render(ticket({ stage: 'running' }))).toContain('data-state="ongoing"')
     expect(render(ticket({ stage: 'blocked' }))).toContain('data-tone="warning"')
-    expect(render(ticket({ stage: 'blocked' }))).toContain('data-state="warning"')
     expect(render(ticket({ stage: 'running', interrupted: true }))).toContain('data-tone="danger"')
-    expect(render(ticket({ stage: 'running', interrupted: true }))).toContain('data-state="error"')
     expect(render(ticket({ stage: 'ended', outcome: 'completed' }))).toContain('data-tone="success"')
     expect(render(ticket({ stage: 'ended', outcome: 'failed' }))).toContain('data-tone="danger"')
   })

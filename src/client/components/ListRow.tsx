@@ -1,15 +1,18 @@
 // src/client/components/ListRow.tsx
 //
-// 审批与工单共用的列表行：官方 Tag 表达状态、StateDot 表达阶段、Button 承担
-// 展开。折叠时只有一行摘要；展开内容由调用方提供，字段不在这里裁剪。
+// 审批与工单共用的三行列表行：
+//   会话标题 / 工单标题        … 状态 Tag + 展开
+//   题干 / 目标（单行，悬停看全文）
+//   跳转会话 / 工单短码        … 时间
+//
+// 标题行不跳转、不出提示；悬停看完整内容只属于中间那一条摘要。展开内容由
+// 调用方提供，字段不在这里裁剪。
 
 import {
   Button,
   IconChevronDownOutlineRegular,
-  StateDot,
   Tag,
   Tooltip,
-  type StateDotState,
   type TagTone,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement, ReactNode } from 'react'
@@ -17,17 +20,19 @@ import type { ReactElement, ReactNode } from 'react'
 export interface ListRowStatus {
   tone: TagTone
   label: string
-  dot: StateDotState
 }
 
 export interface ListRowProps {
   /** 与 AnimatedRows.rowKeys 对应的稳定键。 */
   rowKey: string
+  /** 第一行：会话标题或工单标题。 */
   title: string
-  /** 标题行下方的单行元信息。 */
-  meta: ReactNode
-  /** 可选的第三行摘要（工单目标）。 */
+  /** 第二行：题干或工单目标；截断时悬停显示全文。 */
   summary?: string
+  /** 第三行左侧：跳转会话按钮或工单短码标签。 */
+  action?: ReactNode
+  /** 第三行右侧的时间。 */
+  time: string
   status: ListRowStatus
   /** 传了 onToggle 才渲染展开按钮；工单行没有展开态。 */
   onToggle?: () => void
@@ -40,8 +45,9 @@ export interface ListRowProps {
 export function ListRow({
   rowKey,
   title,
-  meta,
   summary,
+  action,
+  time,
   status,
   onToggle,
   expanded = false,
@@ -58,38 +64,38 @@ export function ListRow({
       data-expanded={expandable ? (expanded ? 'true' : 'false') : undefined}
     >
       <div className="pa-row__head">
-        <span className="pa-row__leading" aria-hidden="true">
-          <StateDot state={status.dot} />
-        </span>
         <div className="pa-row__body">
-          <Tooltip label={title} side="top" delayMs={300} onlyWhenClipped>
+          <div className="pa-row__titleline">
             <h3 className="pa-row__title">{title}</h3>
-          </Tooltip>
-          <div className="pa-row__meta">{meta}</div>
+            <div className="pa-row__aside">
+              <Tag tone={status.tone} className="pa-row__status">
+                {status.label}
+              </Tag>
+              {expandable ? (
+                <Tooltip label={toggleLabel ?? ''} side="left">
+                  <Button
+                    className="pa-row__toggle"
+                    variant="ghost"
+                    size="sm"
+                    icon={<IconChevronDownOutlineRegular />}
+                    aria-expanded={expanded}
+                    aria-controls={expanded ? panelId : undefined}
+                    aria-label={toggleLabel}
+                    onClick={onToggle}
+                  />
+                </Tooltip>
+              ) : null}
+            </div>
+          </div>
           {summary === undefined ? null : (
             <Tooltip label={summary} side="top" delayMs={300} onlyWhenClipped>
               <p className="pa-row__summary">{summary}</p>
             </Tooltip>
           )}
-        </div>
-        <div className="pa-row__aside">
-          <Tag tone={status.tone} className="pa-row__status">
-            {status.label}
-          </Tag>
-          {expandable ? (
-            <Tooltip label={toggleLabel ?? ''} side="left">
-              <Button
-                className="pa-row__toggle"
-                variant="ghost"
-                size="sm"
-                icon={<IconChevronDownOutlineRegular />}
-                aria-expanded={expanded}
-                aria-controls={expanded ? panelId : undefined}
-                aria-label={toggleLabel}
-                onClick={onToggle}
-              />
-            </Tooltip>
-          ) : null}
+          <div className="pa-row__footer">
+            {action}
+            <span className="pa-row__time">{time}</span>
+          </div>
         </div>
       </div>
       {expandable && expanded && panelId !== undefined ? (

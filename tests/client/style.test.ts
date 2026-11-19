@@ -76,7 +76,12 @@ describe('style.ts', () => {
     expect(filterBar).toContain('Pill')
     expect(filterBar).toContain('Input')
     expect(listRow).toContain("from '@deepseek-ai/dsh-client-ui-primitives'")
-    expect(listRow).toContain('StateDot')
+    expect(listRow).toContain('Tooltip')
     expect(listRow).toContain('Tag')
+  })
+
+  it('keeps the toolbar search compact and the list free of horizontal scrolling', () => {
+    expect(CONSOLE_CSS).toMatch(/\.pa-toolbar__search\s*\{[^}]*height:\s*28px/)
+    expect(CONSOLE_CSS).toMatch(/\.pa-list\s*\{[^}]*overflow-x:\s*hidden/)
   })
 })
