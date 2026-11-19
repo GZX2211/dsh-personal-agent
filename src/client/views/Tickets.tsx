@@ -3,6 +3,7 @@
 // 工单页：胶囊（待处理 / 进行中 / 已结束 / 全部）+ 搜索；卡片与审批页同款，
 // 只是没有展开态与动作按钮。
 
+import { AnimatedRows } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState, type ReactElement } from 'react'
 import type { SnapshotResponse } from '../../shared/api.ts'
 import { FilterBar } from '../components/FilterBar.tsx'
@@ -44,13 +45,20 @@ export function Tickets({ t, language, snapshot }: TicketsProps): ReactElement {
         }}
       />
 
-      <div className="pa-list">
+      <AnimatedRows
+        className="pa-list"
+        role="list"
+        label={t('ticketListLabel')}
+        rowKeys={visible.map(ticket => ticket.id)}
+        ready={visible.length > 0}
+        resetKey={`${capsule}|${query}`}
+      >
         {visible.length === 0 ? (
           <span className="pa-console__empty">{t(emptyKey(capsule, query, capsuleHasItems))}</span>
         ) : (
           visible.map(ticket => <TicketCard key={ticket.id} t={t} language={language} ticket={ticket} />)
         )}
-      </div>
+      </AnimatedRows>
     </>
   )
 }

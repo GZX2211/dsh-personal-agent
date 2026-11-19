@@ -2,15 +2,14 @@
 //
 // 面板样式：颜色/圆角/字号/阴影一律取宿主 design token，不复制设计变量。
 //
-// 排版跟宿主主界面同一套刻度，这是本文件的第一原则：
-//   · 字号：14 正文 / 13 次要 / 12 小字与时间 / 11 徽标
-//   · 行高：22 正文 / 20 次要 / 16 小字与徽标
-//   · 间距：2 / 4 / 8 / 12 / 14，全部沿同一条左基线（卡片内边距 14px）
-// 因此卡片里任何一块都不再各带左右留白——各区块自己加左内边距，正是上一版
-// 「文字对不齐、边距不一致」的根源。
+// 官方的控件（Button / Pill / Input / Modal / Tag / StateDot / PathLabel）
+// 直接由 @deepseek-ai/dsh-client-ui-primitives 提供，本文件不再定义它们的
+// 外观；这里只保留官方没有的三类东西：面板骨架、列表行、审批详情。
 //
-// 卡片仍是官方 `ask_user_question` 提问卡的结构（头部 / 题干 / 选项 / 回答 /
-// 附件 / 页脚），只是度量收敛到上面这套刻度。
+// 排版跟宿主主界面同一套刻度：
+//   · 字号：14 正文 / 13 次要 / 12 小字与时间 / 11 徽标
+//   · 行高：22 正文 / 20 次要 / 18 小字
+//   · 列表行内边距 10px 12px，详情与行头正文共用 32px 左基线
 //
 // 构建链路没有 CSS Module 管线（客户端产物是单个 CJS 文件），因此样式集中
 // 在本文件；类名用 `pa-` 前缀隔离，避免与宿主样式串味。
@@ -32,7 +31,7 @@ export const CONSOLE_CSS = `
   display: flex;
   flex: 0 0 auto;
   flex-wrap: nowrap;
-  gap: 0 32px;
+  gap: 0 24px;
   align-items: stretch;
   box-sizing: border-box;
   min-width: 0;
@@ -40,7 +39,7 @@ export const CONSOLE_CSS = `
   padding: 0 16px;
   overflow-x: auto;
   scrollbar-width: none;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 .pa-console__tabs::-webkit-scrollbar {
   display: none;
@@ -56,15 +55,21 @@ export const CONSOLE_CSS = `
   font: inherit;
   font-size: 13px;
   font-weight: 500;
-  line-height: 16px;
+  line-height: 20px;
   white-space: nowrap;
   cursor: pointer;
+  transition: color 120ms ease;
 }
 .pa-console__tab:hover {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
 }
 .pa-console__tab[aria-selected='true'] {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary);
+}
+.pa-console__tab:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 .pa-console__tab::after {
   content: '';
@@ -73,39 +78,26 @@ export const CONSOLE_CSS = `
   bottom: -1px;
   left: 0;
   height: 2px;
-  border-radius: 2px;
+  border-radius: 2px 2px 0 0;
   background: transparent;
 }
 .pa-console__tab[aria-selected='true']::after {
-  background: var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-label-primary);
 }
-.pa-console__badge {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  min-width: 16px;
-  height: 16px;
+.pa-console__count {
   margin-left: 4px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-label-primary-inverted);
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 16px;
-  white-space: nowrap;
 }
 .pa-console__body {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
 }
 .pa-console__empty {
-  padding: 20px 16px;
+  display: block;
+  margin: auto;
+  padding: 24px 16px;
   color: var(--dsw-alias-label-tertiary);
   font-size: 13px;
   line-height: 20px;
@@ -115,7 +107,7 @@ export const CONSOLE_CSS = `
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px 16px;
+  padding: 16px;
   font-size: 13px;
   line-height: 20px;
   color: var(--dsw-alias-label-secondary);
@@ -125,16 +117,17 @@ export const CONSOLE_CSS = `
   font-weight: 500;
 }
 
-/* ── 过滤条 ─────────────────────────────────────────────────────────── */
-.pa-filterbar {
+/* ── 过滤条：官方 Pill / Input 只负责摆放 ───────────────────────────── */
+.pa-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   flex: 0 0 auto;
   padding: 8px 16px;
 }
-.pa-filterbar__capsules {
+.pa-toolbar__filters {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -142,139 +135,429 @@ export const CONSOLE_CSS = `
   overflow-x: auto;
   scrollbar-width: none;
 }
-.pa-filterbar__capsules::-webkit-scrollbar {
+.pa-toolbar__filters::-webkit-scrollbar {
   display: none;
 }
-/* 胶囊用 flex 居中，不靠 line-height 撑高度——上下留白才会一致。 */
-.pa-capsule {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  height: 24px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 16px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.pa-capsule:hover {
-  color: var(--dsw-alias-label-secondary);
-}
-.pa-capsule[aria-pressed='true'] {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-  font-weight: 500;
-}
-.pa-filterbar__tools {
-  position: relative;
+.pa-toolbar__tools {
   display: flex;
   flex: 0 1 auto;
   align-items: center;
   gap: 4px;
   min-width: 0;
 }
-.pa-search {
-  display: flex;
+.pa-toolbar__search {
   flex: 1 1 auto;
-  align-items: center;
-  gap: 6px;
-  box-sizing: border-box;
-  height: 28px;
-  min-width: 120px;
-  max-width: 220px;
-  padding: 0 8px;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-1);
-  box-shadow: var(--dsw-elevation-soft);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+  width: 220px;
+  max-width: 260px;
+  min-width: 140px;
 }
-.pa-search__icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: var(--dsw-alias-label-tertiary);
-}
-.pa-search__input {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
-  line-height: 16px;
-}
-.pa-search__input::placeholder {
-  color: var(--dsw-alias-label-caption);
-}
-.pa-help {
-  display: flex;
+.pa-toolbar__help {
   flex: 0 0 auto;
 }
-.pa-help-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 10;
-  box-sizing: border-box;
-  width: 240px;
-  padding: 10px 12px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-2);
-  box-shadow: var(--dsw-elevation-prominent);
+.pa-help-text {
+  margin: 0 0 8px;
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 20px;
 }
-.pa-help-pop strong {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--dsw-alias-label-primary);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
+.pa-help-text:last-of-type {
+  margin-bottom: 0;
 }
-.pa-help-pop p {
-  margin: 0 0 4px;
-}
-.pa-help-pop p:last-of-type {
-  margin-bottom: 8px;
-}
-.pa-help-pop__close {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 10px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 12px;
-  line-height: 16px;
-  cursor: pointer;
+/* 双写类名，保证在宿主 Modal 样式之后加载时仍能给出适合说明文字的宽度。 */
+.pa-help-dialog.pa-help-dialog {
+  width: min(480px, 100%);
 }
 
-/* ── 列表与横幅 ─────────────────────────────────────────────────────── */
+/* ── 列表：官方 AnimatedRows 容器 + 共用的列表行 ─────────────────────── */
 .pa-list {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
   box-sizing: border-box;
   min-height: 0;
-  padding: 4px 16px 16px;
+  margin: 0 16px 16px;
+  padding: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-layer-1);
 }
+.pa-row {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+  border-radius: var(--dsw-radius-md);
+  transition: background-color 120ms ease;
+}
+@media (hover: hover) {
+  .pa-row:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+.pa-row__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+.pa-row__leading {
+  display: inline-flex;
+  flex: 0 0 10px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 6px;
+}
+.pa-row__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pa-row__title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-row__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  min-width: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.pa-row__meta-link {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pa-row__meta-link:hover {
+  color: var(--dsw-alias-state-business-primary);
+}
+.pa-row__meta-link:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.pa-row__meta-sep {
+  color: var(--dsw-alias-label-caption);
+}
+.pa-row__time {
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pa-row__summary {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.pa-row__aside {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+}
+.pa-row__status {
+  flex: 0 0 auto;
+}
+.pa-row__toggle {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+.pa-row__toggle:hover:not(:disabled) {
+  color: var(--dsw-alias-label-primary);
+}
+.pa-row__toggle svg {
+  transition: transform 120ms ease;
+}
+.pa-row__toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.pa-row__detail {
+  min-width: 0;
+  padding: 0 12px 12px 30px;
+}
+
+/* ── 审批详情：官方没有的字段容器，材质与行一致 ─────────────────────── */
+.pa-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+}
+.pa-detail__question {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.pa-detail__facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.pa-detail__fact {
+  flex: 0 0 auto;
+}
+.pa-detail__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pa-detail__option {
+  border: 0.5px solid transparent;
+  border-radius: var(--dsw-radius-sm);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+@media (hover: hover) {
+  .pa-detail__option:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+.pa-detail__option[data-selected] {
+  border-color: var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.pa-detail__option-button {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pa-detail__option-button:disabled {
+  cursor: default;
+}
+.pa-detail__option-button:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 1px;
+  border-radius: inherit;
+}
+.pa-detail__option-seat,
+.pa-detail__answer-seat,
+.pa-detail__attachment-seat {
+  display: grid;
+  flex: 0 0 18px;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: var(--dsw-radius-xs);
+  background: var(--dsw-alias-bg-overlay);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+}
+.pa-detail__option-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pa-detail__option-label {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.pa-detail__option-desc {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 回答行与附件行：与选项行同高、同内边距、同文字起点。 */
+.pa-detail__answer,
+.pa-detail__attachments {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0.5px solid transparent;
+  border-radius: var(--dsw-radius-sm);
+}
+.pa-detail__answer {
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.pa-detail__answer:focus-within,
+.pa-detail__answer[data-active] {
+  border-color: var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+@media (hover: hover) {
+  .pa-detail__answer:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+.pa-detail__answer--readonly:hover {
+  background: transparent;
+}
+.pa-detail__answer-field {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.pa-detail__answer-field > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.pa-detail__answer-mirror {
+  box-sizing: content-box;
+  max-height: 120px;
+  overflow: hidden;
+  visibility: hidden;
+}
+.pa-detail__answer-input {
+  resize: none;
+  overflow-y: auto;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  caret-color: var(--dsw-alias-state-business-primary);
+}
+.pa-detail__answer-input::placeholder {
+  color: var(--dsw-alias-label-caption);
+}
+.pa-detail__answer-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.pa-detail__attachment-copy {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+.pa-detail__attachment-label {
+  color: var(--dsw-alias-label-secondary);
+}
+.pa-detail__attachment-file {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.pa-detail__attachment-file:hover {
+  color: var(--dsw-alias-state-business-primary);
+  text-decoration: underline;
+}
+.pa-detail__attachment-file:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.pa-detail__attachment-hint {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* ── 详情页脚 ───────────────────────────────────────────────────────── */
+.pa-detail__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+}
+.pa-detail__progress {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pa-detail__feedback {
+  flex: 1;
+  min-height: 18px;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.pa-detail__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── 连接横幅与提交提示 ─────────────────────────────────────────────── */
 .pa-banner {
   display: flex;
   flex: 0 0 auto;
@@ -286,7 +569,7 @@ export const CONSOLE_CSS = `
   border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-state-error-primary);
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
 }
 .pa-banner__retry {
   padding: 0;
@@ -302,444 +585,28 @@ export const CONSOLE_CSS = `
   padding: 0 16px 8px;
   color: var(--dsw-alias-state-business-primary);
   font-size: 12px;
-  line-height: 16px;
-}
-
-/* ── 卡片外壳 ───────────────────────────────────────────────────────── */
-.pa-card {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  box-sizing: border-box;
-  width: 100%;
-  padding: 12px 14px;
-  border: 0;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-soft);
-  color: var(--dsw-alias-label-primary);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
-}
-.pa-card,
-.pa-card * {
-  box-sizing: border-box;
-}
-
-/* ── 卡片头部：一行元信息 + 右侧状态/时间/折叠 ──────────────────────── */
-.pa-card__header {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-.pa-card__meta {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 16px;
-}
-.pa-card__meta-item {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* 元信息里的「主体」（会话名、工单标题）比标识（短码）更亮一档。 */
-.pa-card__meta-strong {
-  color: var(--dsw-alias-label-primary);
-}
-.pa-card__link {
-  max-width: 100%;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.pa-card__link:hover {
-  color: var(--dsw-alias-state-business-primary);
-}
-.pa-card__header-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-}
-.pa-card__time {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 16px;
-  white-space: nowrap;
-}
-/* 折叠态题干：跨满整宽（与工单卡正文同结构），两行截断。 */
-.pa-card__collapsed-title {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 22px;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-/* 徽标：一个状态一个徽标，形状统一，色调按语义。 */
-.pa-badge {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  height: 16px;
-  padding: 0 6px;
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-bg-overlay);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 16px;
-  white-space: nowrap;
-}
-.pa-badge[data-tone='business'] {
-  color: var(--dsw-alias-state-business-primary);
-}
-.pa-badge[data-tone='success'] {
-  color: var(--dsw-alias-state-success-primary);
-}
-.pa-badge[data-tone='warn'] {
-  color: var(--dsw-alias-state-warn-primary);
-}
-.pa-badge[data-tone='error'] {
-  color: var(--dsw-alias-state-error-primary);
-}
-
-/* 20px 圆形图标按钮：与 12px 时间同一行时不撑高头部。 */
-.pa-icon-button {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-}
-@media (hover: hover) {
-  .pa-icon-button:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-primary);
-  }
-}
-.pa-icon-button:disabled {
-  color: var(--dsw-alias-label-dimmed);
-  cursor: default;
-}
-
-/* ── 卡片主体 ───────────────────────────────────────────────────────── */
-.pa-card__body {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  margin-top: 8px;
-}
-/* 正文：与主界面同一套 14/22；工单卡截断到两行。 */
-.pa-card__question {
-  margin: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 22px;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-.pa-card__question--clamp {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-/* ── 选项 ───────────────────────────────────────────────────────────── */
-.pa-card__options {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 8px;
-}
-.pa-card__option-row {
-  position: relative;
-  width: 100%;
-  border: 0.5px solid transparent;
-  border-radius: var(--dsw-radius-sm);
-  transition: background-color 120ms ease, border-color 120ms ease;
-}
-@media (hover: hover) {
-  .pa-card__option-row:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
-  }
-}
-.pa-card__option-row[data-selected] {
-  border-color: var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-.pa-card__option {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.pa-card__option:disabled {
-  cursor: default;
-}
-/* 18×18 座位：序号、编辑、附件共用，保证三行文字落在同一条基线上。 */
-.pa-card__number,
-.pa-card__seat {
-  display: grid;
-  place-items: center;
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-bg-overlay);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 16px;
-}
-.pa-card__option-copy {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 6px;
-  min-width: 0;
-}
-.pa-card__option-label {
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
-}
-.pa-card__option-desc {
-  max-width: 100%;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  font-weight: 400;
   line-height: 18px;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 
-/* ── 回答行与附件行：与选项行同高、同内边距、同文字起点 ─────────────── */
-.pa-card__answer-row,
-.pa-card__attachment-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border: 0.5px solid transparent;
-  border-radius: var(--dsw-radius-sm);
-}
-.pa-card__answer-row {
-  margin-top: 8px;
-  transition: background-color 120ms ease, border-color 120ms ease;
-}
-.pa-card__answer-row:focus-within,
-.pa-card__answer-row[data-active] {
-  border-color: var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-@media (hover: hover) {
-  .pa-card__answer-row:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+@media (max-width: 520px) {
+  .pa-toolbar {
+    align-items: stretch;
   }
-}
-.pa-card__answer-row--readonly:hover {
-  background: transparent;
-}
-.pa-card__field {
-  display: grid;
-  flex: 1;
-  min-width: 0;
-}
-.pa-card__field > * {
-  grid-area: 1 / 1;
-  min-width: 0;
-  padding: 0;
-  font: inherit;
-  font-size: 13px;
-  line-height: 20px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-.pa-card__field-mirror {
-  box-sizing: content-box;
-  max-height: 120px;
-  overflow: hidden;
-  visibility: hidden;
-}
-.pa-card__field-input {
-  resize: none;
-  overflow-y: auto;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  caret-color: var(--dsw-alias-state-business-primary);
-}
-.pa-card__field-input::placeholder {
-  color: var(--dsw-alias-label-caption);
-}
-.pa-card__answer-text {
-  flex: 1;
-  min-width: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-.pa-card__attachment-row {
-  margin-top: 2px;
-}
-.pa-card__attachment-copy {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 6px;
-  min-width: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
-}
-.pa-card__attachment-label {
-  color: var(--dsw-alias-label-secondary);
-}
-.pa-card__attachment-file {
-  max-width: 100%;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.pa-card__attachment-file:hover {
-  color: var(--dsw-alias-state-business-primary);
-  text-decoration: underline;
-}
-.pa-card__attachment-hint {
-  color: var(--dsw-alias-label-tertiary);
-}
-
-/* ── 页脚 ───────────────────────────────────────────────────────────── */
-.pa-card__footer {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 8px;
-}
-.pa-card__pager {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 2px;
-}
-.pa-card__progress {
-  padding: 0 2px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 16px;
-  white-space: nowrap;
-}
-.pa-card__feedback {
-  flex: 1;
-  min-height: 16px;
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 11px;
-  line-height: 16px;
-  text-align: right;
-}
-.pa-card__footer-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ── 按钮：与宿主按钮同一套（28px 高、8px 圆角、13px 字） ───────────── */
-.pa-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  box-sizing: border-box;
-  height: 28px;
-  padding: 0 12px;
-  border-radius: var(--dsw-radius-sm);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.pa-button--outline {
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-}
-@media (hover: hover) {
-  .pa-button--outline:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+  .pa-toolbar__tools {
+    width: 100%;
   }
-}
-.pa-button--primary {
-  border: 0.5px solid transparent;
-  background: var(--dsw-alias-button-primary-fill);
-  color: var(--dsw-alias-label-primary-inverted);
-}
-@media (hover: hover) {
-  .pa-button--primary:hover:not(:disabled) {
-    background: var(--dsw-alias-button-primary-hover);
+  .pa-toolbar__search {
+    width: auto;
+    max-width: none;
   }
-}
-.pa-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pa-card__option-row,
-  .pa-card__answer-row {
+  .pa-row,
+  .pa-detail__option,
+  .pa-detail__answer,
+  .pa-row__toggle svg,
+  .pa-console__tab {
     transition: none;
   }
 }

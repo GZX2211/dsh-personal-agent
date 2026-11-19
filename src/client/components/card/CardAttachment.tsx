@@ -3,9 +3,8 @@
 // 附件行：worker 随审批带上的文件，人只读。没有附件时整行不渲染
 // （「未填不显示该项」），所以这里不处理空列表文案。
 
+import { IconPaperclipOutlineRegular, PathLabel } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
-import { fileName } from '../../lib/files.ts'
-import { Icon } from './Icon.tsx'
 
 export interface CardAttachmentProps {
   paths: readonly string[]
@@ -17,12 +16,12 @@ export interface CardAttachmentProps {
 export function CardAttachment({ paths, label, openHint, onOpen }: CardAttachmentProps): ReactElement | null {
   if (paths.length === 0) return null
   return (
-    <div className="pa-card__attachment-row">
-      <span className="pa-card__seat" aria-hidden="true">
-        <Icon name="paperclip" size={13} />
+    <div className="pa-detail__attachments">
+      <span className="pa-detail__attachment-seat" aria-hidden="true">
+        <IconPaperclipOutlineRegular />
       </span>
-      <span className="pa-card__attachment-copy">
-        <span className="pa-card__attachment-label">
+      <span className="pa-detail__attachment-copy">
+        <span className="pa-detail__attachment-label">
           {label}
           {'\uFF1A'}
         </span>
@@ -30,14 +29,14 @@ export function CardAttachment({ paths, label, openHint, onOpen }: CardAttachmen
           <button
             key={path}
             type="button"
-            className="pa-card__attachment-file"
+            className="pa-detail__attachment-file"
             title={path}
             onClick={() => onOpen?.(path)}
           >
-            {fileName(path)}
+            <PathLabel path={path} />
           </button>
         ))}
-        <span className="pa-card__attachment-hint">
+        <span className="pa-detail__attachment-hint">
           {'\uFF08'}
           {openHint}
           {'\uFF09'}

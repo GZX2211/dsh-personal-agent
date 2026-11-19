@@ -1,9 +1,12 @@
 // tests/client/components/ticket-card.test.tsx
 //
-// 工单卡片的结构契约：与审批卡同一套卡片，但没有展开态、没有动作；头部右侧
-// 只有一个状态徽标（阻塞中 / 已中断优先），正文最多两行。
+// 工单行与审批行共用同一套列表行，但没有展开态、没有动作；状态用官方 Tag
+// 与 StateDot 表达，目标摘要最多两行。
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => await import('../../support/ui-primitives-stub.tsx'))
+
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { TicketView } from '../../../src/shared/tickets.ts'
 import { TicketCard } from '../../../src/client/components/TicketCard.tsx'
@@ -30,35 +33,33 @@ function render(card: TicketView): string {
 }
 
 describe('TicketCard', () => {
-  it('heads with the short code and the title, and shows the goal as the body', () => {
+  it('heads with the short code and the title, and keeps the goal as the summary', () => {
     const html = render(ticket())
 
     expect(html).toContain('工单 #9c20e7')
     expect(html).toContain('建文件')
     expect(html).toContain('在 D:\\tmp 下创建 hello.txt')
+    expect(html).toContain('pa-row__summary')
     expect(html).toContain('11月12日 00:22')
   })
 
   it('has no expander, no footer and no action buttons', () => {
     const html = render(ticket())
 
-    expect(html).not.toContain('pa-icon-button')
+    expect(html).not.toContain('pa-row__toggle')
+    expect(html).not.toContain('aria-expanded')
     expect(html).not.toContain('1 / 1')
     expect(html).not.toContain('跳过')
     expect(html).not.toContain('提交')
   })
 
-  it('clamps the goal to two lines', () => {
-    expect(render(ticket())).toContain('pa-card__question--clamp')
-  })
-
-  it('shows the stage as the single header badge', () => {
+  it('shows the stage as the single status tag', () => {
     expect(render(ticket({ stage: 'queued' }))).toContain('待处理')
     expect(render(ticket({ stage: 'running' }))).toContain('进行中')
     expect(render(ticket({ stage: 'ended', outcome: 'completed' }))).toContain('已结束')
   })
 
-  it('prefers blocked and interrupted over the stage badge', () => {
+  it('prefers blocked and interrupted over the stage tag', () => {
     const blocked = render(ticket({ stage: 'blocked', interrupted: true }))
     const interrupted = render(ticket({ stage: 'running', interrupted: true }))
 
@@ -68,12 +69,20 @@ describe('TicketCard', () => {
     expect(interrupted).not.toContain('进行中')
   })
 
-  it('tones an ended ticket by its outcome', () => {
+  it('maps the status to the official tag tone and state dot', () => {
+    expect(render(ticket({ stage: 'queued' }))).toContain('data-tone="neutral"')
+    expect(render(ticket({ stage: 'queued' }))).toContain('data-state="idle"')
+    expect(render(ticket({ stage: 'running' }))).toContain('data-tone="info"')
+    expect(render(ticket({ stage: 'running' }))).toContain('data-state="ongoing"')
+    expect(render(ticket({ stage: 'blocked' }))).toContain('data-tone="warning"')
+    expect(render(ticket({ stage: 'blocked' }))).toContain('data-state="warning"')
+    expect(render(ticket({ stage: 'running', interrupted: true }))).toContain('data-tone="danger"')
+    expect(render(ticket({ stage: 'running', interrupted: true }))).toContain('data-state="error"')
     expect(render(ticket({ stage: 'ended', outcome: 'completed' }))).toContain('data-tone="success"')
-    expect(render(ticket({ stage: 'ended', outcome: 'failed' }))).toContain('data-tone="error"')
+    expect(render(ticket({ stage: 'ended', outcome: 'failed' }))).toContain('data-tone="danger"')
   })
 
-  it('does not repeat the report on the card', () => {
+  it('does not repeat the report on the row', () => {
     expect(render(ticket({ stage: 'ended', outcome: 'completed', report: '做完了，产物在 out/' }))).not.toContain('做完了')
   })
 })

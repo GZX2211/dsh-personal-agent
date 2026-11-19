@@ -1,8 +1,10 @@
 // src/client/components/ConsoleTabStrip.tsx
 //
 // 总控台的标签条：只渲染与派发选择，不持有业务状态。
-// 结构沿用宿主会话视图标签（role="tablist" + role="tab" + aria-selected），样式见 style.ts。
+// 结构沿用宿主会话视图标签（role="tablist" + role="tab" + aria-selected），
+// 待审批数用官方 Tag 表达。
 
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
 
 export interface ConsoleTab {
@@ -32,7 +34,9 @@ export function ConsoleTabStrip({ tabs, active, onSelect }: ConsoleTabStripProps
         >
           {tab.label}
           {tab.badge !== undefined && tab.badge > 0 ? (
-            <span className="pa-console__badge">{badgeText(tab.badge)}</span>
+            <Tag tone="danger" className="pa-console__count">
+              {badgeText(tab.badge)}
+            </Tag>
           ) : null}
         </button>
       ))}

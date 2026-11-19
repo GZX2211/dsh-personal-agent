@@ -1,9 +1,12 @@
 // tests/client/components/approval-card.test.tsx
 //
-// 审批卡片的结构契约：待审批默认展开、已通过默认折叠且只读、头部只有发起者
-// 会话名与时间、附件为空时整行不渲染。用服务端静态渲染，不依赖浏览器 DOM。
+// 审批列表行的结构契约：默认折叠成一行（状态、题干、发起者、时间、展开按钮），
+// 展开后保留原卡片的全部字段（题干、选项、回答、附件、风险、分页与动作）。
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => await import('../../support/ui-primitives-stub.tsx'))
+
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ApprovalView } from '../../../src/shared/approvals.ts'
 import { NO_ACTIONS } from '../../../src/client/actions.ts'
@@ -42,33 +45,55 @@ function render(card: ApprovalView, defaultCollapsed?: boolean): string {
   )
 }
 
-describe('ApprovalCard 待审批', () => {
-  it('opens expanded with the question, options, answer field and both actions', () => {
+describe('ApprovalCard 折叠行', () => {
+  it('starts collapsed: status, question, requester, time and an expander', () => {
     const html = render(approval({ attachments: ['D:/pa-work/t-1/notes.md'] }))
 
+    expect(html).toContain('data-expanded="false"')
+    expect(html).toContain('这是一个三选项测试题。')
+    expect(html).toContain('19b0e213')
+    expect(html).toContain('11月12日 00:22')
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).toContain('data-tone="warning"')
+    expect(html).toContain('data-state="warning"')
+    expect(html).not.toContain('输入你的答案')
+    expect(html).not.toContain('跳过')
+    expect(html).not.toContain('提交')
+    expect(html).not.toContain('notes.md')
+  })
+
+  it('keeps the requester clickable and free of extra header labels', () => {
+    const html = render(approval())
+
+    expect(html).toContain('pa-row__meta-link')
+    expect(html).not.toContain('发起者')
+    expect(html).not.toContain('关联工单')
+  })
+})
+
+describe('ApprovalCard 展开态', () => {
+  it('keeps every field of the original card when expanded', () => {
+    const html = render(
+      approval({
+        risk: 'high',
+        attachments: ['D:/pa-work/t-1/notes.md'],
+      }),
+      false,
+    )
+
+    expect(html).toContain('data-expanded="true"')
     expect(html).toContain('这是一个三选项测试题。')
     expect(html).toContain('选项 A')
     expect(html).toContain('选择 A 表示同意')
     expect(html).toContain('输入你的答案')
+    expect(html).toContain('风险')
+    expect(html).toContain('高')
     expect(html).toContain('notes.md')
+    expect(html).toContain('点击可在右侧栏打开')
     expect(html).toContain('跳过')
     expect(html).toContain('提交')
     expect(html).toContain('1 / 1')
-  })
-
-  it('shows the requesting session name alone in the header', () => {
-    const html = render(approval())
-
-    expect(html).toContain('19b0e213')
-    expect(html).not.toContain('发起者')
-    expect(html).not.toContain('关联工单')
-  })
-
-  it('hides the attachment row entirely when the worker sent none', () => {
-    const html = render(approval())
-
-    expect(html).not.toContain('附件')
-    expect(html).not.toContain('点击可在右侧栏打开')
+    expect(html).toContain('data-primitive="button"')
   })
 })
 
@@ -78,26 +103,16 @@ describe('ApprovalCard 已通过', () => {
     decision: { kind: 'selected', index: 1, label: '选项 B', answer: '先观察', transport: 'inline' },
   })
 
-  it('starts collapsed and shows only the header strip', () => {
+  it('starts collapsed and states the decision time rather than the request time', () => {
     const html = render(decided)
 
-    expect(html).toContain('data-collapsed="true"')
+    expect(html).toContain('data-expanded="false"')
     expect(html).toContain('已通过')
+    expect(html).toContain('data-tone="success"')
+    expect(html).toContain('data-state="done"')
+    expect(html).toContain('00:23')
     expect(html).not.toContain('输入你的答案')
     expect(html).not.toContain('跳过')
-    expect(html).not.toContain('提交')
-  })
-
-  it('keeps the collapsed question full width, outside the header actions', () => {
-    const html = render(decided)
-
-    // 题干必须在头部之后：放进头部左侧列就会被右侧的状态/时间/箭头挤窄。
-    expect(html.indexOf('pa-card__collapsed-title')).toBeGreaterThan(html.indexOf('</header>'))
-    expect(html).not.toContain('pa-card__options')
-  })
-
-  it('states the decision time rather than the request time', () => {
-    expect(render(decided)).toContain('00:23')
   })
 
   it('is read-only once expanded: the choice stays highlighted and no action remains', () => {
@@ -113,7 +128,7 @@ describe('ApprovalCard 已通过', () => {
     expect(html).toContain('先观察')
     expect(html).toContain('report.html')
     expect(html).toContain('aria-checked="true"')
-    expect(html).toContain('disabled')
+    expect(html).not.toContain('pa-detail__answer-input')
     expect(html).not.toContain('跳过')
     expect(html).not.toContain('提交')
   })
@@ -122,7 +137,9 @@ describe('ApprovalCard 已通过', () => {
     const html = render(approval({ decidedAt: NOW + 1000, decision: { kind: 'skipped', transport: 'inline' } }), false)
 
     expect(html).toContain('已跳过')
-    expect(html).not.toContain('pa-card__answer-row')
+    expect(html).toContain('data-tone="neutral"')
+    expect(html).toContain('data-state="idle"')
+    expect(html).not.toContain('pa-detail__answer-text')
   })
 
   it('treats a custom answer as decided and shows the answer text', () => {

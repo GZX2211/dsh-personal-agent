@@ -1,8 +1,11 @@
 // tests/client/components/console-tab-strip.test.tsx
 //
-// 标签条的待审批徽标：有数量时渲染成可读的圆点，零与缺省不占位。
+// 标签条的待审批徽标：有数量时渲染成可读徽标，零与缺省不占位。
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => await import('../../support/ui-primitives-stub.tsx'))
+
 import { renderToStaticMarkup } from 'react-dom/server'
 import { ConsoleTabStrip, type ConsoleTab } from '../../../src/client/components/ConsoleTabStrip.tsx'
 
@@ -11,13 +14,13 @@ function render(tabs: readonly ConsoleTab[], active = 'approvals'): string {
 }
 
 describe('ConsoleTabStrip badge', () => {
-  it('renders the pending count as a badge element', () => {
+  it('renders the pending count as an official tag', () => {
     const html = render([
       { id: 'approvals', label: '审批', badge: 3 },
       { id: 'tickets', label: '工单' },
     ])
 
-    expect(html).toContain('class="pa-console__badge"')
+    expect(html).toContain('data-primitive="tag"')
     expect(html).toContain('>3<')
   })
 
@@ -33,6 +36,7 @@ describe('ConsoleTabStrip badge', () => {
       { id: 'tickets', label: '工单' },
     ])
 
-    expect(html).not.toContain('pa-console__badge')
+    expect(html).not.toContain('>0<')
+    expect(html).not.toContain('>99+<')
   })
 })

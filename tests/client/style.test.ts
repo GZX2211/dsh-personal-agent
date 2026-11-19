@@ -1,7 +1,9 @@
 // tests/client/style.test.ts
 //
-// 样式守卫：组件用到的每个 `pa-*` 类都必须在 style.ts 里有定义。
-// 单文件样式表没有编译期检查，漏一条规则不会报错，只会让界面悄悄少一层外观。
+// 样式守卫：
+// - 组件用到的每个 `pa-*` 类都必须在 style.ts 里有定义；
+// - 官方原子包已经提供的控件不得在本插件里复刻第二份；
+// - 过滤条与列表行必须从官方 primitives 取控件。
 
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -50,5 +52,31 @@ describe('style.ts', () => {
     })
 
     expect(missing).toEqual([])
+  })
+
+  it('does not reimplement a control the shared primitives already ship', () => {
+    for (const selector of [
+      '.pa-capsule',
+      '.pa-search__input',
+      '.pa-badge',
+      '.pa-button',
+      '.pa-icon-button',
+      '.pa-help-pop',
+      '.pa-card__option-row',
+    ]) {
+      expect(CONSOLE_CSS).not.toContain(selector)
+    }
+  })
+
+  it('takes the toolbar and list rows from the shared primitives', () => {
+    const filterBar = readFileSync(join(CLIENT_DIR, 'components', 'FilterBar.tsx'), 'utf8')
+    const listRow = readFileSync(join(CLIENT_DIR, 'components', 'ListRow.tsx'), 'utf8')
+
+    expect(filterBar).toContain("from '@deepseek-ai/dsh-client-ui-primitives'")
+    expect(filterBar).toContain('Pill')
+    expect(filterBar).toContain('Input')
+    expect(listRow).toContain("from '@deepseek-ai/dsh-client-ui-primitives'")
+    expect(listRow).toContain('StateDot')
+    expect(listRow).toContain('Tag')
   })
 })

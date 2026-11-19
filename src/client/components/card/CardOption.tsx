@@ -1,7 +1,7 @@
 // src/client/components/card/CardOption.tsx
 //
-// 一个选项行：官方提问卡的单选行——20×20 序号座位 + 标签 14/24 + 说明 13/20，
-// 选中时整行铺 hover 底色并描边。已决态只读：行仍可聚焦查看，但不可改。
+// 一个选项行：序号座位 + 标签 13/20 + 说明 12/18，选中时整行铺 hover 底色
+// 并描边。官方原子包没有单选组，这一行保留自建；已决态只读。
 
 import type { ReactElement } from 'react'
 
@@ -25,22 +25,22 @@ export function CardOption({
   onSelect,
 }: CardOptionProps): ReactElement {
   return (
-    <div className="pa-card__option-row" data-selected={selected || undefined}>
+    <div className="pa-detail__option" data-selected={selected || undefined}>
       <button
         type="button"
-        className="pa-card__option"
+        className="pa-detail__option-button"
         role="radio"
         aria-checked={selected}
         aria-label={label}
         disabled={locked}
         onClick={onSelect}
       >
-        <span className="pa-card__number" aria-hidden="true">
+        <span className="pa-detail__option-seat" aria-hidden="true">
           {index + 1}
         </span>
-        <span className="pa-card__option-copy">
-          <span className="pa-card__option-label">{label}</span>
-          <span className="pa-card__option-desc">{description}</span>
+        <span className="pa-detail__option-copy">
+          <span className="pa-detail__option-label">{label}</span>
+          <span className="pa-detail__option-desc">{description}</span>
         </span>
       </button>
     </div>

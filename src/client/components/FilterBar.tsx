@@ -1,11 +1,11 @@
 // src/client/components/FilterBar.tsx
 //
-// 过滤条：左边胶囊、右边搜索与帮助。胶囊只表达「当前选中哪一个」，
+// 过滤条：左边官方 Pill、右边官方 Input 与帮助。Pill 只表达「当前选中哪一个」，
 // 过滤与搜索的相交由页面用 lib/filter 算好，这里不感知数据。
 
+import { IconSearchOutlineRegular, Input, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
-import { HelpPopover } from './HelpPopover.tsx'
-import { Icon } from './card/Icon.tsx'
+import { HelpDialog } from './HelpDialog.tsx'
 
 export interface CapsuleOption<K extends string = string> {
   id: K
@@ -37,35 +37,30 @@ export function FilterBar({
   help,
 }: FilterBarProps): ReactElement {
   return (
-    <div className="pa-filterbar">
-      <div className="pa-filterbar__capsules" role="group">
+    <div className="pa-toolbar">
+      <div className="pa-toolbar__filters" role="group">
         {options.map(option => (
-          <button
+          <Pill
             key={option.id}
-            type="button"
-            className="pa-capsule"
+            active={option.id === active}
             aria-pressed={option.id === active}
             onClick={() => onSelect(option.id)}
           >
             {option.label}
-          </button>
+          </Pill>
         ))}
       </div>
-      <div className="pa-filterbar__tools">
-        <label className="pa-search">
-          <span className="pa-search__icon">
-            <Icon name="search" size={14} />
-          </span>
-          <input
-            type="text"
-            className="pa-search__input"
-            value={query}
-            placeholder={searchPlaceholder}
-            aria-label={searchPlaceholder}
-            onChange={event => onQueryChange(event.target.value)}
-          />
-        </label>
-        <HelpPopover
+      <div className="pa-toolbar__tools">
+        <Input
+          className="pa-toolbar__search"
+          icon={<IconSearchOutlineRegular />}
+          type="text"
+          value={query}
+          placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
+          onChange={event => onQueryChange(event.target.value)}
+        />
+        <HelpDialog
           label={help.label}
           title={help.title}
           paragraphs={help.paragraphs}

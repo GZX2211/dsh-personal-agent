@@ -3,6 +3,7 @@
 // 审批页：胶囊（待审批 / 已通过 / 全部）+ 搜索，列表用同一张卡片渲染；
 // 提交决定后立即刷新，并按稳定错误码给出具体原因。
 
+import { AnimatedRows } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState, type ReactElement } from 'react'
 import type { ApprovalView } from '../../shared/approvals.ts'
 import type { SnapshotResponse } from '../../shared/api.ts'
@@ -97,7 +98,14 @@ export function Approvals({
 
       {notice !== undefined ? <p className="pa-notice">{notice}</p> : null}
 
-      <div className="pa-list">
+      <AnimatedRows
+        className="pa-list"
+        role="list"
+        label={t('approvalListLabel')}
+        rowKeys={visible.map(approval => approval.id)}
+        ready={visible.length > 0}
+        resetKey={`${capsule}|${query}`}
+      >
         {visible.length === 0 ? (
           <span className="pa-console__empty">{t(emptyKey(capsule, query, capsuleHasItems))}</span>
         ) : (
@@ -117,7 +125,7 @@ export function Approvals({
             />
           ))
         )}
-      </div>
+      </AnimatedRows>
     </>
   )
 }
