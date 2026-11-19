@@ -582,53 +582,6 @@ export const CONSOLE_CSS = `
   line-height: 18px;
 }
 
-/* ── 来源页：说明条 + 两个分区 ──────────────────────────────────────── */
-.pa-page {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 16px;
-  box-sizing: border-box;
-  min-height: 0;
-  padding-bottom: 16px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.pa-section {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.pa-section__intro {
-  margin: 12px 16px 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
-}
-.pa-section__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 16px;
-}
-.pa-section__title {
-  margin: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
-}
-/* 分区内的列表不自己滚动：整页滚，读起来是一条线。 */
-.pa-list--inline {
-  flex: 0 0 auto;
-  min-height: 0;
-  margin: 0 16px;
-  overflow: visible;
-}
-
 /* ── 来源卡片与线程行 ───────────────────────────────────────────────── */
 .pa-source__dot,
 .pa-source__channel,
@@ -752,9 +705,6 @@ export const CONSOLE_CSS = `
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-.pa-timer__open {
-  flex: 0 0 auto;
 }
 
 /* ── 事件卡片 ───────────────────────────────────────────────────────── */

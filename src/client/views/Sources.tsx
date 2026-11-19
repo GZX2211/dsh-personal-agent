@@ -1,6 +1,7 @@
 // src/client/views/Sources.tsx
 //
-// 来源页：说明条 + 感知来源分区 + 只读的定时来源分区。
+// 来源页：一条与审批/工单/事件页相同的工具栏（左侧「在对话中创建」、右侧搜索与
+// 帮助），下面是感知来源列表。定时任务由宿主自动化任务页负责，这里不重复展示。
 //
 // 开关与线程开关走乐观更新、失败回滚；测试与删除只在展开区提供。所有写操作都经
 // 唯一网络边界（lib/http），错误按稳定码给出具体文案。
@@ -11,11 +12,12 @@ import type { SnapshotResponse } from '../../shared/api.ts'
 import type { SignalView } from '../../shared/signals.ts'
 import type { SourceView } from '../../shared/sources.ts'
 import type { ConsoleActions } from '../actions.ts'
+import { FilterBar } from '../components/FilterBar.tsx'
 import { SourceCard } from '../components/SourceCard.tsx'
-import { TimerCard } from '../components/TimerCard.tsx'
-import type { Dict, Translate } from '../i18n.ts'
+import type { Translate } from '../i18n.ts'
 import { ApiError, removeSource, testSource, toggleSource } from '../lib/http.ts'
 import {
+  filterSources,
   sourceEnabledOf,
   sourceErrorKey,
   threadOverrideKey,
@@ -38,10 +40,11 @@ export function Sources({ t, language, snapshot, error, refresh, actions }: Sour
   const [enabledOverride, setEnabledOverride] = useState<Record<string, boolean>>({})
   const [threadOverride, setThreadOverride] = useState<Record<string, boolean>>({})
   const [testResults, setTestResults] = useState<Record<string, SignalView[]>>({})
+  const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ seq: number; text: string }>()
 
   const sources = snapshot?.sources ?? []
-  const timers = snapshot?.timers ?? []
+  const visible = filterSources(sources, query, { t, language })
   const routerSessionId = snapshot?.routerSessionId
   const now = Date.now()
 
@@ -139,21 +142,15 @@ export function Sources({ t, language, snapshot, error, refresh, actions }: Sour
   }
 
   return (
-    <div className="pa-page">
-      {error !== undefined ? (
-        <div className="pa-banner" role="status">
-          <span>{t('approvalConnectionLost')}</span>
-          <button type="button" className="pa-banner__retry" onClick={() => refresh()}>
-            {t('approvalRefresh')}
-          </button>
-        </div>
-      ) : null}
-
-      <p className="pa-section__intro">{t('sourcesIntro')}</p>
-
-      <section className="pa-section">
-        <div className="pa-section__head">
-          <h2 className="pa-section__title">{t('sourcesSection')}</h2>
+    <>
+      <FilterBar
+        options={[]}
+        active=""
+        onSelect={() => undefined}
+        query={query}
+        onQueryChange={setQuery}
+        searchPlaceholder={t('searchPlaceholder')}
+        leading={
           <Button
             variant="outline"
             size="sm"
@@ -164,85 +161,70 @@ export function Sources({ t, language, snapshot, error, refresh, actions }: Sour
           >
             {t('sourcesCreateInChat')}
           </Button>
+        }
+        help={{
+          label: t('helpOpen'),
+          title: t('helpTitle'),
+          paragraphs: [t('helpBodySources'), t('helpBodySourcesSearch')],
+          closeLabel: t('helpClose'),
+        }}
+      />
+
+      {error !== undefined ? (
+        <div className="pa-banner" role="status">
+          <span>{t('approvalConnectionLost')}</span>
+          <button type="button" className="pa-banner__retry" onClick={() => refresh()}>
+            {t('approvalRefresh')}
+          </button>
         </div>
+      ) : null}
 
-        <AnimatedRows
-          className="pa-list pa-list--inline"
-          role="list"
-          label={t('sourcesSection')}
-          rowKeys={sources.map(source => source.id)}
-          ready={sources.length > 0}
-          resetKey="sources"
-        >
-          {sources.length === 0 ? (
-            <span className="pa-console__empty">{t('sourcesEmpty')}</span>
-          ) : (
-            sources.map(source => (
-              <SourceCard
-                key={source.id}
-                t={t}
-                language={language}
-                now={now}
-                source={source}
-                enabled={sourceEnabledOf(source, enabledOverride)}
-                threadEnabled={threadOverridesFor(source, threadOverride)}
-                busy={busy[source.id] === true}
-                deleting={deleting[source.id] === true}
-                testResult={testResults[source.id]}
-                onToggleSource={enabled => {
-                  void setEnabled(source, enabled)
-                }}
-                onToggleThread={(threadId, enabled) => {
-                  void setThreadEnabled(source, threadId, enabled)
-                }}
-                onTest={() => {
-                  void runTest(source)
-                }}
-                onRestart={() => {
-                  void setEnabled(source, true)
-                }}
-                onRemove={() => {
-                  void runRemove(source)
-                }}
-              />
-            ))
-          )}
-        </AnimatedRows>
-      </section>
-
-      <section className="pa-section">
-        <div className="pa-section__head">
-          <h2 className="pa-section__title">{t('sourcesTimerSection')}</h2>
-        </div>
-
-        <AnimatedRows
-          className="pa-list pa-list--inline"
-          role="list"
-          label={t('sourcesTimerSection')}
-          rowKeys={timers.map(timer => timer.scheduleId)}
-          ready={timers.length > 0}
-          resetKey="timers"
-        >
-          {timers.length === 0 ? (
-            <span className="pa-console__empty">{t('sourcesTimersEmpty')}</span>
-          ) : (
-            timers.map(timer => (
-              <TimerCard
-                key={timer.scheduleId}
-                t={t}
-                language={language}
-                now={now}
-                timer={timer}
-                onOpen={() => actions.openSchedules()}
-              />
-            ))
-          )}
-        </AnimatedRows>
-      </section>
+      <AnimatedRows
+        className="pa-list"
+        role="list"
+        label={t('sourcesSection')}
+        rowKeys={visible.map(source => source.id)}
+        ready={visible.length > 0}
+        resetKey={query}
+      >
+        {visible.length === 0 ? (
+          <span className="pa-console__empty">{t(sources.length === 0 ? 'sourcesEmpty' : 'sourcesNoMatch')}</span>
+        ) : (
+          visible.map(source => (
+            <SourceCard
+              key={source.id}
+              t={t}
+              language={language}
+              now={now}
+              source={source}
+              enabled={sourceEnabledOf(source, enabledOverride)}
+              threadEnabled={threadOverridesFor(source, threadOverride)}
+              busy={busy[source.id] === true}
+              deleting={deleting[source.id] === true}
+              testResult={testResults[source.id]}
+              onToggleSource={enabled => {
+                void setEnabled(source, enabled)
+              }}
+              onToggleThread={(threadId, enabled) => {
+                void setThreadEnabled(source, threadId, enabled)
+              }}
+              onTest={() => {
+                void runTest(source)
+              }}
+              onRestart={() => {
+                void setEnabled(source, true)
+              }}
+              onRemove={() => {
+                void runRemove(source)
+              }}
+            />
+          ))
+        )}
+      </AnimatedRows>
 
       {toast === undefined ? null : (
         <Toast key={toast.seq} text={toast.text} onDone={() => setToast(undefined)} />
       )}
-    </div>
+    </>
   )
 }

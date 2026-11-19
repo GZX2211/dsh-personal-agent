@@ -1,7 +1,7 @@
 // tests/client/views/sources.test.tsx
 //
-// 来源页：说明条、感知来源分区、只读定时分区与两种空态。
-// 写操作在页面内是异步的，这里只验证「呈现出来的事实」。
+// 来源页：与另外三页相同的工具栏（左侧创建按钮、右侧搜索与帮助）+ 来源卡片。
+// 定时任务不在本页展示；说明文案只在帮助对话框里。
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -10,13 +10,12 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => await import('../..
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ComponentProps } from 'react'
 import type { SnapshotResponse } from '../../../src/shared/api.ts'
-import type { SourceView, TimerSourceView } from '../../../src/shared/sources.ts'
+import type { SourceView } from '../../../src/shared/sources.ts'
 import { NO_ACTIONS } from '../../../src/client/actions.ts'
 import { translateFor } from '../../../src/client/i18n.ts'
 import { Sources } from '../../../src/client/views/Sources.tsx'
 
 const t = translateFor('zh')
-const NOW = 1_700_000_000_000
 
 function snapshot(overrides: Partial<SnapshotResponse> = {}): SnapshotResponse {
   return {
@@ -49,18 +48,6 @@ function source(overrides: Partial<SourceView> = {}): SourceView {
   }
 }
 
-function timer(overrides: Partial<TimerSourceView> = {}): TimerSourceView {
-  return {
-    scheduleId: 'schedule-1',
-    title: '每天提醒',
-    active: true,
-    timing: { kind: 'every', everySeconds: 300 },
-    nextAt: NOW + 5 * 60_000,
-    deliveredCount: 2,
-    ...overrides,
-  }
-}
-
 function render(props: Partial<ComponentProps<typeof Sources>> = {}): string {
   return renderToStaticMarkup(
     <Sources
@@ -75,25 +62,34 @@ function render(props: Partial<ComponentProps<typeof Sources>> = {}): string {
 }
 
 describe('Sources view', () => {
-  it('explains both empty sections', () => {
+  it('explains the empty list without a visible intro block', () => {
     const html = render()
 
-    expect(html).toContain('感知来源让 Agent 在你不在场时也能收到通知')
     expect(html).toContain('还没有感知来源')
-    expect(html).toContain('还没有投递到个人代理的定时任务')
+    expect(html).not.toContain('感知来源让 Agent 在你不在场时也能收到通知')
   })
 
-  it('lists a source and a timer', () => {
-    const html = render({
-      snapshot: snapshot({ sources: [source()], timers: [timer()] }),
-    })
+  it('carries the same toolbar as the other pages', () => {
+    const html = render()
+
+    expect(html).toContain('在对话中创建')
+    expect(html).toContain('pa-toolbar__search')
+    expect(html).toContain('帮助')
+  })
+
+  it('lists a source card', () => {
+    const html = render({ snapshot: snapshot({ sources: [source()] }) })
 
     expect(html).toContain('本地文件')
     expect(html).toContain('运行中')
-    expect(html).toContain('每天提醒')
-    expect(html).toContain('周期 · 5分钟')
-    expect(html).toContain('已投递 2')
-    expect(html).toContain('打开自动化任务')
+    expect(html).toContain('线程 1')
+  })
+
+  it('does not render the timer section any more', () => {
+    const html = render()
+
+    expect(html).not.toContain('定时来源')
+    expect(html).not.toContain('打开自动化任务')
   })
 
   it('disables creating in conversation when the router session is unknown', () => {

@@ -57,4 +57,22 @@ describe('FilterBar 官方控件', () => {
     expect(html).not.toContain('pa-capsule')
     expect(html).not.toContain('pa-search__input')
   })
+
+  it('places the page-specific leading action before the capsules', () => {
+    const html = renderToStaticMarkup(
+      <FilterBar
+        options={[]}
+        active=""
+        onSelect={() => undefined}
+        leading={<button type="button">在对话中创建</button>}
+        query=""
+        onQueryChange={() => undefined}
+        searchPlaceholder="搜索"
+        help={{ label: '帮助', title: '说明', paragraphs: ['一段说明'], closeLabel: '知道了' }}
+      />,
+    )
+
+    expect(html).toContain('在对话中创建')
+    expect(html).not.toContain('data-primitive="pill"')
+  })
 })

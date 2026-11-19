@@ -1,23 +1,23 @@
 // tests/client/lib/sources.test.ts
 //
-// 来源页的纯展示逻辑：渠道/状态/配置摘要/定时节奏。断言落在用户能读到的文本上，
-// 不依赖组件的 DOM 结构。
+// 来源页的纯展示逻辑：渠道/状态/配置摘要/搜索与乐观覆盖。断言落在用户能读到的
+// 文本上，不依赖组件的 DOM 结构。
 
 import { describe, expect, it } from 'vitest'
-import type { SourceConfigView, SourceThreadView, SourceView, TimerTiming } from '../../../src/shared/sources.ts'
+import type { SourceConfigView, SourceThreadView, SourceView } from '../../../src/shared/sources.ts'
 import { translateFor } from '../../../src/client/i18n.ts'
 import {
   channelKindKey,
-  formatDuration,
+  filterSources,
   sourceConfigText,
   sourceEnabledOf,
   sourceErrorKey,
+  sourceHaystack,
   sourceStatusDot,
   sourceStatusKey,
   threadCountText,
   threadOverrideKey,
   threadOverridesFor,
-  timerTimingText,
 } from '../../../src/client/lib/sources.ts'
 
 const t = translateFor('zh')
@@ -94,54 +94,57 @@ describe('config summary', () => {
   })
 })
 
-describe('durations', () => {
-  it('localizes seconds, minutes, hours and days', () => {
-    expect(formatDuration('zh', 45)).toBe('45秒')
-    expect(formatDuration('zh', 300)).toBe('5分钟')
-    expect(formatDuration('zh', 7_200)).toBe('2小时')
-    expect(formatDuration('zh', 172_800)).toBe('2天')
-    expect(formatDuration('en', 300)).toBe('5 min')
+describe('search', () => {
+  const views = [
+    source({ id: 'src-1', name: '本地文件', description: '盯住配置文件' }),
+    source({
+      id: 'src-2',
+      name: '工单感知',
+      channelKind: 'host-event',
+      config: { kind: 'host-event', events: ['task/closed'] },
+      threads: [thread({ id: 'closed', name: '关闭' })],
+    }),
+  ]
+
+  it('matches the source name and description', () => {
+    expect(filterSources(views, '配置文件', { t, language: 'zh' }).map(view => view.id)).toEqual([
+      'src-1',
+    ])
+    expect(filterSources(views, '工单', { t, language: 'zh' }).map(view => view.id)).toEqual(['src-2'])
   })
 
-  it('rounds a sub-unit duration instead of showing a fraction', () => {
-    expect(formatDuration('zh', 90)).toBe('2分钟')
-  })
-})
-
-describe('timer timing', () => {
-  it('describes an interval', () => {
-    expect(timerTimingText(t, 'zh', { kind: 'every', everySeconds: 300 })).toBe('周期 · 5分钟')
-    expect(timerTimingText(t, 'zh', { kind: 'after', afterSeconds: 60 })).toBe('倒计时 · 1分钟')
-  })
-
-  it('describes a daily rule with its zone', () => {
-    const timing: TimerTiming = { kind: 'daily', time: '09:00', timeZone: 'Asia/Shanghai' }
-
-    expect(timerTimingText(t, 'zh', timing)).toBe('每天 · 09:00 (Asia/Shanghai)')
+  it('matches thread names and the configuration summary', () => {
+    expect(filterSources(views, '关闭', { t, language: 'zh' }).map(view => view.id)).toEqual(['src-2'])
+    expect(filterSources(views, 'task/closed', { t, language: 'zh' }).map(view => view.id)).toEqual([
+      'src-2',
+    ])
+    expect(filterSources(views, 'D:/watch', { t, language: 'zh' }).map(view => view.id)).toEqual([
+      'src-1',
+    ])
   })
 
-  it('describes a weekly rule with localized weekdays', () => {
-    const timing: TimerTiming = {
-      kind: 'weekly',
-      time: '09:00',
-      timeZone: 'Asia/Shanghai',
-      weekdays: [1, 3],
-    }
-
-    expect(timerTimingText(t, 'zh', timing)).toBe('每周 · 周一、周三 09:00 (Asia/Shanghai)')
+  it('matches the visible channel and status labels', () => {
+    expect(filterSources(views, '内部事件', { t, language: 'zh' }).map(view => view.id)).toEqual([
+      'src-2',
+    ])
+    expect(filterSources(views, '运行中', { t, language: 'zh' }).map(view => view.id)).toEqual([
+      'src-1',
+      'src-2',
+    ])
   })
 
-  it('describes cron and recurrence expressions verbatim', () => {
-    expect(timerTimingText(t, 'zh', { kind: 'cron', expression: '0 9 * * *', timeZone: 'UTC' })).toBe(
-      'Cron · 0 9 * * * (UTC)',
-    )
-    expect(timerTimingText(t, 'zh', { kind: 'rrule', rrule: 'FREQ=DAILY' })).toBe('重复规则 · FREQ=DAILY')
+  it('returns every source for an empty query and none for a miss', () => {
+    expect(filterSources(views, '  ', { t, language: 'zh' })).toHaveLength(2)
+    expect(filterSources(views, '不存在的词', { t, language: 'zh' })).toEqual([])
   })
 
-  it('formats a one-off time with the shared timestamp format', () => {
-    const at = new Date(2023, 10, 12, 0, 22).toISOString()
+  it('builds the haystack from the fields shown on the card', () => {
+    const haystack = sourceHaystack(views[0]!, { t, language: 'zh' })
 
-    expect(timerTimingText(t, 'zh', { kind: 'at', scheduledAt: at })).toBe('定时 · 11月12日 00:22')
+    expect(haystack).toContain('本地文件')
+    expect(haystack).toContain('配置文件')
+    expect(haystack).toContain('d:/watch')
+    expect(haystack).toContain('运行中')
   })
 })
 

@@ -31,11 +31,6 @@ interface SidebarNavigation {
   openResource?: (address: string) => void
 }
 
-/** 布局导航面：只用到 `selectPanel`，用来切到宿主的自动化任务页。 */
-interface LayoutNavigation {
-  selectPanel?: (panelId: string) => void
-}
-
 /** 会话列表服务：只读 `list.getSnapshot()` 里的展示名。 */
 interface SessionListService {
   list?: { getSnapshot?: () => unknown }
@@ -66,16 +61,6 @@ export function apply(ctx: ClientContext): void {
     sessionTitle: sessionId => {
       const sessions = ctx.get('sessions') as SessionListService | undefined
       return sessionTitleOf(sessions?.list?.getSnapshot?.(), sessionId)
-    },
-    openSchedules: () => {
-      const layout = ctx.get('layout') as LayoutNavigation | undefined
-      if (layout?.selectPanel === undefined) return
-      try {
-        layout.selectPanel('schedules')
-      } catch (error) {
-        // 自动化任务页未挂载时 selectPanel 会抛错：跳转是可选能力，不拖垮面板。
-        console.error('personal-agent: failed to open the automation tasks page', error)
-      }
     },
   }
 
