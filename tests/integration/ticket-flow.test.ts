@@ -14,6 +14,7 @@ import { createApprovalDecider } from '../../src/host/approvals/service.ts'
 import { createScheduler, type Scheduler } from '../../src/host/dispatcher/scheduler.ts'
 import { createAgentDecorator } from '../../src/host/sessions/decorate.ts'
 import { registerWorkerObserver } from '../../src/host/sessions/observer.ts'
+import { createClaimRegistry } from '../../src/host/signals/claim.ts'
 import { EventStore } from '../../src/host/store/event-store.ts'
 import { createFakeHost, type FakeHost } from '../support/fake-host.ts'
 
@@ -55,6 +56,7 @@ beforeEach(async () => {
     store,
     scheduler,
     resolvers,
+    claims: createClaimRegistry(),
     maxWorkers: 5,
     currentRouterSessionId: () => ROUTER_SESSION,
   })

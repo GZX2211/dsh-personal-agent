@@ -10,6 +10,7 @@ import type { HostContext } from '../context.ts'
 import type { Scheduler } from '../dispatcher/scheduler.ts'
 import { loadPrompt } from '../prompts/index.ts'
 import { roleForSession, type SessionRole } from '../roles/index.ts'
+import type { ClaimRegistry } from '../signals/claim.ts'
 import type { EventStore } from '../store/event-store.ts'
 import { createApprovalSubmitTool } from '../tools/pa_approval_submit/index.ts'
 import { createLedgerQueryTool } from '../tools/pa_ledger_query/index.ts'
@@ -35,6 +36,7 @@ export interface AgentDecoratorOptions {
   store: EventStore
   scheduler: Scheduler
   resolvers: ResolverRegistry
+  claims: ClaimRegistry
   maxWorkers: number
   /** router 身份是异步确定的，装饰时再读。 */
   currentRouterSessionId: () => string | undefined
@@ -148,6 +150,7 @@ function roleTools(role: SessionRole, options: AgentDecoratorOptions) {
         ctx: options.ctx,
         store: options.store,
         scheduler: options.scheduler,
+        claims: options.claims,
         maxWorkers: options.maxWorkers,
       }),
       createLedgerQueryTool({ store: options.store }),

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ResolverRegistry } from '../../../src/host/approvals/resolvers.ts'
 import type { Scheduler } from '../../../src/host/dispatcher/scheduler.ts'
 import { createAgentDecorator, decorateLiveWorkerSessions, roleForSession } from '../../../src/host/sessions/decorate.ts'
+import { createClaimRegistry } from '../../../src/host/signals/claim.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
 import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
 
@@ -60,6 +61,7 @@ function makeDecorator(): ReturnType<typeof createAgentDecorator> {
     store,
     scheduler,
     resolvers: new ResolverRegistry(),
+    claims: createClaimRegistry(),
     maxWorkers: 5,
     currentRouterSessionId: () => routerSessionId,
     log: message => logs.push(message),

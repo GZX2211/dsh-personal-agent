@@ -10,12 +10,15 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createScheduler } from '../../../src/host/dispatcher/scheduler.ts'
+import { createClaimRegistry, type ClaimRegistry } from '../../../src/host/signals/claim.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
 import {
   createTaskRouteTool,
   parseTaskRouteArgs,
 } from '../../../src/host/tools/pa_task_route/index.ts'
 import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
+
+const ROUTER_SESSION = 'session-router'
 
 let directory: string
 let store: EventStore
@@ -25,6 +28,7 @@ beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'pa-route-'))
   store = await EventStore.open({ directory })
   host = createFakeHost()
+  host.setTurn(ROUTER_SESSION, 1)
 })
 
 afterEach(async () => {
@@ -32,7 +36,10 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
 
-function makeTool(maxWorkers = 5): ReturnType<typeof createTaskRouteTool> {
+function makeTool(
+  maxWorkers = 5,
+  claims: ClaimRegistry = createClaimRegistry(),
+): ReturnType<typeof createTaskRouteTool> {
   const scheduler = createScheduler({
     ctx: host.ctx,
     store,
@@ -40,13 +47,13 @@ function makeTool(maxWorkers = 5): ReturnType<typeof createTaskRouteTool> {
     maxWorkers,
     log: () => undefined,
   })
-  return createTaskRouteTool({ ctx: host.ctx, store, scheduler, maxWorkers })
+  return createTaskRouteTool({ ctx: host.ctx, store, scheduler, maxWorkers, claims })
 }
 
 function execution(): ToolRunContext {
   return {
     signal: new AbortController().signal,
-    agent: { session: { id: 'session-router' } },
+    agent: { session: { id: ROUTER_SESSION } },
     callId: 'call-1',
     rootCallId: 'call-1',
     name: 'pa_task_route',
@@ -58,13 +65,28 @@ function execution(): ToolRunContext {
 async function run(
   tool: ReturnType<typeof createTaskRouteTool>,
   args: Record<string, unknown>,
-): Promise<{ ticketId: string; status: string; sessionId?: string; queueReason?: string }> {
+): Promise<{ ticketId: string; status: string; sessionId?: string; queueReason?: string; signalId?: string }> {
   return (await tool.execute(args, execution())) as {
     ticketId: string
     status: string
     sessionId?: string
     queueReason?: string
+    signalId?: string
   }
+}
+
+/** 让一条信号进入某个回合，就像它刚刚被 router 取用。 */
+function deliverSignal(claims: ClaimRegistry, messageId: string, signalId: string, turn: number): void {
+  claims.record(messageId, signalId)
+  claims.onClaimed(messageId, turn)
+}
+
+function decisions(): { action: string; signalId: string; ticketId?: string }[] {
+  return store.events().flatMap(event =>
+    event.type === 'decision/recorded'
+      ? [{ action: event.payload.action, signalId: event.payload.signalId, ticketId: event.payload.ticketId }]
+      : [],
+  )
 }
 
 describe('parseTaskRouteArgs', () => {
@@ -247,6 +269,155 @@ describe('pa_task_route', () => {
     const result = await run(tool, { action: 'dispatch', title: '发布', goal: '发出去' })
 
     expect(store.events()[0]?.correlationId).toBe(result.ticketId)
-    expect(store.events()[0]?.sessionId).toBe('session-router')
+    expect(store.events()[0]?.sessionId).toBe(ROUTER_SESSION)
+  })
+
+  it('rejects a non-string signal id', () => {
+    expect(() =>
+      parseTaskRouteArgs({ action: 'dispatch', title: '发布', goal: '发', signalId: 42 }),
+    ).toThrow(/signalId/)
+  })
+})
+
+/** 一张已经放行、可以继续追加的旧工单。 */
+function seedWorkerTicket(workerSessionId: string, ticketId = 't-aaaaaaaaaa'): void {
+  store.append({
+    type: 'task/queued',
+    actor: 'router',
+    correlationId: ticketId,
+    payload: { ticketId, title: '旧任务', goal: '旧目标', mode: 'dispatch' },
+  })
+  store.append({
+    type: 'task/dispatched',
+    actor: 'system',
+    correlationId: ticketId,
+    payload: { ticketId, workerSessionId, mode: 'dispatch' },
+  })
+}
+
+describe('signal claiming', () => {
+  it('leaves a dispatch unbound when no signal is pending', async () => {
+    const tool = makeTool()
+
+    const result = await run(tool, { action: 'dispatch', title: '发布', goal: '发出去' })
+
+    expect(result).not.toHaveProperty('signalId')
+    expect(decisions()).toEqual([])
+  })
+
+  it('binds the oldest pending signal to a dispatch', async () => {
+    const claims = createClaimRegistry()
+    deliverSignal(claims, 'msg-1', 's-aaaaaaaaaa', 1)
+    const tool = makeTool(5, claims)
+
+    const result = await run(tool, { action: 'dispatch', title: '发布', goal: '发出去' })
+
+    expect(result.signalId).toBe('s-aaaaaaaaaa')
+    expect(decisions()).toEqual([
+      { action: 'dispatch', signalId: 's-aaaaaaaaaa', ticketId: result.ticketId },
+    ])
+    const decision = store.events().find(event => event.type === 'decision/recorded')
+    expect(decision?.correlationId).toBe('s-aaaaaaaaaa')
+  })
+
+  it('binds an append action', async () => {
+    seedWorkerTicket('session-1')
+    const claims = createClaimRegistry()
+    deliverSignal(claims, 'msg-1', 's-bbbbbbbbbb', 1)
+    const tool = makeTool(5, claims)
+
+    const result = await run(tool, {
+      action: 'append',
+      title: '继续发布',
+      goal: '接着做',
+      workerSessionId: 'session-1',
+    })
+
+    expect(result.signalId).toBe('s-bbbbbbbbbb')
+    expect(decisions()[0]).toMatchObject({ action: 'append', signalId: 's-bbbbbbbbbb' })
+  })
+
+  it('honours an explicit signal id', async () => {
+    const claims = createClaimRegistry()
+    deliverSignal(claims, 'msg-1', 's-aaaaaaaaaa', 1)
+    deliverSignal(claims, 'msg-2', 's-bbbbbbbbbb', 1)
+    const tool = makeTool(5, claims)
+
+    const result = await run(tool, {
+      action: 'dispatch',
+      title: '发布',
+      goal: '发出去',
+      signalId: 's-bbbbbbbbbb',
+    })
+
+    expect(result.signalId).toBe('s-bbbbbbbbbb')
+    expect(claims.settle(1)).toEqual(['s-aaaaaaaaaa'])
+  })
+
+  it('rejects an explicit signal that this turn cannot claim', async () => {
+    const claims = createClaimRegistry()
+    deliverSignal(claims, 'msg-1', 's-aaaaaaaaaa', 2)
+    const tool = makeTool(5, claims)
+
+    await expect(
+      run(tool, { action: 'dispatch', title: '发布', goal: '发出去', signalId: 's-aaaaaaaaaa' }),
+    ).rejects.toMatchObject({ code: 'invalid-signal' })
+    // 认领在任何账本写入之前：指认无效时不能留下一条没有来源的工单。
+    expect(store.events().some(event => event.type === 'task/queued')).toBe(false)
+  })
+
+  it('binds one signal per action and leaves the rest pending', async () => {
+    const claims = createClaimRegistry()
+    deliverSignal(claims, 'msg-1', 's-aaaaaaaaaa', 1)
+    const tool = makeTool(5, claims)
+
+    const first = await run(tool, { action: 'dispatch', title: '第一步', goal: '先做完' })
+    store.append({
+      type: 'task/closed',
+      actor: 'system',
+      correlationId: first.ticketId,
+      payload: { ticketId: first.ticketId, outcome: 'completed' },
+    })
+    const second = await run(tool, { action: 'dispatch', title: '第二步', goal: '再做' })
+
+    expect(first.signalId).toBe('s-aaaaaaaaaa')
+    expect(second).not.toHaveProperty('signalId')
+  })
+
+  it('binds nothing before the turn has started in the session', async () => {
+    host.setTurn(ROUTER_SESSION, 0)
+    const claims = createClaimRegistry()
+    deliverSignal(claims, 'msg-1', 's-aaaaaaaaaa', 1)
+    const tool = makeTool(5, claims)
+
+    const result = await run(tool, { action: 'dispatch', title: '发布', goal: '发出去' })
+
+    expect(result).not.toHaveProperty('signalId')
+    expect(claims.settle(1)).toEqual(['s-aaaaaaaaaa'])
+  })
+
+  it('rejects an explicit signal that was already claimed', async () => {
+    const claims = createClaimRegistry()
+    deliverSignal(claims, 'msg-1', 's-aaaaaaaaaa', 1)
+    claims.claim(1, 's-aaaaaaaaaa')
+    const tool = makeTool(5, claims)
+
+    await expect(
+      run(tool, { action: 'dispatch', title: '发布', goal: '发出去', signalId: 's-aaaaaaaaaa' }),
+    ).rejects.toMatchObject({ code: 'invalid-signal' })
+    expect(store.events().some(event => event.type === 'task/queued')).toBe(false)
+  })
+
+  it('rejects an explicit signal before any turn exists', async () => {
+    host.setTurn(ROUTER_SESSION, 0)
+    const claims = createClaimRegistry()
+    deliverSignal(claims, 'msg-1', 's-aaaaaaaaaa', 1)
+    const tool = makeTool(5, claims)
+
+    await expect(
+      run(tool, { action: 'dispatch', title: '发布', goal: '发出去', signalId: 's-aaaaaaaaaa' }),
+    ).rejects.toMatchObject({ code: 'invalid-signal' })
+    // 指认失败不消耗信号：它仍然属于它原来的回合。
+    expect(claims.settle(1)).toEqual(['s-aaaaaaaaaa'])
   })
 })

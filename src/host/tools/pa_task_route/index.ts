@@ -6,6 +6,7 @@
 
 import { statSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
@@ -13,6 +14,7 @@ import type { TaskMode } from '../../../shared/events.ts'
 import type { HostContext } from '../../context.ts'
 import { predictQueueReason } from '../../dispatcher/plan.ts'
 import type { Scheduler } from '../../dispatcher/scheduler.ts'
+import type { ClaimRegistry } from '../../signals/claim.ts'
 import type { EventStore } from '../../store/event-store.ts'
 import { shortTicketId } from '../../../shared/tickets.ts'
 import { createTicketId } from '../../ids.ts'
@@ -23,6 +25,8 @@ export interface TaskRouteDependencies {
   ctx: HostContext
   store: EventStore
   scheduler: Scheduler
+  /** 信号认领簿：派发动作据此与它处理的那条输入绑定。 */
+  claims: ClaimRegistry
   /** 执行槽位上限，与调度器同源（方案 §5.3）。 */
   maxWorkers: number
 }
@@ -31,6 +35,7 @@ export type TaskRouteErrorCode =
   | 'invalid-arguments'
   | 'invalid-append-target'
   | 'invalid-directory'
+  | 'invalid-signal'
   | 'no-active-session'
 
 export class TaskRouteError extends HarnessError {
@@ -49,6 +54,7 @@ export interface TaskRouteArgs {
   expectedOutput?: string
   workerSessionId?: string
   cwd?: string
+  signalId?: string
 }
 
 /** 解析并收窄模型参数；稳定失败码让调用方按码分支。 */
@@ -72,6 +78,7 @@ export function parseTaskRouteArgs(raw: unknown): TaskRouteArgs {
     args.workerSessionId = requiredText(raw.workerSessionId, 'workerSessionId')
   }
   if (raw.cwd !== undefined) args.cwd = requiredText(raw.cwd, 'cwd')
+  if (raw.signalId !== undefined) args.signalId = requiredText(raw.signalId, 'signalId')
   if (action === 'append' && args.workerSessionId === undefined) {
     throw new TaskRouteError('action=append 时必须提供 workerSessionId', 'invalid-arguments')
   }
@@ -82,7 +89,7 @@ export function createTaskRouteTool(deps: TaskRouteDependencies): ToolDefinition
   return {
     name: TASK_ROUTE_TOOL_NAME,
     description:
-      '把一个需要动手完成的任务派发成工单。action=dispatch 新开执行会话；action=append 把新工单追加给已有的 worker 会话。只入队，不等待执行结果。',
+      '把一个需要动手完成的任务派发成工单。action=dispatch 新开执行会话；action=append 把新工单追加给已有的 worker 会话。只入队，不等待执行结果。调用时会自动关联本回合最早的一条输入事件；同一回合有多条输入时用 signalId 指定要处理的那一条。',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -104,6 +111,11 @@ export function createTaskRouteTool(deps: TaskRouteDependencies): ToolDefinition
         expectedOutput: { type: 'string', description: '验收标准。' },
         workerSessionId: { type: 'string', description: 'append 必填：目标 worker 会话 id。' },
         cwd: { type: 'string', description: '工单工作目录；缺省为状态目录下的 work/<工单 id>。' },
+        signalId: {
+          type: 'string',
+          description:
+            '这个动作处理的是哪条输入事件。一个回合里有多条待处理事件时用它明确指认；不传则按到达顺序自动关联。',
+        },
       },
     },
     output: {
@@ -116,6 +128,7 @@ export function createTaskRouteTool(deps: TaskRouteDependencies): ToolDefinition
           status: { type: 'string', enum: ['queued', 'running'] },
           sessionId: { type: 'string' },
           queueReason: { type: 'string', enum: ['worker-busy', 'capacity-full'] },
+          signalId: { type: 'string' },
         },
       },
       render: (_args: unknown, value: unknown) => {
@@ -123,24 +136,27 @@ export function createTaskRouteTool(deps: TaskRouteDependencies): ToolDefinition
           ticketId: string
           status: string
           queueReason?: string
+          signalId?: string
         }
         const short = shortTicketId(result.ticketId)
-        if (result.status === 'running') return [{ type: 'text', text: `已放行工单 #${short}` }]
+        const bound = result.signalId === undefined ? '' : `，关联事件 ${result.signalId}`
+        if (result.status === 'running') return [{ type: 'text', text: `已放行工单 #${short}${bound}` }]
         const reason =
           result.queueReason === 'worker-busy'
             ? '等待该执行会话空闲'
             : result.queueReason === 'capacity-full'
               ? '执行名额已满'
               : '排队中'
-        return [{ type: 'text', text: `已入队工单 #${short}（${reason}）` }]
+        return [{ type: 'text', text: `已入队工单 #${short}（${reason}）${bound}` }]
       },
     },
     execute: async (rawArgs: unknown, exec: ToolRunContext) => {
       const args = parseTaskRouteArgs(rawArgs)
-      const requestedBySessionId = exec.agent?.session.id
-      if (requestedBySessionId === undefined) {
+      const agent = exec.agent
+      if (agent === undefined) {
         throw new TaskRouteError('无法确定调用该工具的会话', 'no-active-session')
       }
+      const requestedBySessionId = agent.session.id
 
       const projection = deps.store.projection()
       const workerBusy =
@@ -152,6 +168,9 @@ export function createTaskRouteTool(deps: TaskRouteDependencies): ToolDefinition
         )
       if (args.action === 'append') assertAppendTarget(deps, projection, args.workerSessionId)
       if (args.cwd !== undefined) assertDirectory(args.cwd)
+
+      // 认领必须发生在任何账本写入之前：指认无效时不能留下一条没有来源的工单。
+      const claimed = claimSignal(deps, agent, args.signalId)
 
       const inFlight = projection.tickets.filter(
         ticket => ticket.stage === 'running' || ticket.stage === 'blocked',
@@ -183,10 +202,43 @@ export function createTaskRouteTool(deps: TaskRouteDependencies): ToolDefinition
         },
       })
 
+      if (claimed !== undefined) {
+        deps.store.append({
+          type: 'decision/recorded',
+          actor: 'router',
+          correlationId: claimed,
+          sessionId: requestedBySessionId,
+          payload: { action: args.action, signalId: claimed, ticketId },
+        })
+      }
+
       await deps.scheduler.trigger('task-route')
-      return readRouteResult(deps.store, ticketId)
+      const result = readRouteResult(deps.store, ticketId)
+      return claimed === undefined ? result : { ...result, signalId: claimed }
     },
   }
+}
+
+/**
+ * 认领本回合的一条待处理信号。
+ *
+ * 当前回合从会话的回合边界投影读取：工具执行上下文里没有 turn 字段。
+ * 没有待处理信号时返回 undefined——闲聊里派发任务同样是合法的。
+ */
+function claimSignal(
+  deps: TaskRouteDependencies,
+  agent: Agent,
+  explicitSignalId: string | undefined,
+): string | undefined {
+  const turn = deps.ctx.agents.turnBoundaryOf(agent.session).lastTurn
+  const outcome = deps.claims.claim(turn, explicitSignalId)
+  if (!outcome.ok) {
+    throw new TaskRouteError(
+      `signalId ${explicitSignalId ?? '(缺失)'} 不是本回合待处理的信号`,
+      'invalid-signal',
+    )
+  }
+  return outcome.signalId
 }
 
 /** 工单此刻在账本上的状态：放行了就带 sessionId，否则带排队原因。 */

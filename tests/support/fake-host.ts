@@ -66,6 +66,8 @@ export interface FakeHost {
   failNextCreate(message: string): void
   /** 让下一次投递抛错，用于验证「放行事实已写入、投递失败」。 */
   failNextFollowup(message: string): void
+  /** 设置某个会话已到达的回合号，供工具读取「当前回合」。 */
+  setTurn(sessionId: string, turn: number): void
   /** 模拟一条会话事件：先记进伪会话日志，再分发给 session/event 监听者。 */
   emitSessionEvent(sessionId: string, event: unknown): void
   /** 分发任意 Cordis 事件（agent/created 等）。 */
@@ -96,6 +98,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
   const restrictions: unknown[] = []
   const warnings: string[] = []
   const archivedSessionIds = [...(options.archivedSessionIds ?? [])]
+  const sessionTurns = new Map<string, number>()
   let createCalls = 0
   let createFailure: string | undefined
   let followupFailure: string | undefined
@@ -272,6 +275,13 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
     agents: {
       list: () => [...sessions.values()].map(session => session.agent),
       get: (sessionId: string) => sessions.get(sessionId)?.agent,
+      // 只实现工具真正读到的 lastTurn；其余边界字段与本插件的判定无关。
+      turnBoundaryOf: (session: { id: string }) => ({
+        openTurnStartSeq: null,
+        lastStepStartSeq: null,
+        lastStepBoundary: null,
+        lastTurn: sessionTurns.get(session.id) ?? 0,
+      }),
     },
     tools: {
       register: (definition: { name: string }) => {
@@ -311,6 +321,9 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
     },
     failNextFollowup(message: string) {
       followupFailure = message
+    },
+    setTurn(sessionId: string, turn: number) {
+      sessionTurns.set(sessionId, turn)
     },
     emitSessionEvent(sessionId: string, event: unknown) {
       const session = sessions.get(sessionId)

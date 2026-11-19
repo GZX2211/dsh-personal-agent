@@ -17,6 +17,8 @@ import { PaRolesService } from './roles/index.ts'
 import { createAgentDecorator, decorateLiveWorkerSessions } from './sessions/decorate.ts'
 import { registerWorkerObserver } from './sessions/observer.ts'
 import { ensureRouterSession } from './sessions/router.ts'
+import { createClaimRegistry } from './signals/claim.ts'
+import { registerRouterSignalObserver } from './signals/observer.ts'
 import { resolveStateDirectory } from './state/directory.ts'
 import { EventStore } from './store/event-store.ts'
 import { KvStore } from './store/kv-store.ts'
@@ -83,12 +85,15 @@ export function apply(ctx: HostContext, config?: Config): void {
 
   let routerSessionId: string | undefined
   let disposeObserver: (() => void) | undefined
+  let disposeSignalObserver: (() => void) | undefined
   let disposeDecorator: (() => void) | undefined
   let prepareWorker: ((sessionId: SessionId) => Promise<void>) | undefined
 
   // 账本与 kv 就绪后装配有状态的服务：调度器、回合观察、角色装饰。
   const ready = Promise.all([ledger, identities]).then(([store, kv]) => {
     roles.attach(store)
+    // 信号配对是进程内状态：账本只记信号与决定，配对关系重启即丢。
+    const claims = createClaimRegistry()
     const scheduler = createScheduler({
       ctx,
       store,
@@ -104,6 +109,7 @@ export function apply(ctx: HostContext, config?: Config): void {
       store,
       scheduler,
       resolvers,
+      claims,
       maxWorkers,
       currentRouterSessionId: () => routerSessionId,
       log: message => logWarning(ctx, message),
@@ -113,6 +119,13 @@ export function apply(ctx: HostContext, config?: Config): void {
       ctx,
       store,
       scheduler,
+      log: message => logWarning(ctx, message),
+    })
+    disposeSignalObserver = registerRouterSignalObserver({
+      ctx,
+      store,
+      claims,
+      currentRouterSessionId: () => routerSessionId,
       log: message => logWarning(ctx, message),
     })
     // 放行后补装饰：worker agent 在 task/dispatched 之前就已创建，创建钩子认不出它。
@@ -145,6 +158,7 @@ export function apply(ctx: HostContext, config?: Config): void {
     return () => {
       disposeRoute()
       disposeObserver?.()
+      disposeSignalObserver?.()
       disposeDecorator?.()
       void ledger.then(store => store.close()).catch(() => undefined)
       void identities.then(store => store.close()).catch(() => undefined)
