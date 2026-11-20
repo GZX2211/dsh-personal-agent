@@ -22,6 +22,7 @@ import {
   type PromptVersionSummary,
 } from '../../shared/settings.ts'
 import { ensureDirectory } from '../state/directory.ts'
+import { PromptConflictError, SettingsConflictError } from './errors.ts'
 
 const SETTINGS_FILE = 'settings.json'
 const HISTORY_FILE = 'prompt-history.jsonl'
@@ -30,20 +31,7 @@ const HISTORY_FILE = 'prompt-history.jsonl'
 const SETTINGS_FORMAT = 1
 
 /** 保存在旧设置修订之上：执行器或规则已经变了。 */
-export class SettingsConflictError extends Error {
-  constructor(message = 'settings changed since the draft was loaded') {
-    super(message)
-    this.name = 'SettingsConflictError'
-  }
-}
-
-/** 保存在旧提示词版本之上：历史里已经有更新的版本。 */
-export class PromptConflictError extends Error {
-  constructor(message = 'prompt version changed since the draft was loaded') {
-    super(message)
-    this.name = 'PromptConflictError'
-  }
-}
+export { PromptConflictError, SettingsConflictError } from './errors.ts'
 
 export interface SettingsStoreOptions {
   /** 状态目录；两份文件都落在它下面。 */
