@@ -85,6 +85,15 @@ describe('style.ts', () => {
     expect(CONSOLE_CSS).toMatch(/\.pa-list\s*\{[^}]*overflow-x:\s*hidden/)
   })
 
+  it('keeps the settings save bar aligned without its own frame', () => {
+    const block = /\.pa-settings__savebar\s*\{([^}]*)\}/.exec(CONSOLE_CSS)?.[1] ?? ''
+    expect(block).toMatch(/padding:\s*4px 12px 0/)
+    // 允许 box-sizing: border-box；不允许自绘边框、浮层定位或独立背景。
+    expect(block).not.toMatch(/(^|\n)\s*border(-[a-z]+)?\s*:/)
+    expect(block).not.toMatch(/(^|\n)\s*position\s*:/)
+    expect(block).not.toMatch(/(^|\n)\s*background(-[a-z]+)?\s*:/)
+  })
+
   it('paints settings inputs with the official settings-field surface', () => {
     // 官方 ConfigField 用 bg-layer-3；bg-overlay 在深色主题里接近白，阅读时刺眼。
     for (const selector of ['.pa-settings__select', '.pa-settings__textarea', '.pa-settings__pre']) {

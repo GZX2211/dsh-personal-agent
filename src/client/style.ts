@@ -312,16 +312,13 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-tertiary);
 }
 .pa-settings__savebar {
-  position: sticky;
-  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   box-sizing: border-box;
-  padding: 8px 0;
-  border-top: 0.5px solid var(--dsw-alias-border-l1);
-  background: var(--dsw-alias-bg-layer-1);
+  /* 与卡片内容同一条左右基线：不另起边框、不悬浮，按钮不会越出卡片。 */
+  padding: 4px 12px 0;
 }
 .pa-settings__savebar .pa-settings__error {
   margin-right: auto;
