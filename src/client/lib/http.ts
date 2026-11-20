@@ -5,6 +5,7 @@
 
 import {
   approvalDecidePath,
+  promptRevisionPath,
   REQUEST_HEADER,
   REQUEST_HEADER_VALUE,
   signalQueryPath,
@@ -26,6 +27,15 @@ import {
   type SourceToggleRequest,
   type SourceToggleResponse,
 } from '../../shared/api.ts'
+import type {
+  ExecutorSaveRequest,
+  PolicySaveRequest,
+  PromptSaveRequest,
+  PromptSaveResponse,
+  PromptVersion,
+  SettingsSaveResponse,
+  SettingsView,
+} from '../../shared/settings.ts'
 
 /** 服务端稳定错误码的载体：调用方按 `code` 分支，不靠文案猜。 */
 export class ApiError extends Error {
@@ -124,6 +134,54 @@ export async function querySignals(
     ...(signal === undefined ? {} : { signal }),
   })
   return readJson<SignalQueryResponse>(response)
+}
+
+/** 读取设置页一次所需的全部状态。 */
+export async function fetchSettings(): Promise<SettingsView> {
+  const response = await fetch(ROUTES.settings, {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { [REQUEST_HEADER]: REQUEST_HEADER_VALUE },
+  })
+  return readJson<SettingsView>(response)
+}
+
+/** 保存执行器配置；`revision` 是读取时看到的设置修订。 */
+export async function saveExecutor(request: ExecutorSaveRequest): Promise<SettingsSaveResponse> {
+  return postJson<SettingsSaveResponse>(ROUTES.settingsExecutor, request)
+}
+
+/** 保存派单规则。 */
+export async function savePolicy(request: PolicySaveRequest): Promise<SettingsSaveResponse> {
+  return postJson<SettingsSaveResponse>(ROUTES.settingsPolicy, request)
+}
+
+/** 保存一个新的提示词版本；`baseRevision` 是草稿所基于的版本。 */
+export async function savePrompts(request: PromptSaveRequest): Promise<PromptSaveResponse> {
+  return postJson<PromptSaveResponse>(ROUTES.prompts, request)
+}
+
+/** 读取一个历史提示词版本。 */
+export async function fetchPromptRevision(revision: number): Promise<PromptVersion> {
+  const response = await fetch(promptRevisionPath(revision), {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { [REQUEST_HEADER]: REQUEST_HEADER_VALUE },
+  })
+  return readJson<PromptVersion>(response)
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      [REQUEST_HEADER]: REQUEST_HEADER_VALUE,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  return readJson<T>(response)
 }
 
 /** 把任意失败收敛成可读文案：稳定错误码优先，未知失败保留原始信息。 */

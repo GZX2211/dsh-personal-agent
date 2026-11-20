@@ -19,14 +19,15 @@ import { CONSOLE_CSS } from '../style.ts'
 import { Approvals } from '../views/Approvals.tsx'
 import { Events } from '../views/Events.tsx'
 import { Placeholder } from '../views/Placeholder.tsx'
+import { Settings } from '../views/Settings.tsx'
 import { Sources } from '../views/Sources.tsx'
 import { Tickets } from '../views/Tickets.tsx'
 import type { Translate } from '../i18n.ts'
 
 export type ConsoleTabId = 'overview' | 'approvals' | 'tickets' | 'events' | 'sources' | 'settings'
 
-/** 已经能承接内容的标签页；概览与设置在 MVP 之后实现。 */
-const IMPLEMENTED: readonly ConsoleTabId[] = ['approvals', 'tickets', 'events', 'sources']
+/** 已经能承接内容的标签页；概览在 MVP 之后实现。 */
+const IMPLEMENTED: readonly ConsoleTabId[] = ['approvals', 'tickets', 'events', 'sources', 'settings']
 
 /**
  * 打开时落在「审批」：MVP 里它是唯一有动作可做的页面，概览等内容要等 MVP 之后。
@@ -113,6 +114,7 @@ export function ConsolePanel({
             actions={actions}
           />
         ) : null}
+        {active === 'settings' ? <Settings t={t} language={language} /> : null}
         {IMPLEMENTED.includes(active) ? null : (
           <Placeholder
             title={tabs.find(tab => tab.id === active)?.label ?? t('notAvailable')}

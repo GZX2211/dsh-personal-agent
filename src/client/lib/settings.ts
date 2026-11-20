@@ -121,6 +121,16 @@ export function diffLines(base: string, next: string, context = 2): DiffLine[] {
   return foldSame(ops, context)
 }
 
+/** 一条草稿规则的 id：客户端生成、稳定到保存，服务端收窄时原样保留。 */
+export function newRuleId(existing: readonly DispatchRule[], now = Date.now()): string {
+  let counter = 0
+  for (;;) {
+    const candidate = `rule-${now.toString(36).slice(-6)}${counter.toString(36)}`
+    if (!existing.some(rule => rule.id === candidate)) return candidate
+    counter += 1
+  }
+}
+
 export type RuleDraftError =
   | 'nameRequired'
   | 'nameTooLong'
@@ -150,7 +160,7 @@ export interface ExecutorDraft {
   rootDirectory: string
 }
 
-export type ExecutorDraftError = 'maxWorkersInvalid' | 'rootNotAbsolute'
+export type ExecutorDraftError = 'maxWorkersInvalid' | 'rootNotAbsolute' | 'modelIncomplete'
 
 export function executorDraftError(draft: ExecutorDraft): ExecutorDraftError | undefined {
   const maxWorkers = Number(draft.maxWorkers)
@@ -164,6 +174,12 @@ export function executorDraftError(draft: ExecutorDraft): ExecutorDraftError | u
   }
   const root = draft.rootDirectory.trim()
   if (root.length > 0 && !isAbsoluteDirectory(root)) return 'rootNotAbsolute'
+  if (
+    draft.model !== null &&
+    (draft.model.provider.trim().length === 0 || draft.model.model.trim().length === 0)
+  ) {
+    return 'modelIncomplete'
+  }
   return undefined
 }
 
@@ -209,4 +225,16 @@ export function promptFullText(
 
 export function isSamePromptTexts(left: PromptTexts, right: PromptTexts): boolean {
   return left.shared === right.shared && left.router === right.router && left.worker === right.worker
+}
+
+/** 执行器配置的字段级比较：用来判断草稿是否真的有改动。 */
+export function isSameExecutor(left: ExecutorSettings, right: ExecutorSettings): boolean {
+  if (left.maxWorkers !== right.maxWorkers) return false
+  if (left.rootDirectory !== right.rootDirectory) return false
+  if (left.model === null || right.model === null) return left.model === right.model
+  return (
+    left.model.provider === right.model.provider &&
+    left.model.model === right.model.model &&
+    left.model.reasoningEffort === right.model.reasoningEffort
+  )
 }

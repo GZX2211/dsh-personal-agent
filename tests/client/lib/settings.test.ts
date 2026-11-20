@@ -9,8 +9,10 @@ import {
   diffLines,
   executorDraftError,
   executorDraftValue,
+  isSameExecutor,
   isSamePromptTexts,
   modelAvailable,
+  newRuleId,
   promptFullText,
   reasoningOptions,
   ruleDraftError,
@@ -111,6 +113,24 @@ describe('diffLines', () => {
   })
 })
 
+describe('newRuleId', () => {
+  it('produces a contract-valid id that no existing rule uses', () => {
+    const id = newRuleId([], 1_700_000_000_000)
+
+    expect(id).toMatch(/^[a-z0-9][a-z0-9-]{0,39}$/)
+    expect(newRuleId([{ id, name: 'a', instruction: 'b', enabled: true }], 1_700_000_000_000)).not.toBe(id)
+  })
+
+  it('is stable for the same clock and skips collisions', () => {
+    const now = 1_700_000_000_000
+    const first = newRuleId([], now)
+    const second = newRuleId([{ id: first, name: 'a', instruction: 'b', enabled: true }], now)
+
+    expect(first).not.toBe(second)
+    expect(newRuleId([{ id: second, name: 'a', instruction: 'b', enabled: true }], now)).not.toBe(second)
+  })
+})
+
 describe('ruleDraftError', () => {
   const valid = { id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }
 
@@ -149,6 +169,15 @@ describe('executorDraft', () => {
         'maxWorkersInvalid',
       )
     }
+  })
+
+  it('rejects an incomplete model selection', () => {
+    expect(
+      executorDraftError({ maxWorkers: '5', model: { provider: 'p', model: '' }, rootDirectory: '' }),
+    ).toBe('modelIncomplete')
+    expect(
+      executorDraftError({ maxWorkers: '5', model: { provider: '', model: 'm' }, rootDirectory: '' }),
+    ).toBe('modelIncomplete')
   })
 
   it('rejects a relative root and accepts an absolute one', () => {
@@ -233,5 +262,23 @@ describe('prompt helpers', () => {
   it('compares two prompt drafts by content', () => {
     expect(isSamePromptTexts(texts, { ...texts })).toBe(true)
     expect(isSamePromptTexts(texts, { ...texts, router: '改了' })).toBe(false)
+  })
+})
+
+describe('isSameExecutor', () => {
+  it('compares every field including an absent model', () => {
+    const base = { maxWorkers: 5, model: null, rootDirectory: null }
+    expect(isSameExecutor(base, { ...base })).toBe(true)
+    expect(isSameExecutor(base, { ...base, maxWorkers: 6 })).toBe(false)
+    expect(isSameExecutor(base, { ...base, model: { provider: 'p', model: 'm' } })).toBe(false)
+    expect(
+      isSameExecutor(
+        { ...base, model: { provider: 'p', model: 'm', reasoningEffort: 'high' } },
+        { ...base, model: { provider: 'p', model: 'm' } },
+      ),
+    ).toBe(false)
+    expect(
+      isSameExecutor({ ...base, rootDirectory: 'C:\\work' }, { ...base, rootDirectory: 'C:\\work' }),
+    ).toBe(true)
   })
 })

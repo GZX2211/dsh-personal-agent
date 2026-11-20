@@ -86,6 +86,48 @@ export function AnimatedRows({ className, role, label, children }: PrimitiveProp
   )
 }
 
+export function SegmentedControl({
+  id,
+  value,
+  options,
+  onChange,
+  label,
+  disabled,
+  className,
+}: {
+  id: string
+  value: string
+  options: readonly { value: string; label: string; disabled?: boolean }[]
+  onChange: (next: string) => void
+  label: string
+  disabled?: boolean
+  className?: string
+}): ReactElement {
+  return (
+    <div className={className} role="tablist" aria-label={label} data-primitive="segmented-control" data-id={id}>
+      {options.map(option => (
+        <button
+          key={option.value}
+          type="button"
+          role="tab"
+          aria-selected={option.value === value}
+          disabled={disabled === true || option.disabled === true}
+          onClick={() => {
+            if (option.value !== value) onChange(option.value)
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export async function writeClipboard(text: string): Promise<boolean> {
+  void text
+  return true
+}
+
 export function Switch({
   checked,
   onChange,
