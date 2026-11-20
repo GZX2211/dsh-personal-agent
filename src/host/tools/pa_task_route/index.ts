@@ -27,8 +27,8 @@ export interface TaskRouteDependencies {
   scheduler: Scheduler
   /** 信号认领簿：派发动作据此与它处理的那条输入绑定。 */
   claims: ClaimRegistry
-  /** 执行槽位上限，与调度器同源（方案 §5.3）。 */
-  maxWorkers: number
+  /** 执行槽位上限，与调度器同源（方案 §5.3）；用 getter 让设置改动立即生效。 */
+  maxWorkers: () => number
 }
 
 export type TaskRouteErrorCode =
@@ -178,7 +178,7 @@ export function createTaskRouteTool(deps: TaskRouteDependencies): ToolDefinition
       const queueReason = predictQueueReason({
         mode: args.action,
         workerBusy,
-        freeSlots: deps.maxWorkers - inFlight,
+        freeSlots: deps.maxWorkers() - inFlight,
       })
 
       const ticketId = createTicketId()

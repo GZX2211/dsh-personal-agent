@@ -133,7 +133,7 @@ export function apply(ctx: HostContext, config?: Config): void {
       ctx,
       store,
       stateDirectory: stateDir,
-      maxWorkers,
+      maxWorkers: () => settingsService.maxWorkers(),
       onWorkerReady: async sessionId => {
         await prepareWorker?.(sessionId)
       },
@@ -147,7 +147,7 @@ export function apply(ctx: HostContext, config?: Config): void {
       claims,
       perception,
       settings: settingsService,
-      maxWorkers,
+      maxWorkers: () => settingsService.maxWorkers(),
       currentRouterSessionId: () => routerSessionId,
       log: message => logWarning(ctx, message),
     })

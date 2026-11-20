@@ -49,7 +49,8 @@ export interface AgentDecoratorOptions {
   perception: PerceptionService
   /** 当前提示词（含派单规则）的来源；每次装配都重新读取。 */
   settings: RolePromptSource
-  maxWorkers: number
+  /** 执行槽位上限的 getter，与调度器同源。 */
+  maxWorkers: () => number
   /** router 身份是异步确定的，装饰时再读。 */
   currentRouterSessionId: () => string | undefined
   log?: (message: string) => void

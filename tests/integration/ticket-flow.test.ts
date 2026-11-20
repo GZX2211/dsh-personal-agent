@@ -47,7 +47,7 @@ beforeEach(async () => {
     ctx: host.ctx,
     store,
     stateDirectory: directory,
-    maxWorkers: 5,
+    maxWorkers: () => 5,
     onWorkerReady: async sessionId => {
       await prepareWorker?.(sessionId)
     },
@@ -63,7 +63,7 @@ beforeEach(async () => {
       composePrompt: role =>
         role === 'router' ? '路由会话：把任务交给执行会话。' : '执行会话：完成这一单。',
     },
-    maxWorkers: 5,
+    maxWorkers: () => 5,
     currentRouterSessionId: () => ROUTER_SESSION,
   })
   prepareWorker = async sessionId => {

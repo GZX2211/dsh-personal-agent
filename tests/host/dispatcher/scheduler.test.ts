@@ -28,12 +28,13 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
 
-function makeScheduler(maxWorkers = 5): Scheduler {
+function makeScheduler(maxWorkers: number | (() => number) = 5): Scheduler {
+  const limit = typeof maxWorkers === 'function' ? maxWorkers : () => maxWorkers
   return createScheduler({
     ctx: host.ctx,
     store,
     stateDirectory: directory,
-    maxWorkers,
+    maxWorkers: limit,
     log: message => logs.push(message),
   })
 }
@@ -158,6 +159,55 @@ describe('createScheduler', () => {
 
     expect(host.createCalls).toBe(2)
     expect(store.projection().tickets.map(ticket => ticket.stage)).toEqual(['running', 'running'])
+  })
+
+  it('keeps running tickets when the slot limit is lowered and only queues new ones', async () => {
+    let limit = 5
+    const scheduler = makeScheduler(() => limit)
+    seedQueued('t-1')
+    seedQueued('t-2')
+    seedQueued('t-3')
+    await scheduler.trigger('start')
+
+    limit = 1
+    seedQueued('t-4')
+    await scheduler.trigger('lowered')
+
+    // 已经在跑的 3 单不被截断；第 4 单因为超限排队。
+    expect(store.projection().tickets.map(ticket => ticket.stage)).toEqual([
+      'running',
+      'running',
+      'running',
+      'queued',
+    ])
+    expect(host.createCalls).toBe(3)
+
+    // 关掉两单后仍然超限（1 = 1），继续排队。
+    seedClosed('t-1')
+    await scheduler.trigger('still-over-limit')
+    expect(store.projection().tickets[3]?.stage).toBe('queued')
+
+    // 在飞降到 0，新工单才被放行。
+    seedClosed('t-2')
+    seedClosed('t-3')
+    await scheduler.trigger('slot-free')
+    expect(store.projection().tickets[3]?.stage).toBe('running')
+    expect(host.createCalls).toBe(4)
+  })
+
+  it('dispatches more work as soon as the limit is raised', async () => {
+    let limit = 1
+    const scheduler = makeScheduler(() => limit)
+    seedQueued('t-1')
+    seedQueued('t-2')
+    await scheduler.trigger('start')
+    expect(store.projection().tickets.map(ticket => ticket.stage)).toEqual(['running', 'queued'])
+
+    limit = 2
+    await scheduler.trigger('raised')
+
+    expect(store.projection().tickets.map(ticket => ticket.stage)).toEqual(['running', 'running'])
+    expect(host.createCalls).toBe(2)
   })
 
   it('stops the round on a failed dispatch and retries on the next trigger', async () => {

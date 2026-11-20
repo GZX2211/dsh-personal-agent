@@ -42,10 +42,10 @@ beforeEach(async () => {
     ctx: host.ctx,
     store,
     stateDirectory: directory,
-    maxWorkers: 5,
+    maxWorkers: () => 5,
     log: () => undefined,
   })
-  tool = createTaskRouteTool({ ctx: host.ctx, store, scheduler, claims, maxWorkers: 5 })
+  tool = createTaskRouteTool({ ctx: host.ctx, store, scheduler, claims, maxWorkers: () => 5 })
 })
 
 afterEach(async () => {

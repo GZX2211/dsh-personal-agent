@@ -67,7 +67,7 @@ function makeDecorator(): ReturnType<typeof createAgentDecorator> {
     claims: createClaimRegistry(),
     perception: perceptionStub(),
     settings: { composePrompt: role => prompts[role] },
-    maxWorkers: 5,
+    maxWorkers: () => 5,
     currentRouterSessionId: () => routerSessionId,
     log: message => logs.push(message),
   })

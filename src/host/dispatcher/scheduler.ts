@@ -15,8 +15,13 @@ export interface SchedulerOptions {
   ctx: HostContext
   store: EventStore
   stateDirectory: string
-  /** 执行槽位上限（方案 §5.3，默认 5）。 */
-  maxWorkers: number
+  /**
+   * 执行槽位上限（方案 §5.3，默认 5）。
+   *
+   * 用 getter 而不是数值：设置页改上限后立即影响之后放行的工单，但已经在跑的
+   * 工单不会被截断——剩余槽位变成负数时只是不再放行新的。
+   */
+  maxWorkers: () => number
   /** 放行后、投递前的准备钩子（用于给新建 worker 装角色能力）。 */
   onWorkerReady?: (sessionId: SessionId) => Promise<void> | void
   log?: (message: string) => void
@@ -105,7 +110,7 @@ function nextAction(options: SchedulerOptions): DispatchAction | undefined {
   return planDispatch(
     queuedTickets(projection, options.store),
     workerStates(projection, options.store),
-    options.maxWorkers - inFlight,
+    options.maxWorkers() - inFlight,
   )[0]
 }
 

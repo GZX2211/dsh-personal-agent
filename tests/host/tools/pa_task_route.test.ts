@@ -37,17 +37,18 @@ afterEach(async () => {
 })
 
 function makeTool(
-  maxWorkers = 5,
+  maxWorkers: number | (() => number) = 5,
   claims: ClaimRegistry = createClaimRegistry(),
 ): ReturnType<typeof createTaskRouteTool> {
+  const limit = typeof maxWorkers === 'function' ? maxWorkers : () => maxWorkers
   const scheduler = createScheduler({
     ctx: host.ctx,
     store,
     stateDirectory: directory,
-    maxWorkers,
+    maxWorkers: limit,
     log: () => undefined,
   })
-  return createTaskRouteTool({ ctx: host.ctx, store, scheduler, maxWorkers, claims })
+  return createTaskRouteTool({ ctx: host.ctx, store, scheduler, maxWorkers: limit, claims })
 }
 
 function execution(): ToolRunContext {
@@ -163,6 +164,21 @@ describe('pa_task_route', () => {
     expect(result).toMatchObject({ status: 'queued', queueReason: 'capacity-full' })
     expect(result.sessionId).toBeUndefined()
     expect(host.createCalls).toBe(0)
+  })
+
+  it('applies a lowered limit to later dispatches without touching running work', async () => {
+    let limit = 3
+    const tool = makeTool(() => limit)
+    await run(tool, { action: 'dispatch', title: '第一单', goal: '做完' })
+    await run(tool, { action: 'dispatch', title: '第二单', goal: '做完' })
+    await run(tool, { action: 'dispatch', title: '第三单', goal: '做完' })
+
+    limit = 1
+    const queued = await run(tool, { action: 'dispatch', title: '第四单', goal: '做完' })
+
+    expect(queued).toMatchObject({ status: 'queued', queueReason: 'capacity-full' })
+    expect(host.createCalls).toBe(3)
+    expect(store.projection().tickets.filter(ticket => ticket.stage === 'running')).toHaveLength(3)
   })
 
   it('rejects an append to an unknown worker session', async () => {
