@@ -310,7 +310,8 @@ export const CONSOLE_CSS = `
   gap: 8px;
   box-sizing: border-box;
   padding: 8px 0;
-  background: var(--dsw-alias-bg-layer-0, transparent);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
 }
 .pa-settings__savebar .pa-settings__error {
   margin-right: auto;
