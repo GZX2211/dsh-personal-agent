@@ -47,14 +47,17 @@ export interface SettingsStoreOptions {
 export interface SettingsSnapshot {
   revision: number
   executor: ExecutorSettings
+  /** 派单规则：只进入 Router 的提示词。 */
   rules: DispatchRule[]
+  /** 决策权限：只进入 Worker 的提示词。 */
+  permissions: DispatchRule[]
 }
 
 interface StoredSettings {
   version: number
   revision: number
   executor: ExecutorSettings
-  policy: { rules: DispatchRule[] }
+  policy: { rules: DispatchRule[]; permissions: DispatchRule[] }
 }
 
 export class SettingsStore {
@@ -100,6 +103,7 @@ export class SettingsStore {
       revision: this.#settings.revision,
       executor: { ...this.#settings.executor },
       rules: this.#settings.policy.rules.map(rule => ({ ...rule })),
+      permissions: this.#settings.policy.permissions.map(rule => ({ ...rule })),
     }
   }
 
@@ -139,7 +143,11 @@ export class SettingsStore {
     })
   }
 
-  async savePolicy(rules: readonly DispatchRule[], baseRevision: number): Promise<number> {
+  async savePolicy(
+    rules: readonly DispatchRule[],
+    permissions: readonly DispatchRule[],
+    baseRevision: number,
+  ): Promise<number> {
     return this.#enqueue(async () => {
       this.#ensureOpen()
       if (baseRevision !== this.#settings.revision) throw new SettingsConflictError()
@@ -147,7 +155,10 @@ export class SettingsStore {
         version: SETTINGS_FORMAT,
         revision: this.#settings.revision + 1,
         executor: this.#settings.executor,
-        policy: { rules: rules.map(rule => ({ ...rule })) },
+        policy: {
+          rules: rules.map(rule => ({ ...rule })),
+          permissions: permissions.map(rule => ({ ...rule })),
+        },
       }
       await this.#writeSettings(next)
       this.#settings = next
@@ -226,7 +237,7 @@ function defaultSettings(options: SettingsStoreOptions): StoredSettings {
     version: SETTINGS_FORMAT,
     revision: 0,
     executor: { maxWorkers, model: null, rootDirectory: null },
-    policy: { rules: [] },
+    policy: { rules: [], permissions: [] },
   }
 }
 
@@ -259,7 +270,11 @@ async function loadSettings(
       version: SETTINGS_FORMAT,
       revision: parsed.revision,
       executor: parseExecutorSettings(parsed.executor),
-      policy: { rules: parseDispatchRules(parsed.policy.rules) },
+      policy: {
+        rules: parseDispatchRules(parsed.policy.rules),
+        // 旧版 settings.json 没有决策权限；缺省为空集而不是让整份设置降级。
+        permissions: parseDispatchRules(parsed.policy.permissions ?? []),
+      },
     }
   } catch (error) {
     options.onWarning?.(`settings.json is unreadable (${describe(error)}); settings start from defaults`)

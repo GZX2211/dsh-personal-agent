@@ -50,7 +50,10 @@ describe('POST /settings/executor and /settings/policy', () => {
       makeTarget({
         saveExecutor: async input => {
           received = input
-          return { status: 200, body: { ok: true, revision: 1, policyVersion: '12345678' } }
+          return {
+            status: 200,
+            body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+          }
         },
       }),
       { method: 'POST', path: ROUTES.settingsExecutor, headers: HEADERS, body },
@@ -58,7 +61,37 @@ describe('POST /settings/executor and /settings/policy', () => {
 
     expect(captured.status).toBe(200)
     expect(received).toEqual(body)
-    expect(json).toEqual({ ok: true, revision: 1, policyVersion: '12345678' })
+    expect(json).toEqual({
+      ok: true,
+      revision: 1,
+      policyVersion: '12345678',
+      permissionVersion: '87654321',
+    })
+  })
+
+  it('passes both rule sets through the policy save action', async () => {
+    let received: unknown
+    const body = {
+      rules: [{ id: 'rule-a', name: '派单', instruction: '交给执行会话', enabled: true }],
+      permissions: [{ id: 'rule-b', name: '提交审批', instruction: '改动生产数据前问人', enabled: true }],
+      revision: 0,
+    }
+    const { captured, json } = await call(
+      makeTarget({
+        savePolicy: async input => {
+          received = input
+          return {
+            status: 200,
+            body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+          }
+        },
+      }),
+      { method: 'POST', path: ROUTES.settingsPolicy, headers: HEADERS, body },
+    )
+
+    expect(captured.status).toBe(200)
+    expect(received).toEqual(body)
+    expect(json).toMatchObject({ ok: true, permissionVersion: '87654321' })
   })
 
   it('maps a stale revision failure to 409 with its stable code', async () => {
@@ -69,7 +102,12 @@ describe('POST /settings/executor and /settings/policy', () => {
           body: { ok: false, code: ERROR_CODES.settingsConflict, message: 'stale' },
         }),
       }),
-      { method: 'POST', path: ROUTES.settingsPolicy, headers: HEADERS, body: { rules: [], revision: 0 } },
+      {
+        method: 'POST',
+        path: ROUTES.settingsPolicy,
+        headers: HEADERS,
+        body: { rules: [], permissions: [], revision: 0 },
+      },
     )
 
     expect(captured.status).toBe(409)

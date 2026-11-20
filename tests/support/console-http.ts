@@ -35,7 +35,12 @@ export function emptySettings(): SettingsView {
     revision: 0,
     executor: { maxWorkers: 5, model: null, rootDirectory: null },
     defaultRoot: 'C:\\state\\personal-agent\\work',
-    policy: { rules: [], version: '00000000' },
+    policy: {
+      rules: [],
+      version: '00000000',
+      permissions: [],
+      permissionVersion: '00000000',
+    },
     prompts: {
       current: { revision: 0, savedAt: '', source: 'defaults', parts: 3, chars: 30, texts: { shared: 's', router: 'r', worker: 'w' } },
       defaults: { shared: 's', router: 'r', worker: 'w' },
@@ -86,8 +91,14 @@ export function makeTarget(overrides: Partial<ConsoleTarget> = {}): ConsoleTarge
     removeSource: async () => ({ status: 200, body: { ok: true, removed: true } }),
     querySignals: () => ({ signals: [], total: 0 }),
     getSettings: async () => emptySettings(),
-    saveExecutor: async () => ({ status: 200, body: { ok: true, revision: 1, policyVersion: '12345678' } }),
-    savePolicy: async () => ({ status: 200, body: { ok: true, revision: 1, policyVersion: '12345678' } }),
+    saveExecutor: async () => ({
+      status: 200,
+      body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+    }),
+    savePolicy: async () => ({
+      status: 200,
+      body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+    }),
     savePrompts: async () => ({ status: 200, body: { ok: true, version: promptVersion(1) } }),
     getPromptRevision: async revision => ({ status: 200, body: promptVersion(revision) }),
     ...overrides,

@@ -43,8 +43,12 @@ export interface SettingsService {
   /** 版本 0 是内置默认；不存在的版本抛 `PromptRevisionNotFoundError`。 */
   promptVersion(revision: number): PromptVersion
   promptTexts(): PromptTexts
+  /** 派单规则：只进入 Router。 */
   rules(): DispatchRule[]
   policyVersion(): string
+  /** 决策权限：只进入 Worker。 */
+  permissions(): DispatchRule[]
+  permissionVersion(): string
   /** 某个角色下一次模型请求读到的完整提示词。 */
   composePrompt(role: 'router' | 'worker'): string
   maxWorkers(): number
@@ -57,7 +61,9 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
   const { store, stateDirectory, modelCatalog } = options
 
   const rules = (): DispatchRule[] => store.snapshot().rules
+  const permissions = (): DispatchRule[] => store.snapshot().permissions
   const policyVersion = (): string => policyVersionOf(rules())
+  const permissionVersion = (): string => policyVersionOf(permissions())
 
   async function view(): Promise<SettingsView> {
     const snapshot = store.snapshot()
@@ -67,7 +73,12 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
       revision: snapshot.revision,
       executor: snapshot.executor,
       defaultRoot: join(stateDirectory, 'work'),
-      policy: { rules: snapshot.rules, version: policyVersionOf(snapshot.rules) },
+      policy: {
+        rules: snapshot.rules,
+        version: policyVersionOf(snapshot.rules),
+        permissions: snapshot.permissions,
+        permissionVersion: policyVersionOf(snapshot.permissions),
+      },
       prompts: {
         current: store.promptSummaryVersion(),
         defaults: defaults.texts,
@@ -82,15 +93,27 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
     const revision = readRevision(body.revision)
     const executor = narrow(() => parseExecutorSettings(body.executor))
     const next = await store.saveExecutor(executor, revision)
-    return { ok: true, revision: next, policyVersion: policyVersionOf(store.snapshot().rules) }
+    return {
+      ok: true,
+      revision: next,
+      policyVersion: policyVersionOf(store.snapshot().rules),
+      permissionVersion: policyVersionOf(store.snapshot().permissions),
+    }
   }
 
   async function savePolicy(input: unknown): Promise<SettingsSaveResponse> {
     const body = readBody(input)
     const revision = readRevision(body.revision)
     const parsed = narrow(() => parseDispatchRules(body.rules))
-    const next = await store.savePolicy(parsed, revision)
-    return { ok: true, revision: next, policyVersion: policyVersionOf(store.snapshot().rules) }
+    // 决策权限与派单规则同构；旧请求没有这一项时按空集保存。
+    const parsedPermissions = narrow(() => parseDispatchRules(body.permissions ?? []))
+    const next = await store.savePolicy(parsed, parsedPermissions, revision)
+    return {
+      ok: true,
+      revision: next,
+      policyVersion: policyVersionOf(store.snapshot().rules),
+      permissionVersion: policyVersionOf(store.snapshot().permissions),
+    }
   }
 
   async function savePrompts(input: unknown): Promise<PromptSaveResponse> {
@@ -118,7 +141,15 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
     promptTexts: () => store.promptTexts(),
     rules,
     policyVersion,
-    composePrompt: role => composeRolePrompt(store.promptTexts(), role, rules(), policyVersion()),
+    permissions,
+    permissionVersion,
+    composePrompt: role =>
+      composeRolePrompt(store.promptTexts(), role, {
+        dispatchRules: rules(),
+        dispatchVersion: policyVersion(),
+        permissions: permissions(),
+        permissionVersion: permissionVersion(),
+      }),
     maxWorkers: () => store.snapshot().executor.maxWorkers,
     workerModel: () => store.snapshot().executor.model,
     executorRoot: () => store.snapshot().executor.rootDirectory ?? join(stateDirectory, 'work'),

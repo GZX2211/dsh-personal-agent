@@ -9,10 +9,14 @@ import type {
   PromptVersion,
 } from '../../../shared/settings.ts'
 
-export type SettingsSection = 'rules' | 'executor' | 'prompts'
+export type SettingsSection = 'policy' | 'executor' | 'prompts'
 
 export interface SettingsActions {
-  savePolicy(rules: readonly DispatchRule[], revision: number): Promise<void>
+  savePolicy(
+    rules: readonly DispatchRule[],
+    permissions: readonly DispatchRule[],
+    revision: number,
+  ): Promise<void>
   saveExecutor(executor: ExecutorSettings, revision: number): Promise<void>
   savePrompts(texts: PromptTexts, baseRevision: number): Promise<void>
   loadPromptRevision(revision: number): Promise<PromptVersion>

@@ -104,9 +104,14 @@ export interface SettingsView {
   /** 根目录留空时 Host 实际使用的目录。 */
   defaultRoot: string
   policy: {
+    /** 派单规则：只进入 Router 的提示词。 */
     rules: DispatchRule[]
-    /** 规则集指纹，前 8 位十六进制。 */
+    /** 派单规则集指纹，前 8 位十六进制。 */
     version: string
+    /** 决策权限：只进入 Worker 的提示词。 */
+    permissions: DispatchRule[]
+    /** 决策权限集指纹。 */
+    permissionVersion: string
   }
   prompts: {
     current: PromptVersion
@@ -124,6 +129,7 @@ export interface ExecutorSaveRequest {
 
 export interface PolicySaveRequest {
   rules: DispatchRule[]
+  permissions: DispatchRule[]
   revision: number
 }
 
@@ -136,6 +142,7 @@ export interface SettingsSaveResponse {
   ok: true
   revision: number
   policyVersion: string
+  permissionVersion: string
 }
 
 export interface PromptSaveResponse {
@@ -296,30 +303,57 @@ export function formatWorkerModel(model: WorkerModel | null): string {
   return `${model.provider} / ${model.model}${effort}`
 }
 
-/** 把启用规则渲染成 Router 提示词里的一段；没有启用规则时整段省略。 */
-export function composeDispatchSection(
+/** 把启用规则渲染成提示词里的一段；标题与版本行由调用方给出。 */
+function composeRuleSection(
+  heading: string,
+  versionLabel: string,
   rules: readonly DispatchRule[],
-  policyVersion?: string,
+  version?: string,
 ): string {
   const enabled = activeRules(rules)
   if (enabled.length === 0) return ''
-  const lines = ['## 派单规则']
-  if (policyVersion !== undefined && policyVersion.length > 0) lines.push(`策略版本 ${policyVersion}`)
+  const lines = [heading]
+  if (version !== undefined && version.length > 0) lines.push(`${versionLabel} ${version}`)
   for (const rule of enabled) {
     lines.push(`- ${oneLine(rule.name)}：${oneLine(rule.instruction)}`)
   }
   return lines.join('\n')
 }
 
-/** 一个角色最终读到的提示词：共享约定 + 角色文本（Router 再追加当前派单规则）。 */
+/** 派单规则段：只进入 Router，决定什么该交给执行会话。 */
+export function composeDispatchSection(
+  rules: readonly DispatchRule[],
+  policyVersion?: string,
+): string {
+  return composeRuleSection('## 派单规则', '策略版本', rules, policyVersion)
+}
+
+/** 决策权限段：只进入 Worker，决定什么该提交审批、什么可以自己决定。 */
+export function composePermissionSection(
+  rules: readonly DispatchRule[],
+  permissionVersion?: string,
+): string {
+  return composeRuleSection('## 决策权限', '权限版本', rules, permissionVersion)
+}
+
+/** 角色提示词里由设置提供的两套规则及其版本。 */
+export interface RolePromptPolicy {
+  dispatchRules?: readonly DispatchRule[]
+  dispatchVersion?: string
+  permissions?: readonly DispatchRule[]
+  permissionVersion?: string
+}
+
+/** 一个角色最终读到的提示词：共享约定 + 角色文本 + 该角色专属的规则段。 */
 export function composeRolePrompt(
   texts: PromptTexts,
   role: 'router' | 'worker',
-  rules: readonly DispatchRule[] = [],
-  policyVersion?: string,
+  policy: RolePromptPolicy = {},
 ): string {
   const base = [texts.shared.trim(), texts[role].trim()].filter(text => text.length > 0).join('\n\n')
-  if (role !== 'router') return base
-  const section = composeDispatchSection(rules, policyVersion)
+  const section =
+    role === 'router'
+      ? composeDispatchSection(policy.dispatchRules ?? [], policy.dispatchVersion)
+      : composePermissionSection(policy.permissions ?? [], policy.permissionVersion)
   return section.length === 0 ? base : `${base}\n\n${section}`
 }

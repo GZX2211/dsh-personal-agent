@@ -9,6 +9,7 @@ import {
   PROMPT_LIMITS,
   activeRules,
   composeDispatchSection,
+  composePermissionSection,
   composeRolePrompt,
   countParagraphs,
   formatWorkerModel,
@@ -173,22 +174,62 @@ describe('composeDispatchSection', () => {
   })
 })
 
+describe('composePermissionSection', () => {
+  it('renders nothing without an enabled permission', () => {
+    expect(composePermissionSection([])).toBe('')
+    expect(composePermissionSection([rule({ enabled: false })])).toBe('')
+  })
+
+  it('uses its own heading and version label', () => {
+    const section = composePermissionSection([rule({ name: '提交审批', instruction: '改动生产数据前必须问人' })], 'ff00aa11')
+
+    expect(section).toContain('## 决策权限')
+    expect(section).toContain('权限版本 ff00aa11')
+    expect(section).toContain('提交审批：改动生产数据前必须问人')
+    expect(section).not.toContain('## 派单规则')
+  })
+})
+
 describe('composeRolePrompt', () => {
   it('joins the shared part and the role part with one blank line', () => {
     expect(composeRolePrompt(texts, 'worker')).toBe(`${texts.shared}\n\n${texts.worker}`)
   })
 
-  it('appends the dispatch section for the router only', () => {
-    const rules = [rule()]
+  it('appends the dispatch section to the router only', () => {
+    const dispatchRules = [rule()]
 
-    expect(composeRolePrompt(texts, 'router', rules, 'abcd1234')).toContain('## 派单规则')
-    expect(composeRolePrompt(texts, 'worker', rules, 'abcd1234')).not.toContain('## 派单规则')
+    expect(
+      composeRolePrompt(texts, 'router', { dispatchRules, dispatchVersion: 'abcd1234' }),
+    ).toContain('## 派单规则')
+    expect(
+      composeRolePrompt(texts, 'worker', { dispatchRules, dispatchVersion: 'abcd1234' }),
+    ).not.toContain('## 派单规则')
+  })
+
+  it('appends the permission section to the worker only', () => {
+    const permissions = [rule({ name: '提交审批', instruction: '改动生产数据前必须问人' })]
+
+    expect(
+      composeRolePrompt(texts, 'worker', { permissions, permissionVersion: 'ff00aa11' }),
+    ).toContain('## 决策权限')
+    expect(
+      composeRolePrompt(texts, 'router', { permissions, permissionVersion: 'ff00aa11' }),
+    ).not.toContain('## 决策权限')
   })
 
   it('does not append a section when every rule is off', () => {
-    expect(composeRolePrompt(texts, 'router', [rule({ enabled: false })], 'abcd1234')).toBe(
-      `${texts.shared}\n\n${texts.router}`,
-    )
+    expect(
+      composeRolePrompt(texts, 'router', {
+        dispatchRules: [rule({ enabled: false })],
+        dispatchVersion: 'abcd1234',
+      }),
+    ).toBe(`${texts.shared}\n\n${texts.router}`)
+    expect(
+      composeRolePrompt(texts, 'worker', {
+        permissions: [rule({ enabled: false })],
+        permissionVersion: 'ff00aa11',
+      }),
+    ).toBe(`${texts.shared}\n\n${texts.worker}`)
   })
 })
 

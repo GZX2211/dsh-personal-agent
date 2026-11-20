@@ -12,6 +12,7 @@ import {
   type ExecutorSettings,
   type ModelCatalogView,
   type PromptTexts,
+  type RolePromptPolicy,
   type WorkerModel,
 } from '../../shared/settings.ts'
 
@@ -217,14 +218,18 @@ export function modelAvailable(catalog: ModelCatalogView, model: WorkerModel | n
 export function promptFullText(
   texts: PromptTexts,
   role: 'router' | 'worker',
-  rules: readonly DispatchRule[],
-  policyVersion: string,
+  policy: RolePromptPolicy,
 ): string {
-  return composeRolePrompt(texts, role, rules, policyVersion)
+  return composeRolePrompt(texts, role, policy)
 }
 
 export function isSamePromptTexts(left: PromptTexts, right: PromptTexts): boolean {
   return left.shared === right.shared && left.router === right.router && left.worker === right.worker
+}
+
+/** 两组规则的草稿比较：用于判断策略页是否真的有改动。 */
+export function isSameRules(left: readonly DispatchRule[], right: readonly DispatchRule[]): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
 
 /** 执行器配置的字段级比较：用来判断草稿是否真的有改动。 */

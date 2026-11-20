@@ -49,6 +49,7 @@ describe('SettingsStore defaults', () => {
       revision: 0,
       executor: { maxWorkers: 5, model: null, rootDirectory: null },
       rules: [],
+      permissions: [],
     })
     expect(store.promptTexts()).toEqual(DEFAULTS)
     expect(store.promptSummary()).toEqual({
@@ -108,6 +109,7 @@ describe('SettingsStore executor and policy saves', () => {
         rootDirectory: 'C:\\work',
       },
       rules: [],
+      permissions: [],
     })
     await expect(readFile(join(directory, 'settings.json'), 'utf8')).resolves.toContain('"maxWorkers": 8')
     await reopened.close()
@@ -120,14 +122,15 @@ describe('SettingsStore executor and policy saves', () => {
     await expect(store.saveExecutor({ maxWorkers: 6, model: null, rootDirectory: null }, 0)).rejects.toBeInstanceOf(
       SettingsConflictError,
     )
-    await expect(store.savePolicy([], 0)).rejects.toBeInstanceOf(SettingsConflictError)
+    await expect(store.savePolicy([], [], 0)).rejects.toBeInstanceOf(SettingsConflictError)
     await store.close()
   })
 
-  it('persists rules and shares the settings revision with the executor', async () => {
+  it('persists both rule sets and shares the settings revision with the executor', async () => {
     const store = await open()
     const rules = [{ id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }]
-    const revision = await store.savePolicy(rules, 0)
+    const permissions = [{ id: 'rule-b', name: '提交审批', instruction: '改动生产数据前问人', enabled: true }]
+    const revision = await store.savePolicy(rules, permissions, 0)
     const executorRevision = await store.saveExecutor({ maxWorkers: 4, model: null, rootDirectory: null }, revision)
     await store.close()
 
@@ -135,8 +138,28 @@ describe('SettingsStore executor and policy saves', () => {
     expect(executorRevision).toBe(2)
     const reopened = await open()
     expect(reopened.snapshot().rules).toEqual(rules)
+    expect(reopened.snapshot().permissions).toEqual(permissions)
     expect(reopened.snapshot().revision).toBe(2)
     await reopened.close()
+  })
+
+  it('loads an older settings file that has no decision permissions', async () => {
+    await writeFile(
+      join(directory, 'settings.json'),
+      JSON.stringify({
+        version: 1,
+        revision: 3,
+        executor: { maxWorkers: 5, model: null, rootDirectory: null },
+        policy: { rules: [{ id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }] },
+      }),
+      'utf8',
+    )
+    const store = await open()
+
+    expect(store.snapshot().revision).toBe(3)
+    expect(store.snapshot().rules).toHaveLength(1)
+    expect(store.snapshot().permissions).toEqual([])
+    await store.close()
   })
 })
 

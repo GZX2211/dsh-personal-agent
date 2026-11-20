@@ -8,8 +8,8 @@ import { useState, type ReactElement } from 'react'
 import type { PromptPart, SettingsView } from '../../../shared/settings.ts'
 import type { Translate } from '../../i18n.ts'
 import { ExecutorEditor } from './ExecutorEditor.tsx'
+import { PolicyEditor } from './PolicyEditor.tsx'
 import { PromptsEditor, type PromptRole, type PromptsTab } from './PromptsEditor.tsx'
-import { RulesEditor } from './RulesEditor.tsx'
 import type { SettingsActions, SettingsSection } from './types.ts'
 
 export interface SettingsBodyProps {
@@ -33,7 +33,7 @@ export function SettingsBody({
   actions,
   onSaved,
   onNotice,
-  initialSection = 'rules',
+  initialSection = 'policy',
   initialPromptsTab,
   initialPromptPart,
   initialRole,
@@ -47,7 +47,7 @@ export function SettingsBody({
         id="pa-settings-sections"
         value={section}
         options={[
-          { value: 'rules', label: t('settingsRulesTab') },
+          { value: 'policy', label: t('settingsPolicyTab') },
           { value: 'executor', label: t('settingsExecutorTab') },
           { value: 'prompts', label: t('settingsPromptsTab') },
         ]}
@@ -55,8 +55,8 @@ export function SettingsBody({
         onChange={setSection}
       />
 
-      {section === 'rules' ? (
-        <RulesEditor t={t} view={view} actions={actions} onSaved={onSaved} />
+      {section === 'policy' ? (
+        <PolicyEditor t={t} view={view} actions={actions} onSaved={onSaved} />
       ) : null}
       {section === 'executor' ? (
         <ExecutorEditor t={t} view={view} actions={actions} onSaved={onSaved} />

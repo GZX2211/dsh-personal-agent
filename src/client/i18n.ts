@@ -165,6 +165,13 @@ export const zh = {
   decisionErrorUnknown: '提交失败，请稍后重试',
 
   settingsRulesTab: '派单规则',
+  settingsPolicyTab: '策略',
+  settingsPermissionsTitle: '决策权限',
+  settingsPermissionsIntro: '决策权限只追加到 Worker 的系统提示词，用来说明什么该提交审批、什么可以自己决定。',
+  settingsPermissionsEmpty: '还没有决策权限。',
+  settingsPermissionVersion: '权限版本 {version}',
+  settingsPermissionAdd: '添加权限',
+  settingsPermissionUntitled: '未命名权限',
   settingsExecutorTab: '执行器',
   settingsPromptsTab: '提示词',
   settingsRulesIntro: '规则会追加到 Router 的系统提示词；只有启用的规则进入提示词。',
@@ -408,6 +415,14 @@ export const en: Dict = {
   decisionErrorUnknown: 'Submit failed, try again later',
 
   settingsRulesTab: 'Dispatch rules',
+  settingsPolicyTab: 'Policy',
+  settingsPermissionsTitle: 'Decision permissions',
+  settingsPermissionsIntro:
+    'Decision permissions are appended to the Worker system prompt only, stating what must be submitted for approval and what may be decided alone.',
+  settingsPermissionsEmpty: 'No decision permissions yet.',
+  settingsPermissionVersion: 'Permission version {version}',
+  settingsPermissionAdd: 'Add permission',
+  settingsPermissionUntitled: 'Untitled permission',
   settingsExecutorTab: 'Executor',
   settingsPromptsTab: 'Prompts',
   settingsRulesIntro: 'Rules are appended to the Router system prompt; only enabled rules are included.',

@@ -37,7 +37,12 @@ function view(overrides: Partial<SettingsView> = {}): SettingsView {
     revision: 1,
     executor: { maxWorkers: 5, model: null, rootDirectory: null },
     defaultRoot: 'C:\\state\\personal-agent\\work',
-    policy: { rules: [], version: 'abcd1234' },
+    policy: {
+      rules: [],
+      version: 'abcd1234',
+      permissions: [],
+      permissionVersion: 'ijkl9012',
+    },
     prompts: {
       current: {
         revision: 2,
@@ -84,17 +89,18 @@ function render(props: Partial<ComponentProps<typeof SettingsBody>> = {}): strin
 }
 
 describe('SettingsBody sections', () => {
-  it('offers the three sections', () => {
+  it('offers the three sections with the policy tab named after the whole page', () => {
     const html = render()
 
-    expect(html).toContain('派单规则')
+    expect(html).toContain('策略')
     expect(html).toContain('执行器')
     expect(html).toContain('提示词')
   })
 
   it('shows the policy version and the empty-rule hint', () => {
-    const html = render({ initialSection: 'rules' })
+    const html = render({ initialSection: 'policy' })
 
+    expect(html).toContain('派单规则')
     expect(html).toContain('策略版本 abcd1234')
     expect(html).toContain('还没有派单规则')
     expect(html).toContain('添加规则')
@@ -103,10 +109,12 @@ describe('SettingsBody sections', () => {
   it('lists every rule with its name and instruction', () => {
     const base = view()
     const html = render({
-      initialSection: 'rules',
+      initialSection: 'policy',
       view: view({
         policy: {
           version: 'efgh5678',
+          permissions: [],
+          permissionVersion: 'ijkl9012',
           rules: [
             { id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true },
             { id: 'rule-b', name: '视觉修正', instruction: '调整间距', enabled: false },
@@ -122,12 +130,36 @@ describe('SettingsBody sections', () => {
     expect(html).toContain('策略版本 efgh5678')
   })
 
+  it('shows the decision-permission card with its own version and rules', () => {
+    const html = render({
+      initialSection: 'policy',
+      view: view({
+        policy: {
+          rules: [],
+          version: 'efgh5678',
+          permissions: [
+            { id: 'rule-c', name: '提交审批', instruction: '改动生产数据前问人', enabled: true },
+          ],
+          permissionVersion: 'ijkl9012',
+        },
+      }),
+    })
+
+    expect(html).toContain('决策权限')
+    expect(html).toContain('权限版本 ijkl9012')
+    expect(html).toContain('添加权限')
+    expect(html).toContain('提交审批')
+    expect(html).toContain('改动生产数据前问人')
+  })
+
   it('reports an invalid rule name next to the rule', () => {
     const html = render({
-      initialSection: 'rules',
+      initialSection: 'policy',
       view: view({
         policy: {
           version: 'efgh5678',
+          permissions: [],
+          permissionVersion: 'ijkl9012',
           rules: [{ id: 'rule-a', name: '  ', instruction: '修正错别字', enabled: true }],
         },
       }),
@@ -264,3 +296,4 @@ describe('prompts section', () => {
     expect(html).toContain('共享约定 不能为空')
   })
 })
+

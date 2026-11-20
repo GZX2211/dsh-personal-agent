@@ -29,8 +29,8 @@ export function Settings({ t, language }: SettingsProps): ReactElement {
   const notice = (text: string): void => setToast({ seq: Date.now(), text })
 
   const actions: SettingsActions = {
-    savePolicy: async (rules: readonly DispatchRule[], revision: number) => {
-      await postPolicy({ rules: [...rules], revision })
+    savePolicy: async (rules: readonly DispatchRule[], permissions: readonly DispatchRule[], revision: number) => {
+      await postPolicy({ rules: [...rules], permissions: [...permissions], revision })
       await reload()
     },
     saveExecutor: async (executor: ExecutorSettings, revision: number) => {

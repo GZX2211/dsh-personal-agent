@@ -112,8 +112,18 @@ export function PromptsEditor({
   const longPart = PROMPT_PARTS.find(item => texts[item].trim().length > PROMPT_LIMITS.promptPart)
   const invalid = blankPart !== undefined || longPart !== undefined
 
-  const fullText = promptFullText(texts, role, view.policy.rules, view.policy.version)
-  const defaultText = promptFullText(view.prompts.defaults, role, [], '')
+  const fullText = promptFullText(texts, role, {
+    dispatchRules: view.policy.rules,
+    dispatchVersion: view.policy.version,
+    permissions: view.policy.permissions,
+    permissionVersion: view.policy.permissionVersion,
+  })
+  const defaultText = promptFullText(view.prompts.defaults, role, {
+    dispatchRules: [],
+    dispatchVersion: '',
+    permissions: [],
+    permissionVersion: '',
+  })
   const fullStats = { parts: countParagraphs(fullText), chars: fullText.length }
   const diff = diffLines(defaultText, fullText)
 

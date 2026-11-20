@@ -11,6 +11,7 @@ import {
   executorDraftValue,
   isSameExecutor,
   isSamePromptTexts,
+  isSameRules,
   modelAvailable,
   newRuleId,
   promptFullText,
@@ -250,18 +251,39 @@ describe('model helpers', () => {
 })
 
 describe('prompt helpers', () => {
-  it('composes the full prompt for a role, including dispatch rules for the router', () => {
-    const rules = [{ id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }]
+  it('composes the full prompt for a role, including its own rule section', () => {
+    const dispatchRules = [{ id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }]
+    const permissions = [{ id: 'rule-b', name: '提交审批', instruction: '改动生产数据前问人', enabled: true }]
 
-    expect(promptFullText(texts, 'worker', rules, 'abcd1234')).toBe(
-      `${texts.shared}\n\n${texts.worker}`,
-    )
-    expect(promptFullText(texts, 'router', rules, 'abcd1234')).toContain('## 派单规则')
+    expect(
+      promptFullText(texts, 'worker', {
+        dispatchRules,
+        dispatchVersion: 'abcd1234',
+        permissions,
+        permissionVersion: 'ff00aa11',
+      }),
+    ).toContain('## 决策权限')
+    expect(
+      promptFullText(texts, 'router', {
+        dispatchRules,
+        dispatchVersion: 'abcd1234',
+        permissions,
+        permissionVersion: 'ff00aa11',
+      }),
+    ).toContain('## 派单规则')
   })
 
   it('compares two prompt drafts by content', () => {
     expect(isSamePromptTexts(texts, { ...texts })).toBe(true)
     expect(isSamePromptTexts(texts, { ...texts, router: '改了' })).toBe(false)
+  })
+
+  it('compares two rule drafts by content', () => {
+    const rules = [{ id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }]
+
+    expect(isSameRules(rules, [{ ...rules[0]! }])).toBe(true)
+    expect(isSameRules(rules, [{ ...rules[0]!, enabled: false }])).toBe(false)
+    expect(isSameRules(rules, [])).toBe(false)
   })
 })
 
