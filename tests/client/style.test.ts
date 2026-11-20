@@ -84,4 +84,13 @@ describe('style.ts', () => {
     expect(CONSOLE_CSS).toMatch(/\.pa-toolbar__search\s*\{[^}]*height:\s*28px/)
     expect(CONSOLE_CSS).toMatch(/\.pa-list\s*\{[^}]*overflow-x:\s*hidden/)
   })
+
+  it('paints settings inputs with the official settings-field surface', () => {
+    // 官方 ConfigField 用 bg-layer-3；bg-overlay 在深色主题里接近白，阅读时刺眼。
+    for (const selector of ['.pa-settings__select', '.pa-settings__textarea', '.pa-settings__pre']) {
+      expect(CONSOLE_CSS).toMatch(
+        new RegExp(`${selector.replace('.', '\\.')}\\s*\\{[^}]*background:\\s*var\\(--dsw-alias-bg-layer-3\\)`),
+      )
+    }
+  })
 })

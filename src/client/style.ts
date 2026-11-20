@@ -240,14 +240,19 @@ export const CONSOLE_CSS = `
 .pa-settings__select {
   box-sizing: border-box;
   width: 100%;
-  height: 28px;
-  padding: 0 8px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-overlay);
+  height: 32px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  /* 与官方设置字段同色：bg-overlay 在深色主题里接近白，长时间阅读非常刺眼。 */
+  background: var(--dsw-alias-bg-layer-3);
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 13px;
+}
+.pa-settings__select:focus {
+  border-color: var(--dsw-alias-state-business-primary);
+  outline: none;
 }
 .pa-settings__select:disabled {
   color: var(--dsw-alias-label-caption);
@@ -256,15 +261,20 @@ export const CONSOLE_CSS = `
   box-sizing: border-box;
   width: 100%;
   min-height: 56px;
-  padding: 6px 8px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-overlay);
+  padding: 6px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  /* 官方 ConfigField 的输入面：比卡片亮一档的深灰，不是浮层白。 */
+  background: var(--dsw-alias-bg-layer-3);
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 13px;
   line-height: 20px;
   resize: vertical;
+}
+.pa-settings__textarea:focus {
+  border-color: var(--dsw-alias-state-business-primary);
+  outline: none;
 }
 .pa-settings__editor {
   min-height: 260px;
@@ -276,11 +286,11 @@ export const CONSOLE_CSS = `
   box-sizing: border-box;
   max-height: 320px;
   margin: 0;
-  padding: 8px;
+  padding: 8px 12px;
   overflow: auto;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-overlay);
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-3);
   color: var(--dsw-alias-label-primary);
   font-family: var(--dsw-font-family-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   font-size: 12px;
