@@ -23,7 +23,16 @@ import {
   type SourceToggleRequest,
   type SourceToggleResponse,
 } from '../../shared/api.ts'
+import type {
+  PromptSaveResponse,
+  PromptVersion,
+  SettingsSaveResponse,
+  SettingsView,
+} from '../../shared/settings.ts'
 import { guardRequest } from './guard.ts'
+
+/** 设置请求体上限：三份提示词各自可达 32000 字符，中文 UTF-8 下约 288 KiB。 */
+const SETTINGS_BODY_LIMIT = 512 * 1024
 
 /** 来源操作的响应：成功体或稳定错误体，状态码由装配层按错误语义给出。 */
 export interface SourceToggleOutcome {
@@ -39,6 +48,22 @@ export interface SourceTestOutcome {
 export interface SourceRemoveOutcome {
   status: number
   body: SourceRemoveResponse | ErrorResponse
+}
+
+/** 保存设置的成功体或稳定错误体；状态码由装配层按错误语义给出。 */
+export interface SettingsSaveOutcome {
+  status: number
+  body: SettingsSaveResponse | ErrorResponse
+}
+
+export interface PromptSaveOutcome {
+  status: number
+  body: PromptSaveResponse | ErrorResponse
+}
+
+export interface PromptVersionOutcome {
+  status: number
+  body: PromptVersion | ErrorResponse
 }
 
 export interface ConsoleTarget {
@@ -59,6 +84,16 @@ export interface ConsoleTarget {
   removeSource: (sourceId: string) => Promise<SourceRemoveOutcome>
   /** 从账本全量检索信号。 */
   querySignals: (query: SignalQuery) => Promise<SignalQueryResponse> | SignalQueryResponse
+  /** 设置页一次读取所需的全部状态。 */
+  getSettings: () => Promise<SettingsView>
+  /** 保存执行器配置；请求体未经校验，由设置服务收窄。 */
+  saveExecutor: (body: unknown) => Promise<SettingsSaveOutcome>
+  /** 保存派单规则。 */
+  savePolicy: (body: unknown) => Promise<SettingsSaveOutcome>
+  /** 保存一个新的提示词版本。 */
+  savePrompts: (body: unknown) => Promise<PromptSaveOutcome>
+  /** 读取一个历史提示词版本。 */
+  getPromptRevision: (revision: number) => Promise<PromptVersionOutcome>
 }
 
 /** 把 HTTP 面挂到 prefix 路由上的处理函数。 */
@@ -84,8 +119,7 @@ async function dispatch(
 
   // 健康检查刻意不校验来者：它只回答「插件活着、状态目录在哪」，不需要授权。
   // 状态类端点一律要求同源 + 自定义头。
-  if (path === ROUTES.health) {
-    if (method !== 'GET' && method !== 'HEAD') {
+  if (path === ROUTES.health) {    if (method !== 'GET' && method !== 'HEAD') {
       return sendMethodNotAllowed(response, 'GET, HEAD')
     }
     const health: HealthResponse = {
@@ -110,6 +144,50 @@ async function dispatch(
   if (path === ROUTES.signals) {
     if (method !== 'GET') return sendMethodNotAllowed(response, 'GET')
     return sendJson(response, 200, await target.querySignals(readSignalQuery(request, target.origin)))
+  }
+
+  if (path === ROUTES.settings) {
+    if (method !== 'GET') return sendMethodNotAllowed(response, 'GET')
+    return sendJson(response, 200, await target.getSettings())
+  }
+
+  if (path === ROUTES.settingsExecutor || path === ROUTES.settingsPolicy) {
+    if (method !== 'POST') return sendMethodNotAllowed(response, 'POST')
+    let body: unknown
+    try {
+      body = await readJson(request, SETTINGS_BODY_LIMIT)
+    } catch (error) {
+      return sendJson(response, 400, failure(ERROR_CODES.badRequest, describe(error)))
+    }
+    const outcome =
+      path === ROUTES.settingsExecutor
+        ? await target.saveExecutor(body)
+        : await target.savePolicy(body)
+    return sendJson(response, outcome.status, outcome.body)
+  }
+
+  if (path === ROUTES.prompts) {
+    if (method === 'GET') {
+      const revision = readPromptRevision(request, target.origin)
+      if (revision === undefined) {
+        return sendJson(
+          response,
+          400,
+          failure(ERROR_CODES.badRequest, 'revision must be a non-negative integer'),
+        )
+      }
+      const outcome = await target.getPromptRevision(revision)
+      return sendJson(response, outcome.status, outcome.body)
+    }
+    if (method !== 'POST') return sendMethodNotAllowed(response, 'GET, POST')
+    let body: unknown
+    try {
+      body = await readJson(request, SETTINGS_BODY_LIMIT)
+    } catch (error) {
+      return sendJson(response, 400, failure(ERROR_CODES.badRequest, describe(error)))
+    }
+    const outcome = await target.savePrompts(body)
+    return sendJson(response, outcome.status, outcome.body)
   }
 
   const decision = APPROVAL_DECIDE_PATTERN.exec(path)
@@ -232,6 +310,15 @@ function readSignalQuery(request: IncomingMessage, origin: string): SignalQuery 
   return query
 }
 
+/** 提示词版本必须是明确的非负整数；缺失与非法都回 400，让调用点自己修正。 */
+function readPromptRevision(request: IncomingMessage, origin: string): number | undefined {
+  const url = new URL(request.url ?? '/', origin)
+  const raw = url.searchParams.get('revision')
+  if (raw === null || raw.trim().length === 0) return undefined
+  const value = Number(raw)
+  return Number.isInteger(value) && value >= 0 ? value : undefined
+}
+
 function failure(code: ErrorResponse['code'], message: string): ErrorResponse {
   return { ok: false, code, message }
 }
@@ -255,14 +342,14 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
   response.end(body)
 }
 
-/** 读取 JSON 请求体；只负责不撑爆内存，结构校验交给审批服务。 */
-async function readJson(request: IncomingMessage): Promise<unknown> {
+/** 读取 JSON 请求体；只负责不撑爆内存，结构校验交给设置服务。 */
+async function readJson(request: IncomingMessage, maxBytes = 64 * 1024): Promise<unknown> {
   const chunks: Buffer[] = []
   let size = 0
   for await (const chunk of request) {
     const buffer = chunk as Buffer
     size += buffer.byteLength
-    if (size > 64 * 1024) throw new Error('request body exceeds 64 KiB')
+    if (size > maxBytes) throw new Error(`request body exceeds ${Math.floor(maxBytes / 1024)} KiB`)
     chunks.push(buffer)
   }
   const text = Buffer.concat(chunks).toString('utf8').trim()

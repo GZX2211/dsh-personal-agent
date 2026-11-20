@@ -18,6 +18,7 @@ import {
 } from '../../../src/shared/api.ts'
 import type { SourceView } from '../../../src/shared/sources.ts'
 import { createConsoleHandler, type ConsoleTarget } from '../../../src/host/console-api/server.ts'
+import { emptySettings, promptVersion } from '../../support/console-http.ts'
 
 const ORIGIN = 'http://127.0.0.1:52810'
 
@@ -55,6 +56,11 @@ function makeTarget(overrides: Partial<ConsoleTarget> = {}): ConsoleTarget {
     testSource: async () => ({ status: 200, body: { ok: true, signals: [] } }),
     removeSource: async () => ({ status: 200, body: { ok: true, removed: true } }),
     querySignals: () => ({ signals: [], total: 0 }),
+    getSettings: async () => emptySettings(),
+    saveExecutor: async () => ({ status: 200, body: { ok: true, revision: 1, policyVersion: '12345678' } }),
+    savePolicy: async () => ({ status: 200, body: { ok: true, revision: 1, policyVersion: '12345678' } }),
+    savePrompts: async () => ({ status: 200, body: { ok: true, version: promptVersion(1) } }),
+    getPromptRevision: async revision => ({ status: 200, body: promptVersion(revision) }),
     ...overrides,
   }
 }

@@ -5,7 +5,7 @@
 // 这里只认契约里的码，不认识的一律 internal：把未知失败伪装成 4xx 会让客户端
 // 以为请求有错、也掩盖了服务端故障。
 
-import { ERROR_CODES, type ErrorResponse } from '../../shared/api.ts'
+import { ERROR_CODES, type ErrorCode, type ErrorResponse } from '../../shared/api.ts'
 
 export interface FailureOutcome {
   status: number
@@ -22,5 +22,25 @@ export function sourceFailure(code: string, message: string): FailureOutcome {
       return { status: 502, body: { ok: false, code: ERROR_CODES.sourceStartFailed, message } }
     default:
       return { status: 500, body: { ok: false, code: ERROR_CODES.internal, message } }
+  }
+}
+
+/**
+ * 设置失败的状态码映射。
+ *
+ * 只认设置契约里的码；来源码继续走 `sourceFailure`，未知失败仍按 internal，
+ * 避免把服务端故障伪装成请求错误。
+ */
+export function settingsFailure(code: ErrorCode, message: string): FailureOutcome {
+  switch (code) {
+    case ERROR_CODES.settingsInvalid:
+      return { status: 400, body: { ok: false, code, message } }
+    case ERROR_CODES.settingsConflict:
+    case ERROR_CODES.promptConflict:
+      return { status: 409, body: { ok: false, code, message } }
+    case ERROR_CODES.promptRevisionNotFound:
+      return { status: 404, body: { ok: false, code, message } }
+    default:
+      return sourceFailure(code, message)
   }
 }

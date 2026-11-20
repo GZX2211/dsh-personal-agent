@@ -5,7 +5,14 @@
 
 import { describe, expect, it } from 'vitest'
 import { ERROR_CODES } from '../../../src/shared/api.ts'
-import { sourceFailure } from '../../../src/host/console-api/errors.ts'
+import { settingsFailure, sourceFailure } from '../../../src/host/console-api/errors.ts'
+import {
+  PromptConflictError,
+  PromptRevisionNotFoundError,
+  SettingsConflictError,
+  SettingsInputError,
+  settingsErrorCode,
+} from '../../../src/host/settings/errors.ts'
 
 describe('sourceFailure', () => {
   it('maps a missing source to 404', () => {
@@ -33,6 +40,42 @@ describe('sourceFailure', () => {
     expect(sourceFailure('something-else', '坏了')).toEqual({
       status: 500,
       body: { ok: false, code: 'internal', message: '坏了' },
+    })
+  })
+})
+
+describe('settingsErrorCode', () => {
+  it('maps each settings failure class to its stable code', () => {
+    expect(settingsErrorCode(new SettingsInputError('bad'))).toBe(ERROR_CODES.settingsInvalid)
+    expect(settingsErrorCode(new SettingsConflictError())).toBe(ERROR_CODES.settingsConflict)
+    expect(settingsErrorCode(new PromptConflictError())).toBe(ERROR_CODES.promptConflict)
+    expect(settingsErrorCode(new PromptRevisionNotFoundError(3))).toBe(ERROR_CODES.promptRevisionNotFound)
+    expect(settingsErrorCode(new Error('boom'))).toBe(ERROR_CODES.internal)
+  })
+})
+
+describe('settingsFailure', () => {
+  it('maps an invalid input to 400', () => {
+    expect(settingsFailure(ERROR_CODES.settingsInvalid, '参数不合法')).toMatchObject({
+      status: 400,
+      body: { ok: false, code: ERROR_CODES.settingsInvalid },
+    })
+  })
+
+  it('maps both conflict kinds to 409', () => {
+    expect(settingsFailure(ERROR_CODES.settingsConflict, '旧版本').status).toBe(409)
+    expect(settingsFailure(ERROR_CODES.promptConflict, '旧版本').status).toBe(409)
+  })
+
+  it('maps a missing prompt revision to 404', () => {
+    expect(settingsFailure(ERROR_CODES.promptRevisionNotFound, '没有这一版').status).toBe(404)
+  })
+
+  it('keeps source codes and unknown failures on their existing mapping', () => {
+    expect(settingsFailure(ERROR_CODES.sourceNotFound, '没有来源').status).toBe(404)
+    expect(settingsFailure(ERROR_CODES.methodNotAllowed, '不允许')).toEqual({
+      status: 500,
+      body: { ok: false, code: 'internal', message: '不允许' },
     })
   })
 })

@@ -25,7 +25,16 @@ export const ROUTES = {
   health: `${API_PREFIX}/health`,
   snapshot: `${API_PREFIX}/snapshot`,
   signals: `${API_PREFIX}/signals`,
+  settings: `${API_PREFIX}/settings`,
+  settingsExecutor: `${API_PREFIX}/settings/executor`,
+  settingsPolicy: `${API_PREFIX}/settings/policy`,
+  prompts: `${API_PREFIX}/prompts`,
 } as const
+
+/** 读取一个历史提示词版本的路径；当前版本随设置视图一起返回。 */
+export function promptRevisionPath(revision: number): string {
+  return `${ROUTES.prompts}?revision=${encodeURIComponent(String(revision))}`
+}
 
 /** 审批决定端点的具体路径（带 approvalId）。 */
 export function approvalDecidePath(approvalId: string): string {
@@ -102,6 +111,10 @@ export const ERROR_CODES = {
   sourceNotFound: 'source-not-found',
   sourceInvalid: 'source-invalid',
   sourceStartFailed: 'source-start-failed',
+  settingsInvalid: 'settings-invalid',
+  settingsConflict: 'settings-conflict',
+  promptConflict: 'prompt-conflict',
+  promptRevisionNotFound: 'prompt-revision-not-found',
 } as const
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]

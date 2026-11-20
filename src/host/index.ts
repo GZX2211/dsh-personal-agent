@@ -10,7 +10,7 @@ import { API_PREFIX, ERROR_CODES } from '../shared/api.ts'
 import { healPendingApprovals } from './approvals/heal.ts'
 import { ResolverRegistry } from './approvals/resolvers.ts'
 import { createApprovalDecider } from './approvals/service.ts'
-import { sourceFailure, type FailureOutcome } from './console-api/errors.ts'
+import { sourceFailure, settingsFailure, type FailureOutcome } from './console-api/errors.ts'
 import { createConsoleHandler } from './console-api/server.ts'
 import type { HostContext } from './context.ts'
 import { createScheduler } from './dispatcher/scheduler.ts'
@@ -20,6 +20,7 @@ import { projectSignals } from './projector/project.ts'
 import { querySignals as searchSignals } from './projector/signal-query.ts'
 import { defaultPromptTexts } from './prompts/index.ts'
 import { PaRolesService } from './roles/index.ts'
+import { settingsErrorCode } from './settings/errors.ts'
 import { hostModelCatalog } from './settings/model.ts'
 import { createSettingsService } from './settings/service.ts'
 import { SettingsStore } from './settings/store.ts'
@@ -242,6 +243,39 @@ export function apply(ctx: HostContext, config?: Config): void {
         querySignals: async query => {
           const { store } = await ready
           return searchSignals(projectSignals(store.events()), query)
+        },
+        getSettings: async () => (await ready).settingsService.view(),
+        saveExecutor: async body => {
+          try {
+            const { settingsService } = await ready
+            return { status: 200, body: await settingsService.saveExecutor(body) }
+          } catch (error) {
+            return settingsFailure(settingsErrorCode(error), describe(error))
+          }
+        },
+        savePolicy: async body => {
+          try {
+            const { settingsService } = await ready
+            return { status: 200, body: await settingsService.savePolicy(body) }
+          } catch (error) {
+            return settingsFailure(settingsErrorCode(error), describe(error))
+          }
+        },
+        savePrompts: async body => {
+          try {
+            const { settingsService } = await ready
+            return { status: 200, body: await settingsService.savePrompts(body) }
+          } catch (error) {
+            return settingsFailure(settingsErrorCode(error), describe(error))
+          }
+        },
+        getPromptRevision: async revision => {
+          try {
+            const { settingsService } = await ready
+            return { status: 200, body: settingsService.promptVersion(revision) }
+          } catch (error) {
+            return settingsFailure(settingsErrorCode(error), describe(error))
+          }
         },
       }),
     })
