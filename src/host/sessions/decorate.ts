@@ -9,7 +9,6 @@ import type { ResolverRegistry } from '../approvals/resolvers.ts'
 import type { HostContext } from '../context.ts'
 import type { Scheduler } from '../dispatcher/scheduler.ts'
 import type { PerceptionService } from '../perception/service.ts'
-import { loadPrompt } from '../prompts/index.ts'
 import { roleForSession, type SessionRole } from '../roles/index.ts'
 import type { ClaimRegistry } from '../signals/claim.ts'
 import type { EventStore } from '../store/event-store.ts'
@@ -23,6 +22,11 @@ import { createTaskRouteTool } from '../tools/pa_task_route/index.ts'
 
 // 判定与服务同源（roles/）；保留原导出路径，既有调用点与测试不需要跟着改。
 export { roleForSession, type SessionRole }
+
+/** 角色提示词的来源：设置服务按角色给出当前文本，含派单规则。 */
+export interface RolePromptSource {
+  composePrompt(role: SessionRole): string
+}
 
 /** 角色提示词的 section 位置：第一方 section 在 0~10000 之间稀疏分配，900 不冲突。 */
 const ROLE_SECTION_ORDER = 900
@@ -43,6 +47,8 @@ export interface AgentDecoratorOptions {
   resolvers: ResolverRegistry
   claims: ClaimRegistry
   perception: PerceptionService
+  /** 当前提示词（含派单规则）的来源；每次装配都重新读取。 */
+  settings: RolePromptSource
   maxWorkers: number
   /** router 身份是异步确定的，装饰时再读。 */
   currentRouterSessionId: () => string | undefined
@@ -102,7 +108,8 @@ export function createAgentDecorator(options: AgentDecoratorOptions): AgentDecor
         agent.ctx.systemPrompt.section({
           name: `personal-agent/${role}`,
           order: ROLE_SECTION_ORDER,
-          text: `${loadPrompt('shared')}\n\n${loadPrompt(role)}`,
+          // 文本在每次装配时求值：保存提示词或规则后，下一次请求即可读到新内容。
+          text: () => options.settings.composePrompt(role),
         }),
       )
       for (const definition of roleTools(role, options)) cleanups.push(agent.ctx.tools.register(definition))

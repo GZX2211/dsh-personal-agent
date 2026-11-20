@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { joinPromptMarkdown, loadPrompt } from '../../../src/host/prompts/index.ts'
+import { joinPromptMarkdown, defaultPromptTexts, loadPrompt } from '../../../src/host/prompts/index.ts'
 
 describe('joinPromptMarkdown', () => {
   it('joins Chinese sentences without inserting spaces', () => {
@@ -23,6 +23,16 @@ describe('joinPromptMarkdown', () => {
 
   it('normalizes CRLF and trailing spaces', () => {
     expect(joinPromptMarkdown('第一句。  \r\n第二句。\r\n')).toBe('第一句。第二句。')
+  })
+})
+
+describe('defaultPromptTexts', () => {
+  it('returns the three shipped prompts as the version-zero baseline', () => {
+    const texts = defaultPromptTexts()
+
+    expect(texts.shared).toBe(loadPrompt('shared'))
+    expect(texts.router).toBe(loadPrompt('router'))
+    expect(texts.worker).toBe(loadPrompt('worker'))
   })
 })
 

@@ -9,10 +9,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ResolverRegistry } from '../../../src/host/approvals/resolvers.ts'
 import type { Scheduler } from '../../../src/host/dispatcher/scheduler.ts'
-import { createAgentDecorator, decorateLiveWorkerSessions, roleForSession } from '../../../src/host/sessions/decorate.ts'
+import { createAgentDecorator, decorateLiveWorkerSessions, roleForSession, type SessionRole } from '../../../src/host/sessions/decorate.ts'
 import { createClaimRegistry } from '../../../src/host/signals/claim.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
-import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
+import { createFakeHost, sectionText, type FakeHost } from '../../support/fake-host.ts'
 import { perceptionStub } from '../../support/perception-stub.ts'
 
 const WORKER_TICKET = 't-abcdef1234'
@@ -23,6 +23,7 @@ let store: EventStore
 let host: FakeHost
 let routerSessionId: string | undefined
 let logs: string[]
+let prompts: Record<SessionRole, string>
 const scheduler: Scheduler = { trigger: async () => undefined, idle: async () => undefined }
 
 beforeEach(async () => {
@@ -34,6 +35,7 @@ beforeEach(async () => {
   })
   routerSessionId = 'session-router'
   logs = []
+  prompts = { router: '路由角色提示词', worker: '执行角色提示词' }
 })
 
 afterEach(async () => {
@@ -64,6 +66,7 @@ function makeDecorator(): ReturnType<typeof createAgentDecorator> {
     resolvers: new ResolverRegistry(),
     claims: createClaimRegistry(),
     perception: perceptionStub(),
+    settings: { composePrompt: role => prompts[role] },
     maxWorkers: 5,
     currentRouterSessionId: () => routerSessionId,
     log: message => logs.push(message),
@@ -106,7 +109,8 @@ describe('createAgentDecorator', () => {
 
     const agent = host.sessions.get('session-router')?.agent
     expect(agent?.sections).toHaveLength(1)
-    expect(agent?.sections[0]?.text).toContain('pa_task_route')
+    expect(agent?.sections[0]?.name).toBe('personal-agent/router')
+    expect(sectionText(agent!.sections[0]!)).toBe('路由角色提示词')
     expect(agent?.toolNames).toEqual([
       'pa_task_route',
       'pa_ledger_query',
@@ -127,9 +131,21 @@ describe('createAgentDecorator', () => {
     emitCreated(WORKER_SESSION)
 
     const agent = host.sessions.get(WORKER_SESSION)?.agent
-    expect(agent?.sections[0]?.text).toContain('pa_approval_submit')
+    expect(agent?.sections[0]?.name).toBe('personal-agent/worker')
+    expect(sectionText(agent!.sections[0]!)).toBe('执行角色提示词')
     expect(agent?.toolNames).toEqual(['pa_approval_submit'])
     expect(agent?.restrictions).toEqual([{ deny: ['ask_user_question', 'present'] }])
+    decorator.dispose()
+  })
+
+  it('reads the current prompt each time the system prompt is assembled', () => {
+    const decorator = makeDecorator()
+    emitCreated('session-router')
+    const section = host.sessions.get('session-router')!.agent.sections[0]!
+
+    expect(sectionText(section)).toBe('路由角色提示词')
+    prompts.router = '更新后的路由提示词'
+    expect(sectionText(section)).toBe('更新后的路由提示词')
     decorator.dispose()
   })
 

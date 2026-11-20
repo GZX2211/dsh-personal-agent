@@ -18,7 +18,11 @@ import { createPerceptionService, PerceptionError } from './perception/service.t
 import { readTimerSourceViews } from './perception/timers.ts'
 import { projectSignals } from './projector/project.ts'
 import { querySignals as searchSignals } from './projector/signal-query.ts'
+import { defaultPromptTexts } from './prompts/index.ts'
 import { PaRolesService } from './roles/index.ts'
+import { hostModelCatalog } from './settings/model.ts'
+import { createSettingsService } from './settings/service.ts'
+import { SettingsStore } from './settings/store.ts'
 import { createAgentDecorator, decorateLiveWorkerSessions } from './sessions/decorate.ts'
 import { registerWorkerObserver } from './sessions/observer.ts'
 import { ensureRouterSession } from './sessions/router.ts'
@@ -78,6 +82,15 @@ export function apply(ctx: HostContext, config?: Config): void {
   })
   void identities.catch((error: unknown) => logWarning(ctx, `kv unavailable: ${describe(error)}`))
 
+  // 设置同样是技术元数据：执行器配置与派单规则允许改写，提示词版本只追加。
+  const settingsStore = SettingsStore.open({
+    directory: stateDir,
+    defaultMaxWorkers: maxWorkers,
+    defaultPrompts: defaultPromptTexts(),
+    onWarning: message => logWarning(ctx, message),
+  })
+  void settingsStore.catch((error: unknown) => logWarning(ctx, `settings unavailable: ${describe(error)}`))
+
   const resolvers = new ResolverRegistry()
   const decider = ledger.then(store => createApprovalDecider({ ctx, store, resolvers }))
 
@@ -96,9 +109,14 @@ export function apply(ctx: HostContext, config?: Config): void {
   let stopPerception: (() => void) | undefined
   let prepareWorker: ((sessionId: SessionId) => Promise<void>) | undefined
 
-  // 账本与 kv 就绪后装配有状态的服务：调度器、回合观察、角色装饰、感知来源。
-  const ready = Promise.all([ledger, identities]).then(([store, kv]) => {
+  // 账本、kv 与设置就绪后装配有状态的服务：调度器、回合观察、角色装饰、感知来源。
+  const ready = Promise.all([ledger, identities, settingsStore]).then(([store, kv, settings]) => {
     roles.attach(store)
+    const settingsService = createSettingsService({
+      store: settings,
+      stateDirectory: stateDir,
+      modelCatalog: () => hostModelCatalog(ctx),
+    })
     // 信号配对是进程内状态：账本只记信号与决定，配对关系重启即丢。
     const claims = createClaimRegistry()
     // 来源的渠道在 router 会话就绪之后才启动（投递需要目标会话）。
@@ -128,6 +146,7 @@ export function apply(ctx: HostContext, config?: Config): void {
       resolvers,
       claims,
       perception,
+      settings: settingsService,
       maxWorkers,
       currentRouterSessionId: () => routerSessionId,
       log: message => logWarning(ctx, message),
@@ -155,7 +174,7 @@ export function apply(ctx: HostContext, config?: Config): void {
         logWarning(ctx, `worker decoration failed for ${sessionId}: ${describe(error)}`)
       }
     }
-    return { store, kv, scheduler, decorator, perception }
+    return { store, kv, scheduler, decorator, perception, settingsService }
   })
   void ready.catch((error: unknown) => logWarning(ctx, `services unavailable: ${describe(error)}`))
 
@@ -233,6 +252,7 @@ export function apply(ctx: HostContext, config?: Config): void {
       stopPerception?.()
       void ledger.then(store => store.close()).catch(() => undefined)
       void identities.then(store => store.close()).catch(() => undefined)
+      void settingsStore.then(store => store.close()).catch(() => undefined)
     }
   }, 'personal-agent: console api')
 

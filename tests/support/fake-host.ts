@@ -15,6 +15,18 @@ export interface FakeDelivered {
   message?: { id: string; source?: unknown }
 }
 
+export interface FakeSection {
+  name: string
+  order: number
+  /** 真实宿主接受静态文本或装配时求值的函数；替身原样保存。 */
+  text: string | ((context: unknown) => string)
+}
+
+/** 求值一个 section 的文本；动态 section 才算得出装配时的真实内容。 */
+export function sectionText(section: FakeSection): string {
+  return typeof section.text === 'function' ? section.text({}) : section.text
+}
+
 export interface FakeAgent {
   id: string
   session: { id: string }
@@ -25,7 +37,7 @@ export interface FakeAgent {
   /** 该 agent 作用域内注册的工具定义（按名字）。 */
   toolImpls: Map<string, unknown>
   /** 该 agent 作用域内的提示词 section。 */
-  sections: { name: string; order: number; text: string }[]
+  sections: FakeSection[]
   /** 该 agent 的 restrict 调用。 */
   restrictions: unknown[]
   /** agent 作用域 effect 的标签与释放状态。 */
@@ -39,7 +51,7 @@ export interface FakeAgent {
       definitions(scope?: unknown): { name: string }[]
     }
     systemPrompt: {
-      section(section: { name: string; order: number; text: string }): () => void
+      section(section: FakeSection): () => void
     }
   }
   followup(message: { id: string; content: { type: string; text?: string }[] }): void
@@ -62,7 +74,7 @@ export interface FakeHost {
   pinned: string[]
   effects: string[]
   tools: { name: string }[]
-  sections: { name: string; order: number; text: string }[]
+  sections: FakeSection[]
   restrictions: unknown[]
   warnings: string[]
   archivedSessionIds: string[]
@@ -338,7 +350,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       definitions: () => tools,
     },
     systemPrompt: {
-      section: (section: { name: string; order: number; text: string }) => {
+      section: (section: FakeSection) => {
         sections.push(section)
         return () => {}
       },

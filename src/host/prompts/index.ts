@@ -7,6 +7,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { PromptTexts } from '../../shared/settings.ts'
 
 /** 本包在 manifests 里的名字，用于定位包根。 */
 const PACKAGE_NAME = 'dsh-personal-agent'
@@ -60,6 +61,15 @@ export function loadPrompt(name: PromptName): string {
   if (text.length === 0) throw new Error(`personal-agent: empty prompt file ${path}`)
   cache.set(name, text)
   return text
+}
+
+/** 三份内置提示词；设置存储以它作为提示词版本 0 的基线。 */
+export function defaultPromptTexts(): PromptTexts {
+  return {
+    shared: loadPrompt('shared'),
+    router: loadPrompt('router'),
+    worker: loadPrompt('worker'),
+  }
 }
 
 let cachedSkillBody: string | undefined
