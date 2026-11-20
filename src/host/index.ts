@@ -134,6 +134,8 @@ export function apply(ctx: HostContext, config?: Config): void {
       store,
       stateDirectory: stateDir,
       maxWorkers: () => settingsService.maxWorkers(),
+      executorRoot: () => settingsService.executorRoot(),
+      workerModel: () => settingsService.workerModel(),
       onWorkerReady: async sessionId => {
         await prepareWorker?.(sessionId)
       },

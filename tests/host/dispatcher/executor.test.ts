@@ -96,6 +96,37 @@ describe('executeDispatchAction', () => {
     })
   })
 
+  it('creates the worker under the configured execution root', async () => {
+    seedQueued()
+    const root = join(directory, 'custom-root')
+
+    const outcome = await executeDispatchAction(
+      { ...deps(), executorRoot: () => root },
+      { kind: 'start-dispatch', ticketId: TICKET_ID },
+      ticket(),
+    )
+
+    expect(host.workspaces[0]?.path).toBe(root)
+    expect(host.sessions.get(outcome.sessionId)?.cwd).toBe(join(root, TICKET_ID))
+  })
+
+  it('passes the selected executor model to the new worker', async () => {
+    host = createFakeHost({
+      services: { llm: { resolveCallConfig: async (config: { provider: string; model: string }) => config } },
+    })
+    seedQueued()
+
+    const outcome = await executeDispatchAction(
+      { ...deps(), workerModel: () => ({ provider: 'deepseek-official', model: 'deepseek-flash' }) },
+      { kind: 'start-dispatch', ticketId: TICKET_ID },
+      ticket(),
+    )
+
+    expect(host.sessions.get(outcome.sessionId)?.agent.session.appended).toEqual([
+      { type: 'model/selection', data: { provider: 'deepseek-official', model: 'deepseek-flash' } },
+    ])
+  })
+
   it('writes the dispatch fact before delivering the brief', async () => {
     const stages: string[] = []
     host = createFakeHost({

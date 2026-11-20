@@ -5,6 +5,7 @@
 // 尾部重跑」：调度期间的新触发只登记一次，等本轮结束后补跑。
 
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { WorkerModel } from '../../shared/settings.ts'
 import type { HostContext } from '../context.ts'
 import type { Projection } from '../projector/project.ts'
 import type { EventStore } from '../store/event-store.ts'
@@ -22,6 +23,10 @@ export interface SchedulerOptions {
    * 工单不会被截断——剩余槽位变成负数时只是不再放行新的。
    */
   maxWorkers: () => number
+  /** 执行环境根目录的 getter；缺省 `<state>/work`。 */
+  executorRoot?: () => string
+  /** 执行器模型的 getter；null/缺省表示继承 DSH 默认。 */
+  workerModel?: () => WorkerModel | null
   /** 放行后、投递前的准备钩子（用于给新建 worker 装角色能力）。 */
   onWorkerReady?: (sessionId: SessionId) => Promise<void> | void
   log?: (message: string) => void
@@ -51,6 +56,8 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         ctx: options.ctx,
         stateDirectory: options.stateDirectory,
         store: options.store,
+        ...(options.executorRoot === undefined ? {} : { executorRoot: options.executorRoot }),
+        ...(options.workerModel === undefined ? {} : { workerModel: options.workerModel }),
         ...(options.onWorkerReady === undefined ? {} : { onWorkerReady: options.onWorkerReady }),
         log,
       },

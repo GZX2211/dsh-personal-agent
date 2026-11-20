@@ -27,9 +27,20 @@ export function sectionText(section: FakeSection): string {
   return typeof section.text === 'function' ? section.text({}) : section.text
 }
 
+export interface FakeSessionLog {
+  id: string
+  /** 通过 `append` 写入的事件，便于断言模型选择等副作用。 */
+  appended: { type: string; data: unknown }[]
+  /** 已记录的请求头；非空表示会话已经发过请求。 */
+  header?: unknown
+  requestHeader(): unknown
+  snapshotEvents(): { type: string }[]
+  append(type: string, data: unknown): void
+}
+
 export interface FakeAgent {
   id: string
-  session: { id: string }
+  session: FakeSessionLog
   status: 'idle' | 'running'
   inbox: { nextTurn: unknown[]; nextStep: unknown[] }
   /** 该 agent 作用域内注册的工具名。 */
@@ -42,9 +53,12 @@ export interface FakeAgent {
   restrictions: unknown[]
   /** agent 作用域 effect 的标签与释放状态。 */
   effectLabels: string[]
+  /** agent 作用域监听器（`agent/request` 等），测试可直接取用。 */
+  listeners: Map<string, ((...args: unknown[]) => unknown)[]>
   disposed: boolean
   ctx: {
     effect(fn: () => (() => void) | void, label: string): () => void
+    on(name: string, listener: (...args: unknown[]) => unknown, options?: unknown): () => void
     tools: {
       register(definition: { name: string }): () => void
       restrict(filter: unknown): () => void
@@ -132,9 +146,23 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       events: [],
       agent: undefined as unknown as FakeAgent,
     }
+    const log: FakeSessionLog = {
+      id: sessionId,
+      appended: [],
+      requestHeader: () => log.header,
+      snapshotEvents: () => session.events as { type: string }[],
+      append(type, data) {
+        log.appended.push({ type, data })
+        const event = { type, seq: session.events.length + 1, time: Date.now(), data }
+        session.events.push(event)
+        // 与真实会话一致：append 提交后分发 session/event。
+        emit('session/event', log, event)
+      },
+    }
+    const agentListeners = new Map<string, ((...args: unknown[]) => unknown)[]>()
     const agent: FakeAgent = {
       id: sessionId,
-      session: { id: sessionId },
+      session: log,
       status: 'idle',
       inbox: { nextTurn: [], nextStep: [] },
       toolNames: [],
@@ -142,6 +170,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       sections: [],
       restrictions: [],
       effectLabels: [],
+      listeners: agentListeners,
       disposed: false,
       ctx: {
         effect(fn, label) {
@@ -150,6 +179,15 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
           return () => {
             dispose?.()
             agent.disposed = true
+          }
+        },
+        on(name, listener) {
+          const list = agentListeners.get(name) ?? []
+          list.push(listener)
+          agentListeners.set(name, list)
+          return () => {
+            const index = list.indexOf(listener)
+            if (index >= 0) list.splice(index, 1)
           }
         },
         tools: {
@@ -218,7 +256,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       },
     }
     session.events.push(event)
-    emit('session/event', { id: session.sessionId, snapshotEvents: () => [...session.events] }, event)
+    emit('session/event', session.agent.session, event)
   }
 
   for (const sessionId of options.liveSessionIds ?? []) addSession(sessionId)
@@ -384,7 +422,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       const session = sessions.get(sessionId)
       if (session === undefined) throw new Error(`fake host has no session ${sessionId}`)
       session.events.push(event)
-      emit('session/event', { id: sessionId, snapshotEvents: () => [...session.events] }, event)
+      emit('session/event', session.agent.session, event)
     },
     emitEvent(name: string, ...args: unknown[]) {
       emit(name, ...args)

@@ -3,7 +3,9 @@
 // 执行一个放行动作：建会话（仅 dispatch）→ 记 task/dispatched → 投递简报。
 // 顺序是「先存后做」的落点：账本先确认这一单已放行，再产生唤醒 worker 的副作用。
 
+import { join } from 'node:path'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { WorkerModel } from '../../shared/settings.ts'
 import type { TaskMode } from '../../shared/events.ts'
 import type { TicketView } from '../../shared/tickets.ts'
 import type { HostContext } from '../context.ts'
@@ -17,6 +19,10 @@ export interface DispatchDependencies {
   ctx: HostContext
   stateDirectory: string
   store: EventStore
+  /** 执行环境根目录的 getter；缺省 `<state>/work`。 */
+  executorRoot?: () => string
+  /** 执行器模型 getter；null/缺省表示继承 DSH 默认。 */
+  workerModel?: () => WorkerModel | null
   /**
    * 放行事实写完后、简报投递前调用。
    *
@@ -63,10 +69,13 @@ export async function executeDispatchAction(
       throw new Error(`append target ${sessionId} has no live agent: ${resolved.error.code}`)
     }
   } else {
-    const worker = await createWorkerSession(deps.ctx, deps.stateDirectory, {
+    const root = deps.executorRoot?.() ?? join(deps.stateDirectory, 'work')
+    const worker = await createWorkerSession(deps.ctx, root, {
       ticketId: ticket.id,
       title: ticket.title,
       directory: ticket.directory,
+      model: deps.workerModel?.() ?? null,
+      ...(deps.log === undefined ? {} : { log: deps.log }),
     })
     sessionId = worker.sessionId
     directory = worker.directory
