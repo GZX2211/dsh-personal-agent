@@ -36,6 +36,7 @@ import type {
   SettingsSaveResponse,
   SettingsView,
 } from '../../shared/settings.ts'
+import { ticketDetailPath, type TicketDetailResponse } from '../../shared/ticket-detail.ts'
 
 /** 服务端稳定错误码的载体：调用方按 `code` 分支，不靠文案猜。 */
 export class ApiError extends Error {
@@ -169,6 +170,20 @@ export async function fetchPromptRevision(revision: number): Promise<PromptVersi
     headers: { [REQUEST_HEADER]: REQUEST_HEADER_VALUE },
   })
   return readJson<PromptVersion>(response)
+}
+
+/** 读取一张工单的调用链；工单不存在时按 `ticket-not-found` 抛出。 */
+export async function fetchTicketDetail(
+  ticketId: string,
+  signal?: AbortSignal,
+): Promise<TicketDetailResponse> {
+  const response = await fetch(ticketDetailPath(ticketId), {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { [REQUEST_HEADER]: REQUEST_HEADER_VALUE },
+    ...(signal === undefined ? {} : { signal }),
+  })
+  return readJson<TicketDetailResponse>(response)
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {

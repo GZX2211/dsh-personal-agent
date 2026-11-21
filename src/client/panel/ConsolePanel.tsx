@@ -22,6 +22,7 @@ import { Overview } from '../views/Overview.tsx'
 import { Settings } from '../views/Settings.tsx'
 import { Sources } from '../views/Sources.tsx'
 import { Tickets } from '../views/Tickets.tsx'
+import { TicketDetail } from '../views/TicketDetail.tsx'
 import type { Translate } from '../i18n.ts'
 import type { ConsoleTabId } from '../lib/navigation.ts'
 
@@ -46,6 +47,8 @@ export function ConsolePanel({
 }: ConsolePanelProps): ReactElement {
   const [active, setActive] = useState<ConsoleTabId>(INITIAL_TAB)
   const [ticketFocus, setTicketFocus] = useState<string>()
+  /** 正在看详情的工单；列表仍挂载在下面，切回来时胶囊与搜索都还在。 */
+  const [detailTicketId, setDetailTicketId] = useState<string>()
   const { snapshot, error, refresh } = useSnapshot()
 
   const tabs: ConsoleTab[] = [
@@ -63,10 +66,16 @@ export function ConsolePanel({
     setActive('tickets')
   }
 
+  /** 切走标签就退出详情：回到工单页时先看到列表，而不是一个不请自来的详情。 */
+  const selectTab = (id: ConsoleTabId): void => {
+    setDetailTicketId(undefined)
+    setActive(id)
+  }
+
   return (
     <div className="pa-console">
       <style>{CONSOLE_CSS}</style>
-      <ConsoleTabStrip tabs={tabs} active={active} onSelect={id => setActive(id as ConsoleTabId)} />
+      <ConsoleTabStrip tabs={tabs} active={active} onSelect={id => selectTab(id as ConsoleTabId)} />
       <div className="pa-console__body" role="tabpanel">
         {active === 'overview' ? (
           <Overview
@@ -91,13 +100,27 @@ export function ConsolePanel({
           />
         ) : null}
         {active === 'tickets' ? (
-          <Tickets
-            key={ticketFocus ?? 'all'}
-            t={t}
-            language={language}
-            snapshot={snapshot}
-            initialQuery={ticketFocus}
-          />
+          <>
+            <div className={detailTicketId === undefined ? 'pa-ticketpage' : 'pa-ticketpage pa-ticketpage--hidden'}>
+              <Tickets
+                key={ticketFocus ?? 'all'}
+                t={t}
+                language={language}
+                snapshot={snapshot}
+                initialQuery={ticketFocus}
+                onOpenTicket={setDetailTicketId}
+              />
+            </div>
+            {detailTicketId === undefined ? null : (
+              <TicketDetail
+                t={t}
+                language={language}
+                ticketId={detailTicketId}
+                onBack={() => setDetailTicketId(undefined)}
+                actions={actions}
+              />
+            )}
+          </>
         ) : null}
         {active === 'events' ? (
           <Events

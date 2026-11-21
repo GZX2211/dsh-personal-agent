@@ -340,7 +340,6 @@ export const zh = {
   detailQueued: '还在排队：等待放行',
   detailWorkingDirectory: '工作目录',
   detailSessionsTitle: '会话与目录',
-  detailSessionsOther: '本会话另有 {count} 张工单',
   chainTitle: '调用链',
   chainMeta: '{hops} 投递 · {supplements} 补充',
   chainRoleRouter: '路由',
@@ -373,7 +372,6 @@ export const zh = {
   chainLegend: '点 = 一次主动投递 · 连线 = 影响流向 · R = 派单方',
   chainEmpty: '这一单还没有链上事实',
   chainLogsUnavailable: '会话日志不可读，只显示账本事实',
-  chainMoreRows: '还有 {count} 行未显示',
   edgeAfterFacts: '收到后它做了什么',
   edgeImpact: '可能由它引起',
   edgeNoFacts: '这段时间里没有它自己的动作',
@@ -390,12 +388,10 @@ export const zh = {
   deliveryUsageHops: '投递',
   deliveryUsageDuration: '时长',
   deliveryUsageTokens: 'token',
-  deliveryUsageSupplements: '补充',
   durationSeconds: '{count} 秒',
   durationMinutes: '{count} 分',
   durationMinutesSeconds: '{minutes} 分 {seconds} 秒',
   durationHours: '{count} 小时',
-  ticketsEmptyDetailHint: '点开一张工单查看调用链',
 }
 
 export type Dict = typeof zh
@@ -748,7 +744,6 @@ export const en: Dict = {
   detailQueued: 'Still queued: waiting for release',
   detailWorkingDirectory: 'Working directory',
   detailSessionsTitle: 'Sessions and directory',
-  detailSessionsOther: '{count} other tickets on this session',
   chainTitle: 'Call chain',
   chainMeta: '{hops} hops · {supplements} supplements',
   chainRoleRouter: 'Router',
@@ -781,7 +776,6 @@ export const en: Dict = {
   chainLegend: 'dot = one active hop · line = influence direction · R = dispatcher',
   chainEmpty: 'This ticket has no chain facts yet',
   chainLogsUnavailable: 'Session logs are unreadable; showing ledger facts only',
-  chainMoreRows: '{count} more rows not shown',
   edgeAfterFacts: 'What it did after receiving this',
   edgeImpact: 'Possibly caused by this',
   edgeNoFacts: 'No actions of its own in that stretch',
@@ -798,12 +792,10 @@ export const en: Dict = {
   deliveryUsageHops: 'Hops',
   deliveryUsageDuration: 'Duration',
   deliveryUsageTokens: 'Tokens',
-  deliveryUsageSupplements: 'Supplements',
   durationSeconds: '{count}s',
   durationMinutes: '{count}m',
   durationMinutesSeconds: '{minutes}m {seconds}s',
   durationHours: '{count}h',
-  ticketsEmptyDetailHint: 'Open a ticket to see its call chain',
 }
 
 export function text(language: string | null | undefined): Dict {

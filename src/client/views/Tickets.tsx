@@ -20,9 +20,11 @@ export interface TicketsProps {
   snapshot?: SnapshotResponse
   /** 初始搜索词：事件页跳工单时用短码定位；变化由父级以 key 重挂载生效。 */
   initialQuery?: string
+  /** 点工单行打开详情；缺省时行只读。 */
+  onOpenTicket?: (ticketId: string) => void
 }
 
-export function Tickets({ t, language, snapshot, initialQuery }: TicketsProps): ReactElement {
+export function Tickets({ t, language, snapshot, initialQuery, onOpenTicket }: TicketsProps): ReactElement {
   const [capsule, setCapsule] = useState<TicketCapsule>('running')
   const [query, setQuery] = useState(initialQuery ?? '')
 
@@ -59,7 +61,15 @@ export function Tickets({ t, language, snapshot, initialQuery }: TicketsProps): 
         {visible.length === 0 ? (
           <span className="pa-console__empty">{t(emptyKey(capsule, query, capsuleHasItems))}</span>
         ) : (
-          visible.map(ticket => <TicketCard key={ticket.id} t={t} language={language} ticket={ticket} />)
+          visible.map(ticket => (
+            <TicketCard
+              key={ticket.id}
+              t={t}
+              language={language}
+              ticket={ticket}
+              {...(onOpenTicket === undefined ? {} : { onOpen: () => onOpenTicket(ticket.id) })}
+            />
+          ))
         )}
       </AnimatedRows>
     </>
