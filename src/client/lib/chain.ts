@@ -185,11 +185,17 @@ export function factsAfter(rows: readonly ChainRow[], row: ChainRow): ChainRow[]
   const facts: ChainRow[] = []
   for (const candidate of rows) {
     if (candidate.id === row.id || candidate.at < row.at) continue
-    if (senderOf(candidate) !== receiver) continue
+    if (!belongsTo(candidate, receiver)) continue
     facts.push(candidate)
     if (facts.length >= FACTS_LIMIT) break
   }
   return facts
+}
+
+/** 这一行是否由该会话发起：投递看发送方，审批请求看提问方。 */
+function belongsTo(row: ChainRow, sessionId: string): boolean {
+  if (row.kind === 'approval') return row.phase === 'request' && row.from === sessionId
+  return senderOf(row) === sessionId
 }
 
 /**

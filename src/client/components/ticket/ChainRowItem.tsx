@@ -180,7 +180,7 @@ function ChainRail({ width, height, lanes, row, link, color }: ChainRailProps): 
   return (
     <svg className="pa-chain-row__rail" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
       {link === undefined ? (
-        <circle cx={dot === undefined ? laneX(0) : laneX(dot)} cy={y} r={2.5} fill={color} data-role="dot" />
+        <circle cx={dot === undefined ? laneX(0) : laneX(dot)} cy={y} r={3} fill={color} data-role="dot" />
       ) : (
         link.to.map(toId => {
           const from = indexOf(link.from)
@@ -195,11 +195,11 @@ function ChainRail({ width, height, lanes, row, link, color }: ChainRailProps): 
                 d={`M ${x1} ${y} Q ${mid} ${y - 9} ${x2} ${y}`}
                 fill="none"
                 stroke={color}
-                strokeWidth={1}
+                strokeWidth={1.25}
                 strokeLinecap="round"
               />
-              <circle cx={x1} cy={y} r={2.5} fill={color} data-role="dot" />
-              <circle cx={x2} cy={y} r={2.5} fill={color} data-role="dot" />
+              <circle cx={x1} cy={y} r={3} fill={color} data-role="dot" />
+              <circle cx={x2} cy={y} r={3} fill={color} data-role="dot" />
             </g>
           )
         })

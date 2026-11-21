@@ -159,6 +159,18 @@ describe('factsAfter', () => {
     expect(factsAfter(rows, hop).map(item => item.id)).toEqual(['hop:2', 'spawn:1'])
   })
 
+  it('counts an approval request as a fact of the asking session', () => {
+    const hop = row('hop', { id: 'hop:1', at: BASE + 10, from: 'lead', to: 'reviewer' })
+    const rows: ChainRow[] = [
+      hop,
+      row('approval', { id: 'approval:1', at: BASE + 20, phase: 'request', from: 'reviewer', to: 'human' }),
+      // 决定由人发出，不算接收方的动作。
+      row('approval', { id: 'approval:2', at: BASE + 30, phase: 'decision', from: 'human', to: 'reviewer' }),
+    ]
+
+    expect(factsAfter(rows, hop).map(item => item.id)).toEqual(['approval:1'])
+  })
+
   it('ignores rows that happened before', () => {
     const hop = row('hop', { id: 'hop:2', at: BASE + 20, from: 'lead', to: 'reviewer' })
     const rows: ChainRow[] = [
