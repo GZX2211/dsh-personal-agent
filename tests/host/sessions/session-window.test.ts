@@ -21,10 +21,16 @@ beforeEach(() => {
 })
 
 /** 往会话日志里塞一条事件；seq 由测试自己保证连续。 */
-function push(sessionId: string, seq: number, time: number, type = 'turn/start'): void {
+function push(
+  sessionId: string,
+  seq: number,
+  time: number,
+  type = 'turn/start',
+  data: Record<string, unknown> = { turn: seq },
+): void {
   const session = host.sessions.get(sessionId)
   if (session === undefined) throw new Error(`missing session ${sessionId}`)
-  session.events.push({ seq, time, type, data: { turn: seq } } as SessionEvent)
+  session.events.push({ seq, time, type, data } as SessionEvent)
 }
 
 function window_(extra: { start?: number; end?: number; limit?: number } = {}) {
@@ -96,5 +102,43 @@ describe('readSessionWindow', () => {
     expect(SESSION_EVENT_LIMIT).toBeGreaterThan(4)
     expect(result.events).toHaveLength(4)
     expect(result.completeness).toBe('full')
+  })
+
+  it('collects the subagent registrations of the whole log', async () => {
+    push(LIVE, 1, START - 1000, 'subagent/catalog', {
+      version: 3,
+      childId: 'session-reviewer',
+      childCreatedAt: START - 900,
+      mode: 'continuable',
+      label: '复核',
+      name: 'reviewer',
+    })
+    push(LIVE, 2, START + 10, 'subagent/catalog', {
+      version: 3,
+      childId: 'session-frontend',
+      childCreatedAt: START + 20,
+      mode: 'one-shot',
+      name: 'frontend',
+    })
+    push(LIVE, 3, START + 20)
+
+    const result = await readSessionWindow(host.ctx, LIVE, window_())
+
+    // 旧子代理照样登记：它可能在本单参与，只是不该画 spawn 行。
+    expect(result.children).toEqual([
+      { childId: 'session-reviewer', childCreatedAt: START - 900, name: 'reviewer', label: '复核' },
+      { childId: 'session-frontend', childCreatedAt: START + 20, name: 'frontend' },
+    ])
+    // catalog 事件不进窗口事件流：它已经变成 children，重复出现会多画一行。
+    expect(result.events.map(event => event.seq)).toEqual([3])
+  })
+
+  it('skips a catalog event without a child identity', async () => {
+    push(LIVE, 1, START + 5, 'subagent/catalog', { version: 3, mode: 'one-shot' })
+
+    const result = await readSessionWindow(host.ctx, LIVE, window_())
+
+    expect(result.children).toEqual([])
+    expect(result.events).toEqual([])
   })
 })
