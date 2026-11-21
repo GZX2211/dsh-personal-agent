@@ -63,7 +63,7 @@ export interface TicketDetailInput {
 export function deriveTicketDetail(input: TicketDetailInput): TicketDetailResponse {
   const { ticket, sessions, now } = input
   const ledger = orderedBySeq(input.ledger)
-  const events = ledger.filter(event => ticketIdOf(event) === ticket.id)
+  const events = selectTicketEvents(ledger, ticket.id)
   // 窗口起点是「这一单开始执行」：追加单共用会话，上一单的历史必须被裁掉。
   const start = ticket.dispatchedAt ?? ticket.createdAt
   const end = ticket.endedAt ?? now
@@ -139,15 +139,55 @@ function buildOrigin(
 }
 
 function buildRows(context: RowContext): ChainRow[] {
-  const rows: ChainRow[] = []
-  rows.push(...ledgerRows(context))
-  rows.push(...sessionRows(context))
+  const rows = [...ledgerRows(context), ...sessionRows(context)]
   // 同一毫秒内的先后由插入顺序决定：账本行先于会话行，子级 spawn 先于子级投递。
-  return rows.sort((left, right) => left.at - right.at)
+  return mergeFans(rows).sort((left, right) => left.at - right.at)
+}
+
+/**
+ * 同一父级在短窗口内的连续 spawn 合并成一次并行派发。
+ *
+ * 只合并 spawn：投递是按条看的信息流，合并了就数不清谁说了几次。
+ */
+function mergeFans(rows: readonly ChainRow[]): ChainRow[] {
+  const merged: ChainRow[] = []
+  let index = 0
+  while (index < rows.length) {
+    const row = rows[index]
+    if (row === undefined || row.kind !== 'spawn') {
+      if (row !== undefined) merged.push(row)
+      index += 1
+      continue
+    }
+    const group: SpawnRow[] = [row]
+    let next = index + 1
+    for (; next < rows.length; next += 1) {
+      const candidate = rows[next]
+      if (candidate === undefined || candidate.kind !== 'spawn') break
+      if (candidate.from !== row.from || candidate.at - row.at > FAN_WINDOW_MS) break
+      group.push(candidate)
+    }
+    if (group.length === 1) {
+      merged.push(row)
+      index += 1
+      continue
+    }
+    const fan: FanRow = {
+      id: `fan:${row.from}:${row.at}`,
+      kind: 'fan',
+      at: row.at,
+      from: row.from,
+      to: group.map(item => ({ sessionId: item.to, summary: item.summary })),
+    }
+    merged.push(fan)
+    index = next
+  }
+  return merged
 }
 
 function ledgerRows(context: RowContext): ChainRow[] {
   const rows: ChainRow[] = []
+  const requesters = approvalRequesters(context.events)
   for (const event of context.events) {
     switch (event.type) {
       case 'task/queued': {
@@ -218,11 +258,67 @@ function ledgerRows(context: RowContext): ChainRow[] {
         })
         break
       }
+      case 'approval/pending': {
+        rows.push({
+          id: `approval:${event.seq}`,
+          kind: 'approval',
+          phase: 'request',
+          at: event.time,
+          from: event.payload.requestedBySessionId,
+          to: 'human',
+          summary: firstLine(event.payload.question, SUMMARY_LIMIT),
+          options: event.payload.options.map(option => option.label),
+          ...(event.payload.risk === undefined ? {} : { risk: event.payload.risk }),
+        })
+        break
+      }
+      case 'approval/decided': {
+        const decision = event.payload.decision
+        rows.push({
+          id: `approval:${event.seq}`,
+          kind: 'approval',
+          phase: 'decision',
+          at: event.time,
+          from: 'human',
+          // 决定送回给提问的那个会话；找不到提问方时留在人这条道上。
+          to: requesters.get(event.payload.approvalId) ?? 'human',
+          summary: firstLine(decisionSummary(decision), SUMMARY_LIMIT),
+          decision: decision.kind,
+        })
+        break
+      }
+      case 'approval/discarded': {
+        rows.push({
+          id: `milestone:${event.seq}`,
+          kind: 'milestone',
+          at: event.time,
+          milestone: 'approval-discarded',
+          detail: event.payload.reason,
+        })
+        break
+      }
       default:
         break
     }
   }
   return rows
+}
+
+/** 每个审批是谁提的：决定行要靠它找到送回的对象。 */
+function approvalRequesters(events: readonly L2Event[]): Map<string, string> {
+  const requesters = new Map<string, string>()
+  for (const event of events) {
+    if (event.type === 'approval/pending') {
+      requesters.set(event.payload.approvalId, event.payload.requestedBySessionId)
+    }
+  }
+  return requesters
+}
+
+function decisionSummary(decision: { kind: string; label?: string; index?: number; answer?: string }): string {
+  if (decision.kind === 'answered') return decision.answer ?? ''
+  if (decision.kind === 'selected') return decision.label ?? `#${decision.index ?? 0}`
+  return ''
 }
 
 /** 排队里程碑只在「真的等过」或「还在等」时才有意义：秒放的工单不需要一段排队故事。 */
@@ -483,6 +579,18 @@ function laneStatus(
 
 function buildLive(context: RowContext, lanes: readonly AgentLaneView[]): LiveRow | undefined {
   if (context.ticket.stage === 'ended' || context.ticket.stage === 'queued') return undefined
+  // 有未决审批时，这一单等的是人：补充或新的投递都不会替人做这个决定。
+  const pending = pendingApproval(context.events)
+  if (pending !== undefined) {
+    return {
+      id: 'live:human',
+      kind: 'live',
+      at: context.now,
+      lane: 'human',
+      live: 'waiting-approval',
+      waitingOn: pending.requestedBySessionId,
+    }
+  }
   const active = lanes.find(lane => lane.status === 'running' && lane.role !== 'human')
   if (active !== undefined) {
     return {
@@ -497,6 +605,23 @@ function buildLive(context: RowContext, lanes: readonly AgentLaneView[]): LiveRo
   const root = context.ticket.workerSessionId
   if (root === undefined) return undefined
   return { id: 'live:ticket', kind: 'live', at: context.now, lane: root, live: 'waiting-agent', waitingOn: root }
+}
+
+/** 最后一条没有被决定/作废收口的审批。 */
+function pendingApproval(events: readonly L2Event[]): { requestedBySessionId: string } | undefined {
+  const closed = new Set<string>()
+  for (const event of events) {
+    if (event.type === 'approval/decided' || event.type === 'approval/discarded') {
+      closed.add(event.payload.approvalId)
+    }
+  }
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    if (event !== undefined && event.type === 'approval/pending' && !closed.has(event.payload.approvalId)) {
+      return { requestedBySessionId: event.payload.requestedBySessionId }
+    }
+  }
+  return undefined
 }
 
 function buildDelivery(context: RowContext): TicketDeliveryView {
@@ -642,6 +767,27 @@ function truncate(text: string, limit: number): string {
 
 function ticketIdOf(event: L2Event): string | undefined {
   return (event.payload as { ticketId?: string }).ticketId
+}
+
+/**
+ * 本单相关的事件。
+ *
+ * `approval/decided` 与 `approval/discarded` 不带 ticketId（它们只有 approvalId），
+ * 所以先收集本单的审批，再按 id 收编它们的结局——否则决定行永远缺一半。
+ */
+function selectTicketEvents(ledger: readonly L2Event[], ticketId: string): L2Event[] {
+  const approvalIds = new Set<string>()
+  for (const event of ledger) {
+    if (event.type === 'approval/pending' && event.payload.ticketId === ticketId) {
+      approvalIds.add(event.payload.approvalId)
+    }
+  }
+  return ledger.filter(event => {
+    if (event.type === 'approval/decided' || event.type === 'approval/discarded') {
+      return approvalIds.has(event.payload.approvalId)
+    }
+    return ticketIdOf(event) === ticketId
+  })
 }
 
 function orderedBySeq(events: readonly L2Event[]): L2Event[] {

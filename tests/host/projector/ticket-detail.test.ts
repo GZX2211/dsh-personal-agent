@@ -430,6 +430,176 @@ describe('deriveTicketDetail', () => {
     )
   })
 
+  it('draws the approval request and the human decision as two rows', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [
+        queuedEvent(1),
+        dispatchedEvent(2),
+        event(3, 'approval/pending', {
+          approvalId: 'a-1',
+          ticketId: TICKET_ID,
+          question: '发布到生产会立刻影响用户，要不要发？',
+          options: [
+            { label: '发布', description: '立刻上线' },
+            { label: '等等', description: '继续观察' },
+          ],
+          risk: 'high',
+          requestedBySessionId: WORKER,
+        }, { time: BASE + 2000, actor: 'worker', sessionId: WORKER }),
+        event(4, 'approval/decided', {
+          approvalId: 'a-1',
+          decision: { kind: 'selected', index: 0, label: '发布' },
+          decidedAt: BASE + 3000,
+          transport: 'inline',
+        }, { time: BASE + 3000, actor: 'human' }),
+      ],
+      sessions: new Map([[WORKER, facts([turnStart(1, BASE + 1002)])]]),
+      now: BASE + 4000,
+    })
+
+    expect(detail.rows).toContainEqual(
+      expect.objectContaining({
+        kind: 'approval',
+        phase: 'request',
+        from: WORKER,
+        to: 'human',
+        summary: '发布到生产会立刻影响用户，要不要发？',
+        options: ['发布', '等等'],
+        risk: 'high',
+        at: BASE + 2000,
+      }),
+    )
+    expect(detail.rows).toContainEqual(
+      expect.objectContaining({
+        kind: 'approval',
+        phase: 'decision',
+        from: 'human',
+        to: WORKER,
+        summary: '发布',
+        decision: 'selected',
+        at: BASE + 3000,
+      }),
+    )
+    expect(detail.lanes.map(lane => lane.role)).toEqual(['router', 'human', 'lead'])
+  })
+
+  it('waits on the human while an approval is pending', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ stage: 'blocked', dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [
+        queuedEvent(1),
+        dispatchedEvent(2),
+        event(3, 'approval/pending', {
+          approvalId: 'a-1',
+          ticketId: TICKET_ID,
+          question: '要不要发布？',
+          options: [{ label: '发布', description: '上线' }],
+          requestedBySessionId: WORKER,
+        }, { time: BASE + 2000, actor: 'worker', sessionId: WORKER }),
+      ],
+      sessions: new Map([[WORKER, facts([turnStart(1, BASE + 1002)])]]),
+      now: BASE + 4000,
+    })
+
+    expect(detail.rows.at(-1)).toEqual(
+      expect.objectContaining({ kind: 'live', live: 'waiting-approval', lane: 'human', waitingOn: WORKER }),
+    )
+  })
+
+  it('marks a discarded approval as a milestone', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [
+        queuedEvent(1),
+        dispatchedEvent(2),
+        event(3, 'approval/pending', {
+          approvalId: 'a-1',
+          ticketId: TICKET_ID,
+          question: '要不要发布？',
+          options: [{ label: '发布', description: '上线' }],
+          requestedBySessionId: WORKER,
+        }, { time: BASE + 2000, actor: 'worker', sessionId: WORKER }),
+        event(4, 'approval/discarded', {
+          approvalId: 'a-1',
+          reason: 'worker-archived',
+          discardedAt: BASE + 2500,
+        }, { time: BASE + 2500, actor: 'system' }),
+      ],
+      sessions: new Map([[WORKER, facts()]]),
+      now: BASE + 4000,
+    })
+
+    expect(detail.rows).toContainEqual(
+      expect.objectContaining({
+        kind: 'milestone',
+        milestone: 'approval-discarded',
+        detail: 'worker-archived',
+      }),
+    )
+  })
+
+  it('merges consecutive spawns of one parent into a fan row', () => {
+    const first = BASE + 1500
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [queuedEvent(1), dispatchedEvent(2)],
+      sessions: new Map([
+        [
+          WORKER,
+          facts([], [
+            { childId: 'session-a', childCreatedAt: first, name: 'architect' },
+            { childId: 'session-b', childCreatedAt: first + 1000, name: 'frontend' },
+            { childId: 'session-c', childCreatedAt: first + 2000, name: 'reviewer' },
+          ]),
+        ],
+      ]),
+      now: BASE + 5000,
+    })
+
+    expect(detail.rows.filter(row => row.kind === 'spawn')).toEqual([])
+    expect(detail.rows.filter(row => row.kind === 'fan')).toEqual([
+      expect.objectContaining({
+        from: WORKER,
+        at: first,
+        to: [
+          { sessionId: 'session-a', summary: 'architect' },
+          { sessionId: 'session-b', summary: 'frontend' },
+          { sessionId: 'session-c', summary: 'reviewer' },
+        ],
+      }),
+    ])
+    expect(detail.metrics.parallel).toBe(3)
+    expect(detail.metrics.agents).toBe(4)
+  })
+
+  it('counts back-and-forth deliveries as ping-pong', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [queuedEvent(1), dispatchedEvent(2)],
+      sessions: new Map([
+        [
+          WORKER,
+          facts(
+            [userMessage(1, BASE + 2100, '复核完了吗', { kind: 'agent-message', senderSessionId: REVIEWER })],
+            [{ childId: REVIEWER, childCreatedAt: BASE + 1500, name: 'reviewer' }],
+          ),
+        ],
+        [
+          REVIEWER,
+          facts([
+            userMessage(1, BASE + 2000, '帮我看下契约', { kind: 'agent-message', senderSessionId: WORKER }),
+          ]),
+        ],
+      ]),
+      now: BASE + 4000,
+    })
+
+    // WORKER→REVIEWER 之后紧跟 REVIEWER→WORKER：一问一答，算一次来回。
+    expect(detail.metrics.hops).toBe(2)
+    expect(detail.metrics.pingPong).toBe(1)
+  })
+
   it('counts agents, hops, turns, tokens and duration', () => {
     const detail = deriveTicketDetail({
       ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER, endedAt: BASE + 4600 }),
