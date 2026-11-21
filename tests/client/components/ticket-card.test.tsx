@@ -85,22 +85,4 @@ describe('TicketCard', () => {
   it('does not repeat the report on the row', () => {
     expect(render(ticket({ stage: 'ended', outcome: 'completed', report: '做完了，产物在 out/' }))).not.toContain('做完了')
   })
-
-  it('makes the whole row a button when it opens the detail', () => {
-    const html = renderToStaticMarkup(
-      <TicketCard t={t} language="zh-CN" ticket={ticket()} now={CLOCK} onOpen={() => undefined} />,
-    )
-
-    expect(html).toContain('role="button"')
-    expect(html).toContain('tabindex="0"')
-    expect(html).toContain('pa-row--activatable')
-  })
-
-  it('stays a plain list row without an opener', () => {
-    const html = render(ticket())
-
-    expect(html).toContain('role="listitem"')
-    expect(html).not.toContain('tabindex="0"')
-    expect(html).not.toContain('pa-row--activatable')
-  })
 })

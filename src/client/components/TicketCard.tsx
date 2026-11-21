@@ -18,17 +18,9 @@ export interface TicketCardProps {
   ticket: TicketView
   /** 渲染时刻：相对时间与测试用，缺省取当前时钟。 */
   now?: number
-  /** 点整行打开详情；缺省时行只读。 */
-  onOpen?: () => void
 }
 
-export function TicketCard({
-  t,
-  language,
-  ticket,
-  now = Date.now(),
-  onOpen,
-}: TicketCardProps): ReactElement {
+export function TicketCard({ t, language, ticket, now = Date.now() }: TicketCardProps): ReactElement {
   const badge = ticketBadge(ticket)
 
   return (
@@ -47,7 +39,6 @@ export function TicketCard({
           {`${t('ticketLabel')} #${ticket.shortId}`}
         </Tag>
       }
-      {...(onOpen === undefined ? {} : { onActivate: onOpen })}
     />
   )
 }

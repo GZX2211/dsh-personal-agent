@@ -15,7 +15,7 @@ import {
   Tooltip,
   type TagTone,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { KeyboardEvent, ReactElement, ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 
 export interface ListRowStatus {
   tone: TagTone
@@ -49,12 +49,6 @@ export interface ListRowProps {
   toggleLabel?: string
   panelId?: string
   children?: ReactNode
-  /**
-   * 整行可点：行变成按钮语义（Enter/Space 激活）。
-   *
-   * 有展开按钮的行不要传：按钮里再嵌按钮，键盘与读屏都会乱。
-   */
-  onActivate?: () => void
 }
 
 export function ListRow({
@@ -69,26 +63,14 @@ export function ListRow({
   toggleLabel,
   panelId,
   children,
-  onActivate,
 }: ListRowProps): ReactElement {
   const expandable = onToggle !== undefined
-  const activatable = onActivate !== undefined
   return (
     <article
-      className={activatable ? 'pa-row pa-row--activatable' : 'pa-row'}
-      role={activatable ? 'button' : 'listitem'}
+      className="pa-row"
+      role="listitem"
       data-row-key={rowKey}
       data-expanded={expandable ? (expanded ? 'true' : 'false') : undefined}
-      {...(activatable ? { tabIndex: 0, onClick: onActivate } : {})}
-      {...(activatable
-        ? {
-            onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
-              if (event.key !== 'Enter' && event.key !== ' ') return
-              event.preventDefault()
-              onActivate()
-            },
-          }
-        : {})}
     >
       <div className="pa-row__head">
         <div className="pa-row__body">
