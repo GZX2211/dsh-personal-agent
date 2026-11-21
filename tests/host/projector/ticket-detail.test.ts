@@ -74,11 +74,15 @@ function queuedEvent(seq: number, payload: Record<string, unknown> = {}): L2Even
   )
 }
 
-function dispatchedEvent(seq: number, time = BASE + 1000): L2Event {
+function dispatchedEvent(
+  seq: number,
+  time = BASE + 1000,
+  payload: Record<string, unknown> = {},
+): L2Event {
   return event(
     seq,
     'task/dispatched',
-    { ticketId: TICKET_ID, workerSessionId: WORKER, mode: 'dispatch' },
+    { ticketId: TICKET_ID, workerSessionId: WORKER, mode: 'dispatch', ...payload },
     { time, actor: 'system' },
   )
 }
@@ -342,6 +346,87 @@ describe('deriveTicketDetail', () => {
         text: '帮我复核接口契约\n顺便看下错误码',
         at: BASE + 2000,
       }),
+    )
+  })
+
+  it('shows a reused subagent that takes part in this window without a spawn row', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [queuedEvent(1), dispatchedEvent(2)],
+      sessions: new Map([
+        // 子代理是上一单创建的：本单复用它，所以只画它在本单的投递。
+        [WORKER, facts([], [{ childId: REVIEWER, childCreatedAt: BASE - 5000, name: 'reviewer' }])],
+        [
+          REVIEWER,
+          facts([
+            userMessage(1, BASE + 2000, '复核完了，契约要改', {
+              kind: 'agent-message',
+              senderSessionId: WORKER,
+            }),
+          ]),
+        ],
+      ]),
+      now: BASE + 3000,
+    })
+
+    expect(detail.rows.filter(row => row.kind === 'spawn')).toEqual([])
+    expect(detail.lanes.map(lane => lane.role)).toEqual(['router', 'lead', 'subagent'])
+    expect(detail.lanes[2]).toMatchObject({ id: REVIEWER, name: 'reviewer', parentId: WORKER })
+    expect(detail.rows).toContainEqual(
+      expect.objectContaining({ kind: 'hop', from: WORKER, to: REVIEWER, direction: 'down' }),
+    )
+  })
+
+  it('draws a supplement as its own row', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [
+        queuedEvent(1),
+        dispatchedEvent(2),
+        event(
+          3,
+          'task/supplemented',
+          {
+            ticketId: TICKET_ID,
+            targetSessionId: WORKER,
+            text: '接口契约改了\n按新字段名实现',
+            requestedBySessionId: ROUTER,
+            messageId: 'pa-delivery:pa-supplement:t-abcdef1234:abc',
+          },
+          { time: BASE + 2500, actor: 'router' },
+        ),
+      ],
+      sessions: new Map([[WORKER, facts([turnStart(1, BASE + 1002)])]]),
+      now: BASE + 3000,
+    })
+
+    expect(detail.rows).toContainEqual(
+      expect.objectContaining({
+        kind: 'supplement',
+        from: 'router',
+        to: WORKER,
+        at: BASE + 2500,
+        summary: '接口契约改了',
+        text: '接口契约改了\n按新字段名实现',
+      }),
+    )
+    expect(detail.metrics.supplements).toBe(1)
+  })
+
+  it('explains why an appended ticket waited', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 9000, workerSessionId: WORKER }),
+      ledger: [
+        queuedEvent(1, { mode: 'append', workerSessionId: WORKER, queueReason: 'worker-busy' }),
+        dispatchedEvent(2, BASE + 9000, { mode: 'append' }),
+      ],
+      sessions: new Map([[WORKER, facts([turnStart(1, BASE + 9001)])]]),
+      now: BASE + 9500,
+    })
+
+    expect(detail.mode).toBe('append')
+    expect(detail.rows).toContainEqual(
+      expect.objectContaining({ kind: 'milestone', milestone: 'queue-busy', at: BASE + 1 }),
     )
   })
 
