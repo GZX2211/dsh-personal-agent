@@ -116,6 +116,8 @@ export interface FakeHost {
 export interface FakeHostOptions {
   /** 预先存在的会话（迁移/复用路径）。 */
   liveSessionIds?: string[]
+  /** 已持久化但 Agent 不在线的会话：读日志能读到，`ctx.agents.get` 取不到。 */
+  coldSessionIds?: string[]
   /** 归档集合，供审批作废分支判断。 */
   archivedSessionIds?: string[]
   /** 每次投递时回调，便于在「投递发生的那一刻」检查账本状态。 */
@@ -140,6 +142,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
   const restrictions: unknown[] = []
   const warnings: string[] = []
   const archivedSessionIds = [...(options.archivedSessionIds ?? [])]
+  const coldSessionIds = new Set(options.coldSessionIds ?? [])
   const sessionTurns = new Map<string, number>()
   let createCalls = 0
   let createFailure: string | undefined
@@ -384,7 +387,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
     },
     agents: {
       list: () => [...sessions.values()].map(session => session.agent),
-      get: (sessionId: string) => sessions.get(sessionId)?.agent,
+      get: (sessionId: string) => (coldSessionIds.has(sessionId) ? undefined : sessions.get(sessionId)?.agent),
       // 只实现工具真正读到的 lastTurn；其余边界字段与本插件的判定无关。
       turnBoundaryOf: (session: { id: string }) => ({
         openTurnStartSeq: null,
