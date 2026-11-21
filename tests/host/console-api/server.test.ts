@@ -17,6 +17,7 @@ import {
   type SnapshotResponse,
 } from '../../../src/shared/api.ts'
 import type { SourceView } from '../../../src/shared/sources.ts'
+import { ticketDetailPath, type TicketDetailResponse } from '../../../src/shared/ticket-detail.ts'
 import { createConsoleHandler, type ConsoleTarget } from '../../../src/host/console-api/server.ts'
 import { emptySettings, promptVersion } from '../../support/console-http.ts'
 
@@ -67,6 +68,7 @@ function makeTarget(overrides: Partial<ConsoleTarget> = {}): ConsoleTarget {
     }),
     savePrompts: async () => ({ status: 200, body: { ok: true, version: promptVersion(1) } }),
     getPromptRevision: async revision => ({ status: 200, body: promptVersion(revision) }),
+    ticketDetail: async () => undefined,
     ...overrides,
   }
 }
@@ -530,5 +532,90 @@ describe('signal query', () => {
 
     expect(captured.status).toBe(403)
     expect(querySignals).not.toHaveBeenCalled()
+  })
+})
+
+describe('ticket detail route', () => {
+  function detailFixture(): TicketDetailResponse {
+    return {
+      ticket: {
+        id: 't-abcdef1234',
+        shortId: 'abcdef',
+        title: '发布 v2',
+        stage: 'running',
+        goal: '把 v2 发出去',
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_000,
+      },
+      mode: 'dispatch',
+      origin: {},
+      lanes: [{ id: 'router', index: 0, role: 'router', status: 'idle' }],
+      rows: [],
+      delivery: {},
+      metrics: {
+        agents: 0,
+        hops: 0,
+        supplements: 0,
+        parallel: 0,
+        pingPong: 0,
+        turns: 0,
+        tokens: 0,
+        durationMs: 0,
+      },
+      completeness: { logs: 'full' },
+      generatedAt: 1_700_000_000_000,
+    }
+  }
+
+  it('serves the chain of one ticket', async () => {
+    const detail = vi.fn(async () => detailFixture())
+
+    const { captured, json } = await call(makeTarget({ ticketDetail: detail }), {
+      path: ticketDetailPath('t-abcdef1234'),
+      headers: sameOriginHeaders,
+    })
+
+    expect(captured.status).toBe(200)
+    expect(detail).toHaveBeenCalledWith('t-abcdef1234')
+    expect(json).toEqual(detailFixture())
+  })
+
+  it('answers a missing ticket with its own code', async () => {
+    const { captured, json } = await call(makeTarget({ ticketDetail: async () => undefined }), {
+      path: ticketDetailPath('t-missing000'),
+      headers: sameOriginHeaders,
+    })
+
+    expect(captured.status).toBe(404)
+    expect(json).toEqual({ ok: false, code: 'ticket-not-found', message: expect.any(String) })
+  })
+
+  it('decodes the ticket id from the path', async () => {
+    const detail = vi.fn(async () => detailFixture())
+
+    await call(makeTarget({ ticketDetail: detail }), {
+      path: ticketDetailPath('t-1/../x'),
+      headers: sameOriginHeaders,
+    })
+
+    expect(detail).toHaveBeenCalledWith('t-1/../x')
+  })
+
+  it('requires GET and the same-origin guard', async () => {
+    const detail = vi.fn(async () => detailFixture())
+
+    const wrongMethod = await call(makeTarget({ ticketDetail: detail }), {
+      method: 'POST',
+      path: ticketDetailPath('t-abcdef1234'),
+      headers: sameOriginHeaders,
+    })
+    const unguarded = await call(makeTarget({ ticketDetail: detail }), {
+      path: ticketDetailPath('t-abcdef1234'),
+    })
+
+    expect(wrongMethod.captured.status).toBe(405)
+    expect(wrongMethod.captured.headers.allow).toBe('GET')
+    expect(unguarded.captured.status).toBe(403)
+    expect(detail).not.toHaveBeenCalled()
   })
 })

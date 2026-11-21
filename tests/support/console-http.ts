@@ -100,6 +100,7 @@ export function makeTarget(overrides: Partial<ConsoleTarget> = {}): ConsoleTarge
     }),
     savePrompts: async () => ({ status: 200, body: { ok: true, version: promptVersion(1) } }),
     getPromptRevision: async revision => ({ status: 200, body: promptVersion(revision) }),
+    ticketDetail: async () => undefined,
     ...overrides,
   }
 }

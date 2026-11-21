@@ -29,6 +29,11 @@ import type {
   SettingsSaveResponse,
   SettingsView,
 } from '../../shared/settings.ts'
+import type { SourceView } from '../../shared/sources.ts'
+import {
+  TICKET_DETAIL_PATTERN,
+  type TicketDetailResponse,
+} from '../../shared/ticket-detail.ts'
 import { guardRequest } from './guard.ts'
 
 /** 设置请求体上限：三份提示词各自可达 32000 字符，中文 UTF-8 下约 288 KiB。 */
@@ -94,6 +99,8 @@ export interface ConsoleTarget {
   savePrompts: (body: unknown) => Promise<PromptSaveOutcome>
   /** 读取一个历史提示词版本。 */
   getPromptRevision: (revision: number) => Promise<PromptVersionOutcome>
+  /** 读一张工单的调用链；不存在时返回 undefined，路由据此回 404。 */
+  ticketDetail: (ticketId: string) => Promise<TicketDetailResponse | undefined>
 }
 
 /** 把 HTTP 面挂到 prefix 路由上的处理函数。 */
@@ -188,6 +195,18 @@ async function dispatch(
     }
     const outcome = await target.savePrompts(body)
     return sendJson(response, outcome.status, outcome.body)
+  }
+
+  const detail = TICKET_DETAIL_PATTERN.exec(path)
+  if (detail !== null) {
+    if (method !== 'GET') return sendMethodNotAllowed(response, 'GET')
+    const ticketId = decodeURIComponent(detail[1] ?? '')
+    const view = await target.ticketDetail(ticketId)
+    if (view === undefined) {
+      // 工单不存在是页面级事实：客户端按码显示「这一单不在了」，而不是通用错误。
+      return sendJson(response, 404, failure(ERROR_CODES.ticketNotFound, `ticket ${ticketId} does not exist`))
+    }
+    return sendJson(response, 200, view)
   }
 
   const decision = APPROVAL_DECIDE_PATTERN.exec(path)

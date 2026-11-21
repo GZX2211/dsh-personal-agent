@@ -12,6 +12,7 @@ import { ResolverRegistry } from './approvals/resolvers.ts'
 import { createApprovalDecider } from './approvals/service.ts'
 import { sourceFailure, settingsFailure, type FailureOutcome } from './console-api/errors.ts'
 import { createConsoleHandler } from './console-api/server.ts'
+import { createTicketDetailService } from './sessions/detail-service.ts'
 import type { HostContext } from './context.ts'
 import { createScheduler } from './dispatcher/scheduler.ts'
 import { createPerceptionService, PerceptionError } from './perception/service.ts'
@@ -160,6 +161,12 @@ export function apply(ctx: HostContext, config?: Config): void {
       log: message => logWarning(ctx, message),
     })
     disposeDecorator = decorator.dispose
+    // 详情页要读会话日志，读一次比一条快照贵：单独一层按签名失效的缓存。
+    const detailService = createTicketDetailService({
+      ctx,
+      store,
+      log: message => logWarning(ctx, message),
+    })
     disposeObserver = registerWorkerObserver({
       ctx,
       store,
@@ -182,7 +189,7 @@ export function apply(ctx: HostContext, config?: Config): void {
         logWarning(ctx, `worker decoration failed for ${sessionId}: ${describe(error)}`)
       }
     }
-    return { store, kv, scheduler, decorator, perception, settingsService, runtime }
+    return { store, kv, scheduler, decorator, perception, settingsService, runtime, detail: detailService }
   })
   void ready.catch((error: unknown) => logWarning(ctx, `services unavailable: ${describe(error)}`))
 
@@ -285,6 +292,10 @@ export function apply(ctx: HostContext, config?: Config): void {
           } catch (error) {
             return settingsFailure(settingsErrorCode(error), describe(error))
           }
+        },
+        ticketDetail: async ticketId => {
+          const { detail } = await ready
+          return detail.detail(ticketId)
         },
       }),
     })
