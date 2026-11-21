@@ -48,8 +48,8 @@ export interface AgentLaneView {
   id: string
   /** 0 = router 轨；人/负责人/子代理按 1..n。 */
   index: number
-  /** 展示名：lead / reviewer / 你 / 路由。 */
-  name: string
+  /** 展示名：子代理名（lead/reviewer/architect…）；router 与人由客户端按角色取名。 */
+  name?: string
   role: 'router' | 'human' | 'lead' | 'subagent'
   parentId?: string
   status: 'running' | 'idle' | 'blocked' | 'done' | 'stopped' | 'unknown'
@@ -90,6 +90,15 @@ export interface SupplementRow extends ChainRowBase {
   to: string
   summary: string
   text: string
+}
+
+/** 派发子代理：父级把一个任务交给新建（或复用）的子会话。 */
+export interface SpawnRow extends ChainRowBase {
+  kind: 'spawn'
+  from: string
+  to: string
+  summary: string
+  text?: string
 }
 
 /** 投递：一个 Agent 明确发给另一个 Agent 的消息。 */
@@ -164,6 +173,7 @@ export interface LiveRow extends ChainRowBase {
 export type ChainRow =
   | DispatchRow
   | SupplementRow
+  | SpawnRow
   | HopRow
   | FanRow
   | ApprovalRow
