@@ -19,6 +19,7 @@ import { createSourceRemoveTool } from '../tools/pa_source_remove/index.ts'
 import { createSourceToggleTool } from '../tools/pa_source_toggle/index.ts'
 import { createSourceUpdateTool } from '../tools/pa_source_update/index.ts'
 import { createTaskRouteTool } from '../tools/pa_task_route/index.ts'
+import { createTicketSupplementTool } from '../tools/pa_ticket_supplement/index.ts'
 
 // 判定与服务同源（roles/）；保留原导出路径，既有调用点与测试不需要跟着改。
 export { roleForSession, type SessionRole }
@@ -166,6 +167,11 @@ function roleTools(role: SessionRole, options: AgentDecoratorOptions) {
         scheduler: options.scheduler,
         claims: options.claims,
         maxWorkers: options.maxWorkers,
+      }),
+      createTicketSupplementTool({
+        ctx: options.ctx,
+        store: options.store,
+        claims: options.claims,
       }),
       createLedgerQueryTool({ store: options.store }),
       createSourceCreateTool({ perception: options.perception }),

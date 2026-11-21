@@ -16,7 +16,7 @@ export const SIGNAL_VIEW_LIMIT = 200
 /** 信号的结局；`decision` 缺失表示还没有任何决定（待处理）。 */
 export interface SignalDecisionView {
   action: DecisionAction
-  /** dispatch / append 时关联的工单。 */
+  /** dispatch / append / supplement 时关联的工单。 */
   ticketId?: string
   /** `true` 表示由回合结束兜底推断，而不是处理类工具显式认领。 */
   inferred?: boolean

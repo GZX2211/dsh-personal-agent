@@ -113,6 +113,7 @@ describe('createAgentDecorator', () => {
     expect(sectionText(agent!.sections[0]!)).toBe('路由角色提示词')
     expect(agent?.toolNames).toEqual([
       'pa_task_route',
+      'pa_ticket_supplement',
       'pa_ledger_query',
       'pa_source_create',
       'pa_source_update',
@@ -164,7 +165,7 @@ describe('createAgentDecorator', () => {
     emitCreated('session-router')
     emitCreated('session-router')
 
-    expect(host.sessions.get('session-router')?.agent.toolNames).toHaveLength(6)
+    expect(host.sessions.get('session-router')?.agent.toolNames).toHaveLength(7)
     expect(host.sessions.get('session-router')?.agent.sections).toHaveLength(1)
     decorator.dispose()
   })
@@ -182,6 +183,7 @@ describe('createAgentDecorator', () => {
 
     expect(host.sessions.get('session-router')?.agent.toolNames).toEqual([
       'pa_task_route',
+      'pa_ticket_supplement',
       'pa_ledger_query',
       'pa_source_create',
       'pa_source_update',

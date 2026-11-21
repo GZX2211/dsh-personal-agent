@@ -18,6 +18,7 @@ import type { ClaimRegistry } from '../../signals/claim.ts'
 import type { EventStore } from '../../store/event-store.ts'
 import { shortTicketId } from '../../../shared/tickets.ts'
 import { createTicketId } from '../../ids.ts'
+import { claimTurnSignal } from '../turn-signal.ts'
 
 const TASK_ROUTE_TOOL_NAME = 'pa_task_route'
 
@@ -220,18 +221,14 @@ export function createTaskRouteTool(deps: TaskRouteDependencies): ToolDefinition
 }
 
 /**
- * 认领本回合的一条待处理信号。
- *
- * 当前回合从会话的回合边界投影读取：工具执行上下文里没有 turn 字段。
- * 没有待处理信号时返回 undefined——闲聊里派发任务同样是合法的。
+ * 认领本回合的一条待处理信号；指认无效时按本工具的错误码失败。
  */
 function claimSignal(
   deps: TaskRouteDependencies,
   agent: Agent,
   explicitSignalId: string | undefined,
 ): string | undefined {
-  const turn = deps.ctx.agents.turnBoundaryOf(agent.session).lastTurn
-  const outcome = deps.claims.claim(turn, explicitSignalId)
+  const outcome = claimTurnSignal(deps.ctx, deps.claims, agent, explicitSignalId)
   if (!outcome.ok) {
     throw new TaskRouteError(
       `signalId ${explicitSignalId ?? '(缺失)'} 不是本回合待处理的信号`,

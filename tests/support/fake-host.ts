@@ -100,6 +100,8 @@ export interface FakeHost {
   failNextCreate(message: string): void
   /** 让下一次投递抛错，用于验证「放行事实已写入、投递失败」。 */
   failNextFollowup(message: string): void
+  /** 让下一次 steer 抛错，用于验证补充的失败路径。 */
+  failNextSteer(message: string): void
   /** 设置某个会话已到达的回合号，供工具读取「当前回合」。 */
   setTurn(sessionId: string, turn: number): void
   /** 模拟一条会话事件：先记进伪会话日志，再分发给 session/event 监听者。 */
@@ -142,6 +144,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
   let createCalls = 0
   let createFailure: string | undefined
   let followupFailure: string | undefined
+  let steerFailure: string | undefined
   const created: string[] = []
 
   function addSession(sessionId: string): FakeSession {
@@ -227,6 +230,11 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
         deliverToInbox(agent, message, false)
       },
       steer(message) {
+        if (steerFailure !== undefined) {
+          const failure = steerFailure
+          steerFailure = undefined
+          throw new Error(failure)
+        }
         deliverToInbox(agent, message, true)
       },
     }
@@ -423,6 +431,9 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
     },
     failNextFollowup(message: string) {
       followupFailure = message
+    },
+    failNextSteer(message: string) {
+      steerFailure = message
     },
     setTurn(sessionId: string, turn: number) {
       sessionTurns.set(sessionId, turn)
