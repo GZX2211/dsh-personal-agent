@@ -56,7 +56,9 @@ export function SignalCard({
 }: SignalCardProps): ReactElement {
   const verdict = signalVerdict(signal)
   const ticketId =
-    verdict.kind === 'dispatch' || verdict.kind === 'append' ? verdict.ticketId : undefined
+    verdict.kind === 'dispatch' || verdict.kind === 'append' || verdict.kind === 'supplement'
+      ? verdict.ticketId
+      : undefined
   const clickable = ticketId !== undefined && ticketId.length > 0 && onOpenTicket !== undefined
   const className = compact ? 'pa-signal pa-signal--compact' : 'pa-signal'
 

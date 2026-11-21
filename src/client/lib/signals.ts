@@ -16,6 +16,20 @@ export type SignalKindFilter = 'all' | 'user' | 'timer' | 'perception'
 /** 事件页第二层筛选：处理方式；`filtered` 对应来源层的忽略。 */
 export type SignalVerdictFilter = 'all' | 'dispatch' | 'append' | 'supplement' | 'reply' | 'filtered'
 
+/**
+ * 处理方式下拉的全部取值，顺序即下拉顺序。
+ *
+ * 忽略不是一种决定（它发生在来源层），所以永远排在最后。
+ */
+export const SIGNAL_VERDICT_FILTERS: readonly SignalVerdictFilter[] = [
+  'all',
+  'dispatch',
+  'append',
+  'supplement',
+  'reply',
+  'filtered',
+]
+
 const KIND_FILTERS: Record<Exclude<SignalKindFilter, 'all'>, SignalKind> = {
   user: 'user-message',
   timer: 'timer',

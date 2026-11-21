@@ -17,6 +17,7 @@ import {
   signalKindKey,
   signalSourceText,
   signalVerdict,
+  SIGNAL_VERDICT_FILTERS,
   verdictFilterLabelKey,
   verdictLabelKey,
   verdictText,
@@ -79,6 +80,13 @@ describe('verdict filter', () => {
   it('keeps everything under all', () => {
     expect(matchesVerdictFilter(signal({ delivered: false }), 'all')).toBe(true)
     expect(matchesVerdictFilter(signal(), 'all')).toBe(true)
+  })
+})
+
+describe('verdict filter list', () => {
+  it('offers every handling type, with the source-level ignore last', () => {
+    // 顺序即下拉顺序：忽略不是一种决定，所以永远排在最后。
+    expect(SIGNAL_VERDICT_FILTERS).toEqual(['all', 'dispatch', 'append', 'supplement', 'reply', 'filtered'])
   })
 })
 

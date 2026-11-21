@@ -8,6 +8,7 @@ import type { ReactElement } from 'react'
 import type { Translate } from '../i18n.ts'
 import {
   kindFilterLabelKey,
+  SIGNAL_VERDICT_FILTERS,
   verdictFilterLabelKey,
   type SignalKindFilter,
   type SignalVerdictFilter,
@@ -16,13 +17,6 @@ import { FilterMenu, type FilterMenuOption } from './FilterMenu.tsx'
 import { HelpDialog } from './HelpDialog.tsx'
 
 const KIND_FILTERS: readonly SignalKindFilter[] = ['all', 'user', 'timer', 'perception']
-const VERDICT_FILTERS: readonly SignalVerdictFilter[] = [
-  'all',
-  'dispatch',
-  'append',
-  'reply',
-  'filtered',
-]
 
 export interface EventFilterBarProps {
   t: Translate
@@ -54,7 +48,7 @@ export function EventFilterBar({
     id,
     label: t(kindFilterLabelKey(id)),
   }))
-  const verdictOptions: FilterMenuOption[] = VERDICT_FILTERS.map(id => ({
+  const verdictOptions: FilterMenuOption[] = SIGNAL_VERDICT_FILTERS.map(id => ({
     id,
     label: t(verdictFilterLabelKey(id)),
   }))

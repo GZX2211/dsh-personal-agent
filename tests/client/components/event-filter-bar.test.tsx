@@ -56,6 +56,13 @@ describe('EventFilterBar', () => {
     expect(html).not.toContain('全部处理')
   })
 
+  it('shows a supplement as the selected handling type', () => {
+    const html = render({ verdict: 'supplement' })
+
+    expect(html).toContain('补充')
+    expect(html).not.toContain('全部处理')
+  })
+
   it('renders both triggers as menu buttons and keeps the list closed', () => {
     const html = render()
 

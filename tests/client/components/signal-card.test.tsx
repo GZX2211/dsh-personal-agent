@@ -81,6 +81,19 @@ describe('SignalCard', () => {
     expect(html.indexOf('派发 #9c20e7')).toBeLessThan(html.indexOf('pa-signal__time'))
   })
 
+  it('makes a supplement verdict a button that opens the ticket', () => {
+    const html = render({
+      signal: signal({
+        kind: 'perception',
+        decision: { action: 'supplement', ticketId: 't-9c20e78bca', at: NOW },
+      }),
+      onOpenTicket: () => undefined,
+    })
+
+    expect(html).toContain('补充 #9c20e7')
+    expect(html).toContain('data-primitive="button"')
+  })
+
   it('keeps the verdict read-only without a ticket opener', () => {
     const html = render({
       signal: signal({
