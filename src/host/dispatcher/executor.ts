@@ -111,7 +111,12 @@ export async function executeDispatchAction(
     mode,
   )
   try {
-    await deliverToSession(deps.ctx, sessionId, { requestId: ticketDeliveryRequestId(ticket.id), text })
+    await deliverToSession(deps.ctx, sessionId, {
+      requestId: ticketDeliveryRequestId(ticket.id),
+      text,
+      target: 'followup',
+      ticketId: ticket.id,
+    })
   } catch (error) {
     deps.log?.(
       `ticket ${ticket.id} dispatched to ${sessionId} but brief delivery failed: ${describe(error)}`,

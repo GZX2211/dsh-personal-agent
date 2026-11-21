@@ -77,4 +77,14 @@ describe('deliverToSession', () => {
     expect(second).toBe('already-queued')
     expect(host.sessions.get(SESSION)?.delivered).toHaveLength(1)
   })
+
+  it('passes the ticket context into the delivered message', async () => {
+    await deliverToSession(host.ctx, SESSION, { requestId: 'r-ticket', text: '简报', ticketId: 't-1' })
+
+    expect(host.sessions.get(SESSION)?.delivered[0]?.message?.source).toEqual({
+      kind: 'dsh-personal-agent',
+      form: 'relay',
+      ticketId: 't-1',
+    })
+  })
 })

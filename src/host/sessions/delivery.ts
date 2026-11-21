@@ -16,6 +16,10 @@ export interface DeliveryRequest {
   text: string
   /** 缺省 `followup`：与既有行为一致。 */
   target?: DeliveryTarget
+  /** 本消息属于哪张工单；写进消息 source，供账本之外的地方反查。 */
+  ticketId?: string
+  /** 补充消息的幂等键；简报不需要。 */
+  supplementId?: string
 }
 
 export type DeliveryOutcome = 'delivered' | 'already-queued'
@@ -48,7 +52,10 @@ export async function deliverToSession(
   const pending = [...agent.inbox.nextTurn, ...agent.inbox.nextStep].some(message => message.id === messageId)
   if (pending) return 'already-queued'
 
-  const message = createDeliveryMessage(request.requestId, request.text)
+  const message = createDeliveryMessage(request.requestId, request.text, {
+    ...(request.ticketId === undefined ? {} : { ticketId: request.ticketId }),
+    ...(request.supplementId === undefined ? {} : { supplementId: request.supplementId }),
+  })
   if (request.target === 'steer') agent.steer(message)
   else agent.followup(message)
   await ctx.sessionPersistence.flush()

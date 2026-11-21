@@ -8,8 +8,20 @@ import type { MessageId, UserMessage } from '@deepseek-ai/dsh-llm'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
-    /** 本插件投递给会话的消息：任务简报与审批结果。 */
-    'dsh-personal-agent': { kind: 'dsh-personal-agent'; form: 'relay' }
+    /**
+     * 本插件投递给会话的消息：任务简报、审批结果与补充。
+     *
+     * `ticketId` / `supplementId` 是业务坐标：消息正文只够读，坐标才让账本之外的
+     * 地方（会话日志、详情链）能解释这条消息属于哪张工单。
+     */
+    'dsh-personal-agent': {
+      kind: 'dsh-personal-agent'
+      form: 'relay'
+      /** 本消息属于哪张工单（简报与补充都带）。 */
+      ticketId?: string
+      /** 补充消息的幂等键；简报不需要。 */
+      supplementId?: string
+    }
     /**
      * 本插件投递的感知事件。
      *
@@ -99,18 +111,33 @@ function formatLocalTime(at: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
+/** 投递消息要带的业务坐标；缺省时 source 只有生产者声明。 */
+export interface DeliveryMessageMeta {
+  ticketId?: string
+  supplementId?: string
+}
+
 /**
  * 构造投递消息。
  *
  * 消息在 IPC 与模型边界之间会被反复传递，必须已经不可变；这里自行深冻结而不是
  * 引入 `@deepseek-ai/dsh-llm` 的运行时值，插件对它只保留类型依赖。
  */
-export function createDeliveryMessage(requestId: string, text: string): UserMessage {
+export function createDeliveryMessage(
+  requestId: string,
+  text: string,
+  meta: DeliveryMessageMeta = {},
+): UserMessage {
   const message: UserMessage = {
     id: deliveryMessageId(requestId),
     role: 'user',
     content: [{ type: 'text', text }],
-    source: { kind: DELIVERY_SOURCE_KIND, form: 'relay' },
+    source: {
+      kind: DELIVERY_SOURCE_KIND,
+      form: 'relay',
+      ...(meta.ticketId === undefined ? {} : { ticketId: meta.ticketId }),
+      ...(meta.supplementId === undefined ? {} : { supplementId: meta.supplementId }),
+    },
   }
   return deepFreeze(structuredClone(message))
 }

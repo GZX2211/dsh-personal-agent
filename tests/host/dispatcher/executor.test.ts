@@ -86,6 +86,10 @@ describe('executeDispatchAction', () => {
     expect(session?.delivered[0]?.text).toContain('目标：把 v2 发布到生产')
     expect(session?.delivered[0]?.text).toContain('- 不要改数据库')
     expect(session?.delivered[0]?.text).toContain('验收标准：生产返回 200')
+    // 简报的 source 带上工单：账本之外也能看出这条消息属于哪一单。
+    expect(session?.delivered[0]?.message?.source).toEqual(
+      expect.objectContaining({ kind: 'dsh-personal-agent', ticketId: TICKET_ID }),
+    )
 
     const dispatched = store.events().find(event => event.type === 'task/dispatched')
     expect(dispatched?.causationId).toBe(queued.eventId)
