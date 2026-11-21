@@ -114,15 +114,13 @@ export function PromptsEditor({
 
   const fullText = promptFullText(texts, role, {
     dispatchRules: view.policy.rules,
-    dispatchVersion: view.policy.version,
     permissions: view.policy.permissions,
-    permissionVersion: view.policy.permissionVersion,
+    policyVersion: view.policy.version,
   })
   const defaultText = promptFullText(view.prompts.defaults, role, {
     dispatchRules: [],
-    dispatchVersion: '',
     permissions: [],
-    permissionVersion: '',
+    policyVersion: '',
   })
   const fullStats = { parts: countParagraphs(fullText), chars: fullText.length }
   const diff = diffLines(defaultText, fullText)

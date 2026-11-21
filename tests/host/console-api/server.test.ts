@@ -59,11 +59,11 @@ function makeTarget(overrides: Partial<ConsoleTarget> = {}): ConsoleTarget {
     getSettings: async () => emptySettings(),
     saveExecutor: async () => ({
       status: 200,
-      body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+      body: { ok: true, revision: 1, policyVersion: '12345678' },
     }),
     savePolicy: async () => ({
       status: 200,
-      body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+      body: { ok: true, revision: 1, policyVersion: '12345678' },
     }),
     savePrompts: async () => ({ status: 200, body: { ok: true, version: promptVersion(1) } }),
     getPromptRevision: async revision => ({ status: 200, body: promptVersion(revision) }),

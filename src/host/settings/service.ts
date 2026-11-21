@@ -45,10 +45,10 @@ export interface SettingsService {
   promptTexts(): PromptTexts
   /** 派单规则：只进入 Router。 */
   rules(): DispatchRule[]
-  policyVersion(): string
   /** 决策权限：只进入 Worker。 */
   permissions(): DispatchRule[]
-  permissionVersion(): string
+  /** 两套规则共用的策略版本。 */
+  policyVersion(): string
   /** 某个角色下一次模型请求读到的完整提示词。 */
   composePrompt(role: 'router' | 'worker'): string
   maxWorkers(): number
@@ -62,8 +62,7 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
 
   const rules = (): DispatchRule[] => store.snapshot().rules
   const permissions = (): DispatchRule[] => store.snapshot().permissions
-  const policyVersion = (): string => policyVersionOf(rules())
-  const permissionVersion = (): string => policyVersionOf(permissions())
+  const policyVersion = (): string => policyVersionOf(rules(), permissions())
 
   async function view(): Promise<SettingsView> {
     const snapshot = store.snapshot()
@@ -75,9 +74,8 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
       defaultRoot: join(stateDirectory, 'work'),
       policy: {
         rules: snapshot.rules,
-        version: policyVersionOf(snapshot.rules),
+        version: policyVersionOf(snapshot.rules, snapshot.permissions),
         permissions: snapshot.permissions,
-        permissionVersion: policyVersionOf(snapshot.permissions),
       },
       prompts: {
         current: store.promptSummaryVersion(),
@@ -96,8 +94,7 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
     return {
       ok: true,
       revision: next,
-      policyVersion: policyVersionOf(store.snapshot().rules),
-      permissionVersion: policyVersionOf(store.snapshot().permissions),
+      policyVersion: policyVersionOf(store.snapshot().rules, store.snapshot().permissions),
     }
   }
 
@@ -111,8 +108,7 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
     return {
       ok: true,
       revision: next,
-      policyVersion: policyVersionOf(store.snapshot().rules),
-      permissionVersion: policyVersionOf(store.snapshot().permissions),
+      policyVersion: policyVersionOf(store.snapshot().rules, store.snapshot().permissions),
     }
   }
 
@@ -140,15 +136,13 @@ export function createSettingsService(options: SettingsServiceOptions): Settings
     promptVersion,
     promptTexts: () => store.promptTexts(),
     rules,
-    policyVersion,
     permissions,
-    permissionVersion,
+    policyVersion,
     composePrompt: role =>
       composeRolePrompt(store.promptTexts(), role, {
         dispatchRules: rules(),
-        dispatchVersion: policyVersion(),
         permissions: permissions(),
-        permissionVersion: permissionVersion(),
+        policyVersion: policyVersion(),
       }),
     maxWorkers: () => store.snapshot().executor.maxWorkers,
     workerModel: () => store.snapshot().executor.model,

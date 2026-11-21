@@ -106,12 +106,10 @@ export interface SettingsView {
   policy: {
     /** 派单规则：只进入 Router 的提示词。 */
     rules: DispatchRule[]
-    /** 派单规则集指纹，前 8 位十六进制。 */
+    /** 规则集与权限集的共同指纹，前 8 位十六进制。 */
     version: string
     /** 决策权限：只进入 Worker 的提示词。 */
     permissions: DispatchRule[]
-    /** 决策权限集指纹。 */
-    permissionVersion: string
   }
   prompts: {
     current: PromptVersion
@@ -141,8 +139,8 @@ export interface PromptSaveRequest {
 export interface SettingsSaveResponse {
   ok: true
   revision: number
+  /** 派单规则与决策权限此刻的共同指纹。 */
   policyVersion: string
-  permissionVersion: string
 }
 
 export interface PromptSaveResponse {
@@ -331,17 +329,17 @@ export function composeDispatchSection(
 /** 决策权限段：只进入 Worker，决定什么该提交审批、什么可以自己决定。 */
 export function composePermissionSection(
   rules: readonly DispatchRule[],
-  permissionVersion?: string,
+  policyVersion?: string,
 ): string {
-  return composeRuleSection('## 决策权限', '权限版本', rules, permissionVersion)
+  return composeRuleSection('## 决策权限', '策略版本', rules, policyVersion)
 }
 
-/** 角色提示词里由设置提供的两套规则及其版本。 */
+/** 角色提示词里由设置提供的两套规则及其共同版本。 */
 export interface RolePromptPolicy {
   dispatchRules?: readonly DispatchRule[]
-  dispatchVersion?: string
   permissions?: readonly DispatchRule[]
-  permissionVersion?: string
+  /** 两套规则共用的策略版本；两段提示词都标同一个版本。 */
+  policyVersion?: string
 }
 
 /** 一个角色最终读到的提示词：共享约定 + 角色文本 + 该角色专属的规则段。 */
@@ -353,7 +351,7 @@ export function composeRolePrompt(
   const base = [texts.shared.trim(), texts[role].trim()].filter(text => text.length > 0).join('\n\n')
   const section =
     role === 'router'
-      ? composeDispatchSection(policy.dispatchRules ?? [], policy.dispatchVersion)
-      : composePermissionSection(policy.permissions ?? [], policy.permissionVersion)
+      ? composeDispatchSection(policy.dispatchRules ?? [], policy.policyVersion)
+      : composePermissionSection(policy.permissions ?? [], policy.policyVersion)
   return section.length === 0 ? base : `${base}\n\n${section}`
 }

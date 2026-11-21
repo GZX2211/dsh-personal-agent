@@ -52,7 +52,7 @@ describe('POST /settings/executor and /settings/policy', () => {
           received = input
           return {
             status: 200,
-            body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+            body: { ok: true, revision: 1, policyVersion: '12345678' },
           }
         },
       }),
@@ -65,7 +65,6 @@ describe('POST /settings/executor and /settings/policy', () => {
       ok: true,
       revision: 1,
       policyVersion: '12345678',
-      permissionVersion: '87654321',
     })
   })
 
@@ -82,7 +81,7 @@ describe('POST /settings/executor and /settings/policy', () => {
           received = input
           return {
             status: 200,
-            body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+            body: { ok: true, revision: 1, policyVersion: '12345678' },
           }
         },
       }),
@@ -91,7 +90,7 @@ describe('POST /settings/executor and /settings/policy', () => {
 
     expect(captured.status).toBe(200)
     expect(received).toEqual(body)
-    expect(json).toMatchObject({ ok: true, permissionVersion: '87654321' })
+    expect(json).toMatchObject({ ok: true, policyVersion: '12345678' })
   })
 
   it('maps a stale revision failure to 409 with its stable code', async () => {

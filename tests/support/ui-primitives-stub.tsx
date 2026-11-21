@@ -225,5 +225,7 @@ function glyph(name: string): () => ReactElement {
 export const IconChevronDownOutlineRegular = glyph('chevron-down')
 export const IconLinkOutlineRegular = glyph('link')
 export const IconPaperclipOutlineRegular = glyph('paperclip')
+export const IconPlusOutlineRegular = glyph('plus')
 export const IconQuestionOutlineRegular = glyph('question')
 export const IconSearchOutlineRegular = glyph('search')
+export const IconTrashOutlineRegular = glyph('trash')

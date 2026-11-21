@@ -39,7 +39,6 @@ export function emptySettings(): SettingsView {
       rules: [],
       version: '00000000',
       permissions: [],
-      permissionVersion: '00000000',
     },
     prompts: {
       current: { revision: 0, savedAt: '', source: 'defaults', parts: 3, chars: 30, texts: { shared: 's', router: 'r', worker: 'w' } },
@@ -93,11 +92,11 @@ export function makeTarget(overrides: Partial<ConsoleTarget> = {}): ConsoleTarge
     getSettings: async () => emptySettings(),
     saveExecutor: async () => ({
       status: 200,
-      body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+      body: { ok: true, revision: 1, policyVersion: '12345678' },
     }),
     savePolicy: async () => ({
       status: 200,
-      body: { ok: true, revision: 1, policyVersion: '12345678', permissionVersion: '87654321' },
+      body: { ok: true, revision: 1, policyVersion: '12345678' },
     }),
     savePrompts: async () => ({ status: 200, body: { ok: true, version: promptVersion(1) } }),
     getPromptRevision: async revision => ({ status: 200, body: promptVersion(revision) }),

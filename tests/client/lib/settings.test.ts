@@ -258,17 +258,15 @@ describe('prompt helpers', () => {
     expect(
       promptFullText(texts, 'worker', {
         dispatchRules,
-        dispatchVersion: 'abcd1234',
         permissions,
-        permissionVersion: 'ff00aa11',
+        policyVersion: 'ff00aa11',
       }),
     ).toContain('## 决策权限')
     expect(
       promptFullText(texts, 'router', {
         dispatchRules,
-        dispatchVersion: 'abcd1234',
         permissions,
-        permissionVersion: 'ff00aa11',
+        policyVersion: 'ff00aa11',
       }),
     ).toContain('## 派单规则')
   })

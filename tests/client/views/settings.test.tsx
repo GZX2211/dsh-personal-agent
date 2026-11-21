@@ -41,7 +41,6 @@ function view(overrides: Partial<SettingsView> = {}): SettingsView {
       rules: [],
       version: 'abcd1234',
       permissions: [],
-      permissionVersion: 'ijkl9012',
     },
     prompts: {
       current: {
@@ -114,7 +113,6 @@ describe('SettingsBody sections', () => {
         policy: {
           version: 'efgh5678',
           permissions: [],
-          permissionVersion: 'ijkl9012',
           rules: [
             { id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true },
             { id: 'rule-b', name: '视觉修正', instruction: '调整间距', enabled: false },
@@ -130,7 +128,7 @@ describe('SettingsBody sections', () => {
     expect(html).toContain('策略版本 efgh5678')
   })
 
-  it('shows the decision-permission card with its own version and rules', () => {
+  it('shows the decision-permission card under the same policy version', () => {
     const html = render({
       initialSection: 'policy',
       view: view({
@@ -140,16 +138,35 @@ describe('SettingsBody sections', () => {
           permissions: [
             { id: 'rule-c', name: '提交审批', instruction: '改动生产数据前问人', enabled: true },
           ],
-          permissionVersion: 'ijkl9012',
         },
       }),
     })
 
     expect(html).toContain('决策权限')
-    expect(html).toContain('权限版本 ijkl9012')
     expect(html).toContain('添加权限')
     expect(html).toContain('提交审批')
     expect(html).toContain('改动生产数据前问人')
+    expect(html.match(/策略版本/g)).toHaveLength(1)
+    expect(html).toContain('策略版本 efgh5678')
+    expect(html).not.toContain('权限版本')
+  })
+
+  it('renders rule rows collapsed with a switch and no editor by default', () => {
+    const html = render({
+      initialSection: 'policy',
+      view: view({
+        policy: {
+          version: 'efgh5678',
+          permissions: [],
+          rules: [{ id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }],
+        },
+      }),
+    })
+
+    expect(html).toContain('role="switch"')
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).not.toContain('<textarea')
+    expect(html).not.toContain('删除规则')
   })
 
   it('reports an invalid rule name next to the rule', () => {
@@ -159,7 +176,6 @@ describe('SettingsBody sections', () => {
         policy: {
           version: 'efgh5678',
           permissions: [],
-          permissionVersion: 'ijkl9012',
           rules: [{ id: 'rule-a', name: '  ', instruction: '修正错别字', enabled: true }],
         },
       }),

@@ -69,7 +69,6 @@ describe('settings view', () => {
     expect(view.defaultRoot).toBe(join(directory, 'work'))
     expect(view.policy.version).toMatch(/^[0-9a-f]{8}$/)
     expect(view.policy.permissions).toEqual([])
-    expect(view.policy.permissionVersion).toMatch(/^[0-9a-f]{8}$/)
     expect(view.prompts.current.revision).toBe(0)
     expect(view.prompts.current.source).toBe('defaults')
     expect(view.prompts.defaults).toEqual(DEFAULTS)
@@ -89,7 +88,6 @@ describe('executor saves', () => {
       ok: true,
       revision: 1,
       policyVersion: expect.stringMatching(/^[0-9a-f]{8}$/),
-      permissionVersion: expect.stringMatching(/^[0-9a-f]{8}$/),
     })
     expect(service.maxWorkers()).toBe(8)
     expect(service.workerModel()).toEqual({ provider: 'deepseek-official', model: 'deepseek-flash' })
@@ -124,7 +122,7 @@ describe('executor saves', () => {
 })
 
 describe('policy saves', () => {
-  it('persists both rule sets and returns their new versions', async () => {
+  it('persists both rule sets and returns one shared policy version', async () => {
     const saved = await service.savePolicy({
       rules: [{ id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }],
       permissions: [{ id: 'rule-b', name: '提交审批', instruction: '改动生产数据前问人', enabled: true }],
@@ -135,7 +133,6 @@ describe('policy saves', () => {
       ok: true,
       revision: 1,
       policyVersion: expect.stringMatching(/^[0-9a-f]{8}$/),
-      permissionVersion: expect.stringMatching(/^[0-9a-f]{8}$/),
     })
     expect(service.rules()).toEqual([
       { id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true },
@@ -143,7 +140,7 @@ describe('policy saves', () => {
     expect(service.permissions()).toEqual([
       { id: 'rule-b', name: '提交审批', instruction: '改动生产数据前问人', enabled: true },
     ])
-    expect(service.policyVersion()).not.toBe(service.permissionVersion())
+    expect(service.policyVersion()).toBe(saved.policyVersion)
   })
 
   it('rejects malformed rules and stale revisions', async () => {
@@ -162,7 +159,7 @@ describe('policy saves', () => {
 })
 
 describe('view after saves', () => {
-  it('reflects the newest revision, policy versions and prompt history', async () => {
+  it('reflects the newest revision, unified policy version and prompt history', async () => {
     await service.saveExecutor({ executor: { maxWorkers: 6, model: null, rootDirectory: null }, revision: 0 })
     await service.savePolicy({
       rules: [{ id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true }],
@@ -176,7 +173,6 @@ describe('view after saves', () => {
     expect(view.policy.rules).toHaveLength(1)
     expect(view.policy.version).toBe(service.policyVersion())
     expect(view.policy.permissions).toHaveLength(1)
-    expect(view.policy.permissionVersion).toBe(service.permissionVersion())
     expect(view.prompts.current.revision).toBe(1)
     expect(view.prompts.history.map(item => item.revision)).toEqual([1])
   })
@@ -257,7 +253,7 @@ describe('prompt saves and composition', () => {
     expect(() => service.promptVersion(9)).toThrow(PromptRevisionNotFoundError)
   })
 
-  it('composes each role prompt with its own rules and version', async () => {
+  it('composes each role prompt with its own rules and the shared version', async () => {
     await service.savePolicy({
       rules: [
         { id: 'rule-a', name: '文案修正', instruction: '修正错别字', enabled: true },
@@ -283,7 +279,7 @@ describe('prompt saves and composition', () => {
     expect(worker).toContain(DEFAULTS.worker)
     expect(worker).toContain('## 决策权限')
     expect(worker).toContain('提交审批：改动生产数据前问人')
-    expect(worker).toContain(`权限版本 ${service.permissionVersion()}`)
+    expect(worker).toContain(`策略版本 ${service.policyVersion()}`)
     expect(worker).not.toContain('## 派单规则')
   })
 

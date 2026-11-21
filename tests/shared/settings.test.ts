@@ -180,11 +180,11 @@ describe('composePermissionSection', () => {
     expect(composePermissionSection([rule({ enabled: false })])).toBe('')
   })
 
-  it('uses its own heading and version label', () => {
+  it('uses its own heading and the shared policy version label', () => {
     const section = composePermissionSection([rule({ name: '提交审批', instruction: '改动生产数据前必须问人' })], 'ff00aa11')
 
     expect(section).toContain('## 决策权限')
-    expect(section).toContain('权限版本 ff00aa11')
+    expect(section).toContain('策略版本 ff00aa11')
     expect(section).toContain('提交审批：改动生产数据前必须问人')
     expect(section).not.toContain('## 派单规则')
   })
@@ -199,10 +199,10 @@ describe('composeRolePrompt', () => {
     const dispatchRules = [rule()]
 
     expect(
-      composeRolePrompt(texts, 'router', { dispatchRules, dispatchVersion: 'abcd1234' }),
+      composeRolePrompt(texts, 'router', { dispatchRules, policyVersion: 'abcd1234' }),
     ).toContain('## 派单规则')
     expect(
-      composeRolePrompt(texts, 'worker', { dispatchRules, dispatchVersion: 'abcd1234' }),
+      composeRolePrompt(texts, 'worker', { dispatchRules, policyVersion: 'abcd1234' }),
     ).not.toContain('## 派单规则')
   })
 
@@ -210,10 +210,10 @@ describe('composeRolePrompt', () => {
     const permissions = [rule({ name: '提交审批', instruction: '改动生产数据前必须问人' })]
 
     expect(
-      composeRolePrompt(texts, 'worker', { permissions, permissionVersion: 'ff00aa11' }),
+      composeRolePrompt(texts, 'worker', { permissions, policyVersion: 'ff00aa11' }),
     ).toContain('## 决策权限')
     expect(
-      composeRolePrompt(texts, 'router', { permissions, permissionVersion: 'ff00aa11' }),
+      composeRolePrompt(texts, 'router', { permissions, policyVersion: 'ff00aa11' }),
     ).not.toContain('## 决策权限')
   })
 
@@ -221,13 +221,13 @@ describe('composeRolePrompt', () => {
     expect(
       composeRolePrompt(texts, 'router', {
         dispatchRules: [rule({ enabled: false })],
-        dispatchVersion: 'abcd1234',
+        policyVersion: 'abcd1234',
       }),
     ).toBe(`${texts.shared}\n\n${texts.router}`)
     expect(
       composeRolePrompt(texts, 'worker', {
         permissions: [rule({ enabled: false })],
-        permissionVersion: 'ff00aa11',
+        policyVersion: 'ff00aa11',
       }),
     ).toBe(`${texts.shared}\n\n${texts.worker}`)
   })

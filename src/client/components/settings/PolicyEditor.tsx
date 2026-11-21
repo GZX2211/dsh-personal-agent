@@ -3,7 +3,7 @@
 // 「策略」页：两张同构的规则卡片放在一起，一个保存条同时提交。
 //
 // 派单规则只进 Router 的提示词，决策权限只进 Worker 的提示词；两者结构相同，
-// 但各自独立校验、独立显示版本。
+// 由同一个保存动作、同一个修订号与同一个策略版本共同约束。
 
 import { useEffect, useState, type ReactElement } from 'react'
 import type { DispatchRule, SettingsView } from '../../../shared/settings.ts'
@@ -58,13 +58,22 @@ export function PolicyEditor({ t, view, actions, onSaved }: PolicyEditorProps): 
 
   return (
     <div className="pa-settings__section">
+      <div className="pa-policy__meta">
+        <p className="pa-policy__hint">{t('settingsPolicyUnifiedHint')}</p>
+        <span className="pa-policy__version">
+          {t('settingsPolicyVersion', { version: view.policy.version })}
+        </span>
+      </div>
+
       <RuleListEditor
         t={t}
         title={t('settingsRulesTab')}
-        versionText={t('settingsPolicyVersion', { version: view.policy.version })}
         intro={t('settingsRulesIntro')}
         emptyText={t('settingsRulesEmpty')}
         addLabel={t('settingsRuleAdd')}
+        removeLabel={t('settingsRuleRemove')}
+        nameLabel={t('settingsRuleName')}
+        instructionLabel={t('settingsRuleInstruction')}
         untitledLabel={t('settingsRuleUntitled')}
         rules={rules}
         onChange={setRules}
@@ -72,10 +81,12 @@ export function PolicyEditor({ t, view, actions, onSaved }: PolicyEditorProps): 
       <RuleListEditor
         t={t}
         title={t('settingsPermissionsTitle')}
-        versionText={t('settingsPermissionVersion', { version: view.policy.permissionVersion })}
         intro={t('settingsPermissionsIntro')}
         emptyText={t('settingsPermissionsEmpty')}
         addLabel={t('settingsPermissionAdd')}
+        removeLabel={t('settingsPermissionRemove')}
+        nameLabel={t('settingsPermissionName')}
+        instructionLabel={t('settingsPermissionInstruction')}
         untitledLabel={t('settingsPermissionUntitled')}
         rules={permissions}
         onChange={setPermissions}

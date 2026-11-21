@@ -85,13 +85,20 @@ describe('style.ts', () => {
     expect(CONSOLE_CSS).toMatch(/\.pa-list\s*\{[^}]*overflow-x:\s*hidden/)
   })
 
-  it('keeps the settings save bar aligned without its own frame', () => {
+  it('keeps the settings save bar in reach while the form scrolls', () => {
     const block = /\.pa-settings__savebar\s*\{([^}]*)\}/.exec(CONSOLE_CSS)?.[1] ?? ''
-    expect(block).toMatch(/padding:\s*4px 12px 0/)
-    // 允许 box-sizing: border-box；不允许自绘边框、浮层定位或独立背景。
+    expect(block).toMatch(/position:\s*sticky/)
+    expect(block).toMatch(/bottom:\s*0/)
+    expect(block).toMatch(/padding:\s*8px 12px/)
+    expect(block).toMatch(/background:\s*var\(--dsw-alias-bg-base/)
+    // 按钮直接落在面板底色上，不再额外画一条灰色操作条。
     expect(block).not.toMatch(/(^|\n)\s*border(-[a-z]+)?\s*:/)
-    expect(block).not.toMatch(/(^|\n)\s*position\s*:/)
-    expect(block).not.toMatch(/(^|\n)\s*background(-[a-z]+)?\s*:/)
+  })
+
+  it('sizes the row editor inside its card', () => {
+    const block = /\.pa-rule__input\s*\{([^}]*)\}/.exec(CONSOLE_CSS)?.[1] ?? ''
+    expect(block).toMatch(/box-sizing:\s*border-box/)
+    expect(block).toMatch(/width:\s*100%/)
   })
 
   it('paints settings inputs with the official settings-field surface', () => {
