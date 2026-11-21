@@ -116,6 +116,7 @@ export const ERROR_CODES = {
   settingsConflict: 'settings-conflict',
   promptConflict: 'prompt-conflict',
   promptRevisionNotFound: 'prompt-revision-not-found',
+  ticketNotFound: 'ticket-not-found',
 } as const
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]

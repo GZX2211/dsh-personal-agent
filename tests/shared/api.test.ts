@@ -98,6 +98,10 @@ describe('稳定错误码', () => {
     expect(ERROR_CODES.sourceStartFailed).toBe('source-start-failed')
   })
 
+  it('names a missing ticket so the detail page can show its own empty state', () => {
+    expect(ERROR_CODES.ticketNotFound).toBe('ticket-not-found')
+  })
+
   it('keeps every code unique', () => {
     const codes = Object.values(ERROR_CODES)
     expect(new Set(codes).size).toBe(codes.length)
