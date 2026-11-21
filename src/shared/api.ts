@@ -4,6 +4,7 @@
 // Host 与 Client 共用，调用点不得硬编码这些字面量。
 
 import type { ApprovalView, ApprovalDecisionKind, ApprovalTransport } from './approvals.ts'
+import type { ActivityStats, RuntimeCapacity, WorkerRuntimeView } from './runtime.ts'
 import type { SignalView } from './signals.ts'
 import type { SourceView, TimerSourceView } from './sources.ts'
 import type { TicketView } from './tickets.ts'
@@ -178,6 +179,13 @@ export interface SnapshotResponse {
   stats: SnapshotStats
   /** router 会话；来源页「在对话中创建」用它聚焦那个会话。缺省时按钮不可用。 */
   routerSessionId?: string
+
+  /** 进行中的执行会话运行时；旧快照可能缺省。 */
+  workers?: WorkerRuntimeView[]
+  /** 执行器容量；旧快照可能缺省，客户端按 MAX_WORKERS.defaultValue 处理。 */
+  capacity?: RuntimeCapacity
+  /** 最近 7 天活动；旧快照可能缺省。 */
+  activity?: ActivityStats
 }
 
 /** 一次全量信号检索的结果；`total` 是匹配总数，不受 `limit` 截断。 */

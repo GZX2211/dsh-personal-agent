@@ -61,6 +61,8 @@ interface TicketAccumulator {
   workerSessionId?: string
   createdAt: number
   updatedAt: number
+  /** 第一次派发的时间；之后的重派发/追加不改写。 */
+  dispatchedAt?: number
   queuedSeq: number
   dispatched: boolean
   /** worker 回合被中断、尚未被任何后续事实清除；仍算进行中并占槽位。 */
@@ -244,6 +246,8 @@ function applyDomainEvent(
       ticket.interrupted = false
       ticket.workerSessionId = event.payload.workerSessionId
       if (event.payload.directory !== undefined) ticket.directory = event.payload.directory
+      // 第一次派发定下「已运行」的起点；append/resume 不改写。
+      if (ticket.dispatchedAt === undefined) ticket.dispatchedAt = event.time
       ticket.updatedAt = latest(ticket.updatedAt, event.time)
       return
     }
@@ -338,6 +342,7 @@ function toTicketView(ticket: TicketAccumulator, pendingTickets: ReadonlySet<str
   if (ticket.expectedOutput !== undefined) view.expectedOutput = ticket.expectedOutput
   if (ticket.workerSessionId !== undefined) view.workerSessionId = ticket.workerSessionId
   if (ticket.directory !== undefined) view.directory = ticket.directory
+  if (ticket.dispatchedAt !== undefined) view.dispatchedAt = ticket.dispatchedAt
   if (ticket.endedAt !== undefined) view.endedAt = ticket.endedAt
   if (ticket.outcome !== undefined) view.outcome = ticket.outcome
   if (ticket.report !== undefined) view.report = ticket.report

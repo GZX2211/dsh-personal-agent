@@ -33,8 +33,11 @@ export interface FakeSessionLog {
   appended: { type: string; data: unknown }[]
   /** 已记录的请求头；非空表示会话已经发过请求。 */
   header?: unknown
+  /** 模拟路由报告的模型标称窗口；未设置时 `requestContext()` 返回 undefined。 */
+  requestWindow?: number
   requestHeader(): unknown
-  snapshotEvents(): { type: string }[]
+  requestContext(): { provider: string; model: string; contextWindow?: number } | undefined
+  snapshotEvents(): { type: string; time?: number; data?: unknown }[]
   append(type: string, data: unknown): void
 }
 
@@ -101,6 +104,8 @@ export interface FakeHost {
   setTurn(sessionId: string, turn: number): void
   /** 模拟一条会话事件：先记进伪会话日志，再分发给 session/event 监听者。 */
   emitSessionEvent(sessionId: string, event: unknown): void
+  /** 新增一个活会话，模拟 Agent 晚于工单就绪。 */
+  addSession(sessionId: string): FakeSession
   /** 分发任意 Cordis 事件（agent/created 等）。 */
   emitEvent(name: string, ...args: unknown[]): void
   createdSessionIds(): string[]
@@ -150,7 +155,11 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       id: sessionId,
       appended: [],
       requestHeader: () => log.header,
-      snapshotEvents: () => session.events as { type: string }[],
+      requestContext: () =>
+        log.requestWindow === undefined
+          ? undefined
+          : { provider: 'fake', model: 'fake-model', contextWindow: log.requestWindow },
+      snapshotEvents: () => session.events as { type: string; time?: number; data?: unknown }[],
       append(type, data) {
         log.appended.push({ type, data })
         const event = { type, seq: session.events.length + 1, time: Date.now(), data }
@@ -424,6 +433,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       session.events.push(event)
       emit('session/event', session.agent.session, event)
     },
+    addSession,
     emitEvent(name: string, ...args: unknown[]) {
       emit(name, ...args)
     },

@@ -18,21 +18,15 @@ import { useSnapshot } from '../hooks/useSnapshot.ts'
 import { CONSOLE_CSS } from '../style.ts'
 import { Approvals } from '../views/Approvals.tsx'
 import { Events } from '../views/Events.tsx'
-import { Placeholder } from '../views/Placeholder.tsx'
+import { Overview } from '../views/Overview.tsx'
 import { Settings } from '../views/Settings.tsx'
 import { Sources } from '../views/Sources.tsx'
 import { Tickets } from '../views/Tickets.tsx'
 import type { Translate } from '../i18n.ts'
+import type { ConsoleTabId } from '../lib/navigation.ts'
 
-export type ConsoleTabId = 'overview' | 'approvals' | 'tickets' | 'events' | 'sources' | 'settings'
-
-/** 已经能承接内容的标签页；概览在 MVP 之后实现。 */
-const IMPLEMENTED: readonly ConsoleTabId[] = ['approvals', 'tickets', 'events', 'sources', 'settings']
-
-/**
- * 打开时落在「审批」：MVP 里它是唯一有动作可做的页面，概览等内容要等 MVP 之后。
- */
-const INITIAL_TAB: ConsoleTabId = 'approvals'
+/** 打开时落在概览：它汇总待审批与异常，审批页仍保留徽标与直达入口。 */
+const INITIAL_TAB: ConsoleTabId = 'overview'
 
 export interface ConsolePanelProps {
   t: Translate
@@ -74,6 +68,17 @@ export function ConsolePanel({
       <style>{CONSOLE_CSS}</style>
       <ConsoleTabStrip tabs={tabs} active={active} onSelect={id => setActive(id as ConsoleTabId)} />
       <div className="pa-console__body" role="tabpanel">
+        {active === 'overview' ? (
+          <Overview
+            t={t}
+            language={language}
+            snapshot={snapshot}
+            error={error}
+            refresh={refresh}
+            actions={actions}
+            onNavigate={tab => setActive(tab)}
+          />
+        ) : null}
         {active === 'approvals' ? (
           <Approvals
             t={t}
@@ -115,12 +120,6 @@ export function ConsolePanel({
           />
         ) : null}
         {active === 'settings' ? <Settings t={t} language={language} /> : null}
-        {IMPLEMENTED.includes(active) ? null : (
-          <Placeholder
-            title={tabs.find(tab => tab.id === active)?.label ?? t('notAvailable')}
-            hint={t('notAvailableHint')}
-          />
-        )}
       </div>
     </div>
   )

@@ -20,6 +20,7 @@ Host 根目录只放两类文件：
 | `dispatcher/` | 调度：纯计划、任务简报、放行执行（建会话 + 投递）与失败即停的重规划。 |
 | `projector/` | 账本投影：纯函数把事件序列派生为工单/审批视图与统计。 |
 | `prompts/` | 随包提示词加载与 Markdown 拼装。 |
+| `runtime/` | 概览运行时读模型：从账本与会话内存投影 Worker 状态、上下文与最近 7 天活动；不写账本。 |
 | `sessions/` | 会话：router/worker 身份与创建、执行器模型播种、角色装饰、投递、回合观察与日志读取。 |
 | `settings/` | 设置：执行器配置、派单规则与提示词版本的存储、收窄、模型目录投影与装配。 |
 | `state/` | 状态目录解析与幂等创建。 |
@@ -36,6 +37,7 @@ Host 根目录只放两类文件：
 - `dispatcher/` → `sessions/`（建会话与投递）、`store/`、`projector/`（视图类型）。
 - `sessions/` → `approvals/`、`dispatcher/`、`tools/`（注册角色工具）、`prompts/`、`settings/`（模型播种与提示词来源由根注入）、`store/`、`state/`、`projector/`（视图类型）。
 - `tools/` → `approvals/`、`dispatcher/`（调度器接口）、`store/`、`projector/`、`ids.ts`。
+- `runtime/` → `store/`、`projector/`（仅 `Projection` 类型）、`context.ts`；只读账本与会话内存，不反向依赖 `sessions/`。
 - `console-api/` → 仅 `src/shared` 与同目录 `guard.ts`；数据由根注入的 `snapshot` 与 `decideApproval` 提供，它不直接读写账本。
 - 根 → 全部有状态模块，是唯一装配点。
 

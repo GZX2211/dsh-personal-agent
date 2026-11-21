@@ -55,17 +55,14 @@ afterEach(async () => {
   disposeObserver()
   store.close()
   await kv.close()
-  await rm(directory, { recursive: true, force: true })
-  await rm(watchDirectory, { recursive: true, force: true })
+  await removeDirectory(directory)
+  await removeDirectory(watchDirectory)
 })
 
-afterEach(async () => {
-  service.stop()
-  store.close()
-  await kv.close()
-  await rm(directory, { recursive: true, force: true })
-  await rm(watchDirectory, { recursive: true, force: true })
-})
+/** 脚本子进程在 Windows 上可能比 stop() 晚释放目录句柄；重试删除避免 EBUSY 误报。 */
+async function removeDirectory(path: string): Promise<void> {
+  await rm(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+}
 
 function watchInput(name = '本地文件'): Record<string, unknown> {
   return {

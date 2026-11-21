@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { API_PREFIX, ERROR_CODES } from '../shared/api.ts'
+import { API_PREFIX, ERROR_CODES, type SnapshotResponse } from '../shared/api.ts'
 import { healPendingApprovals } from './approvals/heal.ts'
 import { ResolverRegistry } from './approvals/resolvers.ts'
 import { createApprovalDecider } from './approvals/service.ts'
@@ -20,6 +20,7 @@ import { projectSignals } from './projector/project.ts'
 import { querySignals as searchSignals } from './projector/signal-query.ts'
 import { defaultPromptTexts } from './prompts/index.ts'
 import { PaRolesService } from './roles/index.ts'
+import { createRuntime } from './runtime/index.ts'
 import { settingsErrorCode } from './settings/errors.ts'
 import { hostModelCatalog } from './settings/model.ts'
 import { createSettingsService } from './settings/service.ts'
@@ -108,6 +109,7 @@ export function apply(ctx: HostContext, config?: Config): void {
   let disposeSignalObserver: (() => void) | undefined
   let disposeDecorator: (() => void) | undefined
   let stopPerception: (() => void) | undefined
+  let stopRuntime: (() => void) | undefined
   let prepareWorker: ((sessionId: SessionId) => Promise<void>) | undefined
 
   // 账本、kv 与设置就绪后装配有状态的服务：调度器、回合观察、角色装饰、感知来源。
@@ -118,6 +120,9 @@ export function apply(ctx: HostContext, config?: Config): void {
       stateDirectory: stateDir,
       modelCatalog: () => hostModelCatalog(ctx),
     })
+    // 概览的运行时读模型：账本就绪后 replay 一次，之后只增量观察。
+    const runtime = createRuntime({ ctx, store, log: message => logWarning(ctx, message) })
+    stopRuntime = runtime.close
     // 信号配对是进程内状态：账本只记信号与决定，配对关系重启即丢。
     const claims = createClaimRegistry()
     // 来源的渠道在 router 会话就绪之后才启动（投递需要目标会话）。
@@ -177,7 +182,7 @@ export function apply(ctx: HostContext, config?: Config): void {
         logWarning(ctx, `worker decoration failed for ${sessionId}: ${describe(error)}`)
       }
     }
-    return { store, kv, scheduler, decorator, perception, settingsService }
+    return { store, kv, scheduler, decorator, perception, settingsService, runtime }
   })
   void ready.catch((error: unknown) => logWarning(ctx, `services unavailable: ${describe(error)}`))
 
@@ -193,21 +198,25 @@ export function apply(ctx: HostContext, config?: Config): void {
         stateDir,
         startedAt,
         snapshot: async () => {
-          const { store, perception } = await ready
+          const { store, perception, runtime, settingsService } = await ready
           const projection = store.projection()
+          const now = Date.now()
           const timers = await readTimerSourceViews(
             ctx.get('schedule'),
             routerSessionId,
             projection.sourceTallies,
             message => logWarning(ctx, message),
           )
-          const response = {
+          const response: SnapshotResponse = {
             tickets: projection.tickets,
             approvals: projection.approvals,
             signals: projection.signals,
             sources: perception.sources(),
             timers,
             stats: projection.stats,
+            workers: runtime.workers(projection),
+            capacity: { maxWorkers: settingsService.maxWorkers() },
+            activity: runtime.activity(now),
             ...(routerSessionId === undefined ? {} : { routerSessionId }),
           }
           return response
@@ -286,6 +295,7 @@ export function apply(ctx: HostContext, config?: Config): void {
       disposeSignalObserver?.()
       disposeDecorator?.()
       stopPerception?.()
+      stopRuntime?.()
       void ledger.then(store => store.close()).catch(() => undefined)
       void identities.then(store => store.close()).catch(() => undefined)
       void settingsStore.then(store => store.close()).catch(() => undefined)

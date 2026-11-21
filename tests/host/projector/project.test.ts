@@ -281,6 +281,39 @@ describe('project', () => {
     expect(projection.tickets[0]).not.toHaveProperty('queueReason')
   })
 
+  it('records the first dispatch time on the ticket view', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223', {}, { time: BASE_TIME + 100 }),
+      dispatchedEvent(2, 't-aaa1112223', {}, { time: BASE_TIME + 250 }),
+    ])
+
+    expect(projection.tickets).toEqual([
+      expect.objectContaining({ stage: 'running', dispatchedAt: BASE_TIME + 250 }),
+    ])
+  })
+
+  it('keeps the first dispatch time when the ticket is dispatched again', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223', {}, { time: BASE_TIME + 250 }),
+      interruptedEvent(3, 't-aaa1112223'),
+      dispatchedEvent(4, 't-aaa1112223', { workerSessionId: 'session-worker-2' }, { time: BASE_TIME + 900 }),
+    ])
+
+    expect(projection.tickets).toEqual([
+      expect.objectContaining({
+        dispatchedAt: BASE_TIME + 250,
+        workerSessionId: 'session-worker-2',
+      }),
+    ])
+  })
+
+  it('leaves queued tickets without a dispatch time', () => {
+    const projection = project([queuedEvent(1, 't-aaa1112223')])
+
+    expect(projection.tickets[0]).not.toHaveProperty('dispatchedAt')
+  })
+
   it('marks a dispatched ticket blocked while an approval is pending', () => {
     const projection = project([
       queuedEvent(1, 't-aaa1112223'),

@@ -57,3 +57,45 @@ export function riskKey(risk: NonNullable<ApprovalView['risk']>): keyof Dict {
       return 'approvalRiskHigh'
   }
 }
+
+/**
+ * 时长：不足 1 分钟用词典短句，其余用本地化单位；用于已运行/已等待/平均耗时。
+ *
+ * 先取整到分钟，再按小时 + 余分钟拼；zh 为「2小时 5分钟」，en 为「2h 5m」。
+ */
+export function formatDuration(t: Translate, language: string, ms: number): string {
+  const minutes = Math.max(0, Math.floor(ms / 60_000))
+  if (minutes < 1) return t('overviewLessThanMinute')
+  const locale = language.length > 0 ? language : 'en'
+  if (minutes < 60) return unit(locale, 'minute', minutes)
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest === 0 ? unit(locale, 'hour', hours) : `${unit(locale, 'hour', hours)} ${unit(locale, 'minute', rest)}`
+}
+
+function unit(locale: string, unit: 'minute' | 'hour', value: number): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit,
+    unitDisplay: 'narrow',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+/** token 数的紧凑写法：640k → `640K` / `64万`。 */
+export function formatTokens(language: string, count: number): string {
+  return new Intl.NumberFormat(language.length > 0 ? language : 'en', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(count)
+}
+
+/** 7 天图的星期标签。 */
+export function formatDayLabel(language: string, start: number): string {
+  return new Intl.DateTimeFormat(language.length > 0 ? language : 'en', { weekday: 'short' }).format(start)
+}
+
+/** 底栏与今日数字的千分位。 */
+export function formatNumber(language: string, count: number): string {
+  return new Intl.NumberFormat(language.length > 0 ? language : 'en').format(count)
+}

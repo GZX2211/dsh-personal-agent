@@ -43,6 +43,8 @@ export interface TicketView {
   directory?: string
   createdAt: number
   updatedAt: number
+  /** 第一次 task/dispatched 的时间；排队中不存在。 */
+  dispatchedAt?: number
   endedAt?: number
   outcome?: TicketOutcome
   /** 结束时的汇报摘要；回合未汇报就结束时不存在。 */
