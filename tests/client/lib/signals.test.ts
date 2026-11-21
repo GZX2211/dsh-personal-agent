@@ -62,6 +62,9 @@ describe('verdict filter', () => {
       matchesVerdictFilter(signal({ decision: { action: 'reply', inferred: true, at: NOW } }), 'reply'),
     ).toBe(true)
     expect(
+      matchesVerdictFilter(signal({ decision: { action: 'supplement', ticketId: 't-1', at: NOW } }), 'supplement'),
+    ).toBe(true)
+    expect(
       matchesVerdictFilter(signal({ decision: { action: 'reply', at: NOW } }), 'dispatch'),
     ).toBe(false)
   })
@@ -94,6 +97,7 @@ describe('kind labels', () => {
     expect(t(verdictFilterLabelKey('all'))).toBe('全部处理')
     expect(t(verdictFilterLabelKey('dispatch'))).toBe('派发')
     expect(t(verdictFilterLabelKey('append'))).toBe('追加')
+    expect(t(verdictFilterLabelKey('supplement'))).toBe('补充')
     expect(t(verdictFilterLabelKey('reply'))).toBe('响应')
     expect(t(verdictFilterLabelKey('filtered'))).toBe('忽略（过滤）')
   })
@@ -128,6 +132,15 @@ describe('verdict', () => {
     expect(t(verdictLabelKey(dispatch))).toBe('派发')
   })
 
+  it('carries the ticket a supplement was delivered to', () => {
+    const supplement = signalVerdict(
+      signal({ decision: { action: 'supplement', ticketId: 't-3', at: NOW } }),
+    )
+
+    expect(supplement).toEqual({ kind: 'supplement', ticketId: 't-3' })
+    expect(t(verdictLabelKey(supplement))).toBe('补充')
+  })
+
   it('marks an inferred reply', () => {
     const verdict = signalVerdict(
       signal({ decision: { action: 'reply', inferred: true, at: NOW } }),
@@ -142,6 +155,7 @@ describe('verdict', () => {
     expect(verdictText(t, { kind: 'reply', inferred: false })).toBe('响应')
     expect(verdictText(t, { kind: 'dispatch', ticketId: 't-9c20e78bca' })).toBe('派发 #9c20e7')
     expect(verdictText(t, { kind: 'append', ticketId: 't-9c20e78bca' })).toBe('追加 #9c20e7')
+    expect(verdictText(t, { kind: 'supplement', ticketId: 't-9c20e78bca' })).toBe('补充 #9c20e7')
     expect(verdictText(t, { kind: 'filtered', rule: 'min-gap' })).toBe('已过滤 · 节流')
     expect(verdictText(t, { kind: 'filtered' })).toBe('已过滤')
     // 没有工单的决定不能渲染出孤零零的 `#`。
@@ -251,6 +265,7 @@ describe('empty states', () => {
     expect(signalEmptyKey('all', 'filtered', false, false)).toBe('eventsEmptyFiltered')
     expect(signalEmptyKey('all', 'dispatch', false, false)).toBe('eventsEmptyDispatch')
     expect(signalEmptyKey('all', 'append', false, false)).toBe('eventsEmptyAppend')
+    expect(signalEmptyKey('all', 'supplement', false, false)).toBe('eventsEmptySupplement')
     expect(signalEmptyKey('all', 'reply', false, false)).toBe('eventsEmptyReply')
     expect(signalEmptyKey('perception', 'reply', false, false)).toBe('eventsEmptyReply')
   })

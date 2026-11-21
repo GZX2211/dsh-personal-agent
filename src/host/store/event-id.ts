@@ -21,6 +21,10 @@ import type { EventDraft, EventType } from '../../shared/events.ts'
  *
  * `source/updated` 以整份定义参与身份：同一来源的每次变更都是新事实，而重复提交
  * 一份完全相同的定义应当被幂等掉。
+ *
+ * `task/supplemented` 以「哪张单 + 说了什么」定身份：同一张单重复同一段文本，意味着
+ * 同一个信息被投了两次，应当只留一条事实（投递侧也用同一个文本哈希做幂等）。
+ * 不掺 `messageId`：投递失败再重试是同一件事实，掺进去会变成两条。
  */
 const KEY_FIELDS: Record<EventType, readonly string[]> = {
   'signal/received': ['signalId'],
@@ -32,6 +36,7 @@ const KEY_FIELDS: Record<EventType, readonly string[]> = {
   'task/dispatched': ['ticketId'],
   'task/interrupted': ['ticketId', 'turn', 'reason'],
   'task/resumed': ['ticketId', 'turn'],
+  'task/supplemented': ['ticketId', 'text'],
   'task/reported': ['ticketId', 'status', 'summary'],
   'task/closed': ['ticketId'],
   'approval/pending': ['approvalId'],

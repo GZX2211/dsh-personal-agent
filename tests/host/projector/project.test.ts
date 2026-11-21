@@ -18,6 +18,7 @@ import type {
   TaskQueuedPayload,
   TaskReportedPayload,
   TaskResumedPayload,
+  TaskSupplementedPayload,
 } from '../../../src/shared/events.ts'
 import { SIGNAL_VIEW_LIMIT } from '../../../src/shared/signals.ts'
 import type { SourceDefinition } from '../../../src/shared/sources.ts'
@@ -127,6 +128,26 @@ function closedEvent(
     'task/closed',
     { ticketId, outcome: 'completed', ...payload },
     { actor: 'system', ...extra },
+  )
+}
+
+function supplementedEvent(
+  seq: number,
+  ticketId: string,
+  payload: Partial<TaskSupplementedPayload> = {},
+  extra: EnvelopeExtra = {},
+): L2Event {
+  return event(
+    seq,
+    'task/supplemented',
+    {
+      ticketId,
+      targetSessionId: `session-${ticketId}`,
+      text: '接口契约写错了，按新的字段名实现',
+      requestedBySessionId: 'session-router-1',
+      ...payload,
+    },
+    { actor: 'router', ...extra },
   )
 }
 
@@ -552,6 +573,54 @@ describe('project', () => {
       expect.objectContaining({ stage: 'running', title: '任务 t-aaa1112223', updatedAt: BASE_TIME + 3 }),
     ])
     expect(projection.tickets[0]).not.toHaveProperty('queueReason')
+  })
+
+  it('keeps the running stage and refreshes updatedAt when a supplement arrives', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      supplementedEvent(3, 't-aaa1112223', {}, { time: BASE_TIME + 500 }),
+    ])
+
+    expect(projection.tickets).toEqual([
+      expect.objectContaining({
+        stage: 'running',
+        dispatchedAt: BASE_TIME + 2,
+        updatedAt: BASE_TIME + 500,
+      }),
+    ])
+  })
+
+  it('does not release a blocked ticket when a supplement arrives', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      pendingEvent(3, 'a-1', 't-aaa1112223'),
+      supplementedEvent(4, 't-aaa1112223'),
+    ])
+
+    // 补充只是送达一条信息：它不替人做审批决定，阻塞原因仍然成立。
+    expect(projection.tickets).toEqual([expect.objectContaining({ stage: 'blocked' })])
+  })
+
+  it('keeps an ended ticket ended when a supplement arrives late', () => {
+    const projection = project([
+      queuedEvent(1, 't-aaa1112223'),
+      dispatchedEvent(2, 't-aaa1112223'),
+      reportedEvent(3, 't-aaa1112223'),
+      closedEvent(4, 't-aaa1112223', { outcome: 'failed', reason: 'turn-error' }),
+      supplementedEvent(5, 't-aaa1112223'),
+    ])
+
+    expect(projection.tickets).toEqual([
+      expect.objectContaining({ stage: 'ended', outcome: 'failed', updatedAt: BASE_TIME + 5 }),
+    ])
+  })
+
+  it('ignores a supplement for a ticket that was never queued', () => {
+    const projection = project([supplementedEvent(1, 't-unknown0000')])
+
+    expect(projection.tickets).toEqual([])
   })
 
   it('keeps a reported failure running until the ticket is closed', () => {

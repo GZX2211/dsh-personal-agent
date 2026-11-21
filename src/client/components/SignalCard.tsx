@@ -42,6 +42,7 @@ const VERDICT_TONES: Record<SignalVerdict['kind'], TagTone> = {
   filtered: 'neutral',
   dispatch: 'info',
   append: 'info',
+  supplement: 'info',
   reply: 'success',
 }
 

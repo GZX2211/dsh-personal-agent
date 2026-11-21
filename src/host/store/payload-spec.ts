@@ -119,6 +119,15 @@ const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
       turn: { type: 'number' },
     },
   },
+  [EVENT_TYPES.taskSupplemented]: {
+    required: {
+      ticketId: { type: 'string' },
+      targetSessionId: { type: 'string' },
+      text: { type: 'string' },
+      requestedBySessionId: { type: 'string' },
+    },
+    optional: { messageId: { type: 'string' } },
+  },
   [EVENT_TYPES.taskReported]: {    required: {
       ticketId: { type: 'string' },
       summary: { type: 'string' },

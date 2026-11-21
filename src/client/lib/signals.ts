@@ -14,7 +14,7 @@ import { formatTimestamp } from './format.ts'
 export type SignalKindFilter = 'all' | 'user' | 'timer' | 'perception'
 
 /** 事件页第二层筛选：处理方式；`filtered` 对应来源层的忽略。 */
-export type SignalVerdictFilter = 'all' | 'dispatch' | 'append' | 'reply' | 'filtered'
+export type SignalVerdictFilter = 'all' | 'dispatch' | 'append' | 'supplement' | 'reply' | 'filtered'
 
 const KIND_FILTERS: Record<Exclude<SignalKindFilter, 'all'>, SignalKind> = {
   user: 'user-message',
@@ -57,6 +57,8 @@ export function verdictFilterLabelKey(filter: SignalVerdictFilter): keyof Dict {
       return 'eventDispatch'
     case 'append':
       return 'eventAppend'
+    case 'supplement':
+      return 'eventSupplement'
     case 'reply':
       return 'eventReply'
     case 'filtered':
@@ -80,6 +82,7 @@ export type SignalVerdict =
   | { kind: 'filtered'; rule?: string }
   | { kind: 'dispatch'; ticketId: string }
   | { kind: 'append'; ticketId: string }
+  | { kind: 'supplement'; ticketId: string }
   | { kind: 'reply'; inferred: boolean }
 
 export function signalVerdict(signal: SignalView): SignalVerdict {
@@ -93,6 +96,8 @@ export function signalVerdict(signal: SignalView): SignalVerdict {
       return { kind: 'dispatch', ticketId: decision.ticketId ?? '' }
     case 'append':
       return { kind: 'append', ticketId: decision.ticketId ?? '' }
+    case 'supplement':
+      return { kind: 'supplement', ticketId: decision.ticketId ?? '' }
     case 'reply':
       return { kind: 'reply', inferred: decision.inferred === true }
   }
@@ -103,6 +108,7 @@ const VERDICT_KEYS: Record<SignalVerdict['kind'], keyof Dict> = {
   filtered: 'eventFiltered',
   dispatch: 'eventDispatch',
   append: 'eventAppend',
+  supplement: 'eventSupplement',
   reply: 'eventReply',
 }
 
@@ -127,6 +133,10 @@ export function verdictText(t: Translate, verdict: SignalVerdict): string {
       return verdict.ticketId.length === 0
         ? t('eventAppend')
         : `${t('eventAppend')} #${shortTicketId(verdict.ticketId)}`
+    case 'supplement':
+      return verdict.ticketId.length === 0
+        ? t('eventSupplement')
+        : `${t('eventSupplement')} #${shortTicketId(verdict.ticketId)}`
     case 'reply':
       return t('eventReply')
   }
@@ -199,6 +209,8 @@ export function signalEmptyKey(
       return 'eventsEmptyDispatch'
     case 'append':
       return 'eventsEmptyAppend'
+    case 'supplement':
+      return 'eventsEmptySupplement'
     case 'reply':
       return 'eventsEmptyReply'
     case 'all':

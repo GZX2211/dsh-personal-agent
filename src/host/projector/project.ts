@@ -265,6 +265,14 @@ function applyDomainEvent(
       ticket.updatedAt = latest(ticket.updatedAt, event.time)
       return
     }
+    case 'task/supplemented': {
+      const ticket = tickets.get(event.payload.ticketId)
+      if (ticket === undefined) return
+      // 补充只说明「有人在跟这单说话」：它既不改变阶段，也不解除阻塞或中断，
+      // 更不替人回答审批；唯一可观察的后果是这一单刚被更新过。
+      ticket.updatedAt = latest(ticket.updatedAt, event.time)
+      return
+    }
     case 'task/reported': {
       const ticket = tickets.get(event.payload.ticketId)
       if (ticket === undefined) return

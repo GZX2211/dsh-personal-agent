@@ -67,7 +67,7 @@ function eventAt<P extends object, T extends L2Event['type']>(seq: number, type:
 }
 
 /**
- * 覆盖契约里全部 14 类事件的合法账本（含信号、决定与来源三类）：契约新增字段或
+ * 覆盖契约里全部 15 类事件的合法账本（含信号、决定与来源三类）：契约新增字段或
  * 改必填时，这条测试先坏。
  */
 function fullLedger(): L2Event[] {
@@ -120,6 +120,13 @@ function fullLedger(): L2Event[] {
       definition: { ...sourceDefinition(), enabled: false, updatedAt: 1_700_000_000_013 },
     }),
     eventAt(14, 'source/removed', { sourceId: 'src-1' }),
+    eventAt(15, 'task/supplemented', {
+      ticketId: TICKET_ID,
+      targetSessionId: 'session-worker-1',
+      text: '接口契约写错了，按新的字段名实现',
+      requestedBySessionId: 'session-router-1',
+      messageId: 'pa-delivery:pa-supplement:t-abcdef1234:8f14e45fceea167a',
+    }),
   ]
 }
 
@@ -276,8 +283,31 @@ describe('replayLedger', () => {
     const result = replayLedger(ledgerBytes(...ledger.map(event => encodeLedgerLine(event))))
 
     expect(result.events).toEqual(ledger)
-    expect(result.lastSeq).toBe(14)
+    expect(result.lastSeq).toBe(15)
     expect(result.warnings).toEqual([])
+  })
+
+  it('accepts a supplement decision', () => {
+    const decision = eventAt(1, 'decision/recorded', {
+      action: 'supplement',
+      signalId: 's-supplement1',
+      ticketId: TICKET_ID,
+    })
+
+    const result = replayLedger(ledgerBytes(encodeLedgerLine(decision)))
+
+    expect(result.events).toEqual([decision])
+    expect(result.warnings).toEqual([])
+  })
+
+  it('rejects a supplement without the text it delivered', () => {
+    const broken = eventAt(1, 'task/supplemented', {
+      ticketId: TICKET_ID,
+      targetSessionId: 'session-worker-1',
+      requestedBySessionId: 'session-router-1',
+    })
+
+    expect(() => replayLedger(ledgerBytes(`${JSON.stringify(broken)}\n`))).toThrow(/payload\.text/i)
   })
 
   it('accepts a standalone approval without a ticket id', () => {

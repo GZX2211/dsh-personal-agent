@@ -28,6 +28,7 @@ export const EVENT_TYPES = {
   taskDispatched: 'task/dispatched',
   taskInterrupted: 'task/interrupted',
   taskResumed: 'task/resumed',
+  taskSupplemented: 'task/supplemented',
   taskReported: 'task/reported',
   taskClosed: 'task/closed',
   approvalPending: 'approval/pending',
@@ -51,8 +52,11 @@ export type SignalKind = (typeof SIGNAL_KINDS)[number]
  *
  * 没有 `ignore`：被忽略的输入在来源层就只记 `delivered:false`，不进入处理环节，
  * 因此也不存在「忽略」这个结算动作。
+ *
+ * `supplement` 不建工单：它把一条信息插进正在执行的工单，送达方式因此固定为
+ * `steer`；followup 会起一个不属于任何工单的新回合。
  */
-export const DECISION_ACTIONS = ['dispatch', 'append', 'reply'] as const
+export const DECISION_ACTIONS = ['dispatch', 'append', 'supplement', 'reply'] as const
 
 export type DecisionAction = (typeof DECISION_ACTIONS)[number]
 
@@ -197,6 +201,21 @@ export interface TaskResumedPayload {
   turn: number
 }
 
+/**
+ * router 向正在执行的工单补充了一条信息：不是新任务，因此不建工单。
+ *
+ * `targetSessionId` 是接收方（当前 worker），`requestedBySessionId` 是派单方，
+ * 两者都是事实快照：会话之后可能被归档，链上仍要能解释这条信息从哪里来。
+ */
+export interface TaskSupplementedPayload {
+  ticketId: string
+  targetSessionId: string
+  text: string
+  requestedBySessionId: string
+  /** 已送达消息的 id；投递失败时不存在，链上因此只能画账本事实。 */
+  messageId?: string
+}
+
 export interface TaskReportedPayload {
   ticketId: string
   summary: string
@@ -245,6 +264,7 @@ export type TaskQueuedEvent = EventEnvelope<typeof EVENT_TYPES.taskQueued, TaskQ
 export type TaskDispatchedEvent = EventEnvelope<typeof EVENT_TYPES.taskDispatched, TaskDispatchedPayload>
 export type TaskInterruptedEvent = EventEnvelope<typeof EVENT_TYPES.taskInterrupted, TaskInterruptedPayload>
 export type TaskResumedEvent = EventEnvelope<typeof EVENT_TYPES.taskResumed, TaskResumedPayload>
+export type TaskSupplementedEvent = EventEnvelope<typeof EVENT_TYPES.taskSupplemented, TaskSupplementedPayload>
 export type TaskReportedEvent = EventEnvelope<typeof EVENT_TYPES.taskReported, TaskReportedPayload>
 export type TaskClosedEvent = EventEnvelope<typeof EVENT_TYPES.taskClosed, TaskClosedPayload>
 export type ApprovalPendingEvent = EventEnvelope<typeof EVENT_TYPES.approvalPending, ApprovalPendingPayload>
@@ -262,6 +282,7 @@ export type L2Event =
   | TaskDispatchedEvent
   | TaskInterruptedEvent
   | TaskResumedEvent
+  | TaskSupplementedEvent
   | TaskReportedEvent
   | TaskClosedEvent
   | ApprovalPendingEvent
