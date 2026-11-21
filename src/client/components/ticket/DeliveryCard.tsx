@@ -1,13 +1,13 @@
 // src/client/components/ticket/DeliveryCard.tsx
 //
-// 交付卡：这一单交回了什么、离验收标准还差什么，以及四个常用指标。
+// 交付卡：汇报、验收标准、四个数字。
 //
-// 汇报与验收标准是内容，不是状态：没有汇报就明说没有，不拿目标文本冒充结论。
+// 汇报是内容不是状态：没有汇报就明说没有，不拿目标文本冒充结论。
 
 import type { ReactElement } from 'react'
 import type { TicketDetailResponse } from '../../../shared/ticket-detail.ts'
 import type { Translate } from '../../i18n.ts'
-import { formatDuration } from '../../lib/chain.ts'
+import { formatClock, formatDuration, formatTokens } from '../../lib/chain.ts'
 
 export interface DeliveryCardProps {
   t: Translate
@@ -15,45 +15,62 @@ export interface DeliveryCardProps {
 }
 
 export function DeliveryCard({ t, detail }: DeliveryCardProps): ReactElement {
-  const { delivery, metrics } = detail
-  const usage = [
-    { label: t('deliveryUsageTurns'), value: String(metrics.turns) },
-    { label: t('deliveryUsageHops'), value: String(metrics.hops) },
-    { label: t('deliveryUsageDuration'), value: formatDuration(t, metrics.durationMs) },
-    { label: t('deliveryUsageTokens'), value: String(metrics.tokens) },
-  ]
+  const { delivery, metrics, ticket } = detail
+  const headMeta =
+    ticket.stage === 'ended' && ticket.endedAt !== undefined
+      ? t(ticket.outcome === 'failed' ? 'deliveryFailed' : 'deliveryDone', {
+          time: formatClock(ticket.endedAt),
+        })
+      : t('deliveryNoReport')
 
   return (
-    <section className="pa-delivery" aria-label={t('deliveryTitle')}>
-      <h3 className="pa-delivery__title">{t('deliveryTitle')}</h3>
-
-      <div className="pa-delivery__block">
-        <span className="pa-delivery__label">{t('deliveryReport')}</span>
-        <p className="pa-delivery__text">{delivery.report ?? t('deliveryNoReport')}</p>
+    <section className="pa-card">
+      <div className="pa-card__head">
+        <h3 className="pa-card__title">{t('deliveryTitle')}</h3>
+        <span className="pa-detail__spacer" />
+        <span className="pa-card__meta">{headMeta}</span>
       </div>
 
+      {delivery.report === undefined || delivery.report.length === 0 ? (
+        <div className="pa-empty-line">{t('deliveryNoReport')}</div>
+      ) : (
+        <p className="pa-report">{delivery.report}</p>
+      )}
+
       {delivery.expectedOutput === undefined ? null : (
-        <div className="pa-delivery__block">
-          <span className="pa-delivery__label">{t('deliveryExpected')}</span>
-          <p className="pa-delivery__text pa-delivery__text--muted">{delivery.expectedOutput}</p>
+        <div className="pa-kv">
+          <span className="pa-kv__key">
+            {delivery.report === undefined ? t('deliveryExpected') : t('deliveryExpectedCompare')}
+          </span>
+          <span className="pa-kv__value">{delivery.expectedOutput}</span>
         </div>
       )}
 
       {delivery.reason === undefined ? null : (
-        <div className="pa-delivery__block">
-          <span className="pa-delivery__label">{t('deliveryReason')}</span>
-          <p className="pa-delivery__text pa-delivery__text--muted">{delivery.reason}</p>
+        <div className="pa-kv">
+          <span className="pa-kv__key">{t('deliveryReason')}</span>
+          <span className="pa-kv__value">{delivery.reason}</span>
         </div>
       )}
 
-      <dl className="pa-delivery__usage">
-        {usage.map(item => (
-          <div className="pa-delivery__usage-item" key={item.label}>
-            <dt>{item.label}</dt>
-            <dd>{item.value}</dd>
-          </div>
-        ))}
-      </dl>
+      <div className="pa-tiles">
+        <div className="pa-tile">
+          <b>{metrics.turns}</b>
+          <span>{t('deliveryUsageTurns')}</span>
+        </div>
+        <div className="pa-tile">
+          <b>{metrics.hops}</b>
+          <span>{t('deliveryUsageHops')}</span>
+        </div>
+        <div className="pa-tile">
+          <b>{formatDuration(t, metrics.durationMs)}</b>
+          <span>{t('deliveryUsageDuration')}</span>
+        </div>
+        <div className="pa-tile">
+          <b>{formatTokens(metrics.tokens)}</b>
+          <span>{t('deliveryUsageTokens')}</span>
+        </div>
+      </div>
     </section>
   )
 }

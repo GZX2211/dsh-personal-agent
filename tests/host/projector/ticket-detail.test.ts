@@ -193,7 +193,7 @@ describe('deriveTicketDetail', () => {
     })
   })
 
-  it('lays out the router, the lead and its subagents as lanes', () => {
+  it('lays out the lead and its subagents as lanes', () => {
     const detail = deriveTicketDetail({
       ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
       ledger: [signalEvent(1, 's-1', '事实'), decisionEvent(2, 's-1', 'dispatch'), queuedEvent(3), dispatchedEvent(4)],
@@ -204,13 +204,13 @@ describe('deriveTicketDetail', () => {
       now: BASE + 3000,
     })
 
+    // router 不占泳道：人（若参与）在最左，其次是负责人与子代理。
     expect(detail.lanes.map(lane => [lane.id, lane.index, lane.role])).toEqual([
-      ['router', 0, 'router'],
-      [WORKER, 1, 'lead'],
-      [REVIEWER, 2, 'subagent'],
+      [WORKER, 0, 'lead'],
+      [REVIEWER, 1, 'subagent'],
     ])
-    expect(detail.lanes[2]).toMatchObject({ name: 'reviewer', parentId: WORKER })
-    expect(detail.lanes[0]?.sessionId).toBe(ROUTER)
+    expect(detail.lanes[1]).toMatchObject({ name: 'reviewer', parentId: WORKER })
+    expect(detail.lanes[0]?.sessionId).toBe(WORKER)
   })
 
   it('draws the dispatch row from the ledger and the brief from the worker log', () => {
@@ -254,7 +254,7 @@ describe('deriveTicketDetail', () => {
       now: BASE + 500,
     })
 
-    expect(detail.lanes.map(lane => lane.role)).toEqual(['router'])
+    expect(detail.lanes).toEqual([])
     expect(detail.rows).toEqual([
       expect.objectContaining({ kind: 'milestone', milestone: 'queue-capacity', at: BASE + 2 }),
     ])
@@ -313,7 +313,7 @@ describe('deriveTicketDetail', () => {
     expect(detail.rows.at(-1)).toEqual(
       expect.objectContaining({ kind: 'live', lane: WORKER, live: 'running', turn: 2 }),
     )
-    expect(detail.lanes[1]).toMatchObject({ status: 'running', currentTurn: 2, turns: 1 })
+    expect(detail.lanes[0]).toMatchObject({ status: 'running', currentTurn: 2, turns: 1 })
   })
 
   it('turns an agent message into a hop from the sender to the receiver', () => {
@@ -370,8 +370,8 @@ describe('deriveTicketDetail', () => {
     })
 
     expect(detail.rows.filter(row => row.kind === 'spawn')).toEqual([])
-    expect(detail.lanes.map(lane => lane.role)).toEqual(['router', 'lead', 'subagent'])
-    expect(detail.lanes[2]).toMatchObject({ id: REVIEWER, name: 'reviewer', parentId: WORKER })
+    expect(detail.lanes.map(lane => lane.role)).toEqual(['lead', 'subagent'])
+    expect(detail.lanes[1]).toMatchObject({ id: REVIEWER, name: 'reviewer', parentId: WORKER })
     expect(detail.rows).toContainEqual(
       expect.objectContaining({ kind: 'hop', from: WORKER, to: REVIEWER, direction: 'down' }),
     )
@@ -481,7 +481,7 @@ describe('deriveTicketDetail', () => {
         at: BASE + 3000,
       }),
     )
-    expect(detail.lanes.map(lane => lane.role)).toEqual(['router', 'human', 'lead'])
+    expect(detail.lanes.map(lane => lane.role)).toEqual(['human', 'lead'])
   })
 
   it('waits on the human while an approval is pending', () => {

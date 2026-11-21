@@ -5,8 +5,7 @@
 // `TicketDetail` 负责取数（轮询），`TicketDetailView` 只消费一份详情：页面主体因此
 // 可以在没有网络与计时器的环境里被渲染与检查。
 
-import type { ReactElement } from 'react'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useState, type ReactElement } from 'react'
 import type { TicketDetailResponse } from '../../shared/ticket-detail.ts'
 import type { ConsoleActions } from '../actions.ts'
 import { NO_ACTIONS } from '../actions.ts'
@@ -15,25 +14,23 @@ import { DeliveryCard } from '../components/ticket/DeliveryCard.tsx'
 import { TicketDetailHeader } from '../components/ticket/TicketDetailHeader.tsx'
 import { useTicketDetail } from '../hooks/useTicketDetail.ts'
 import type { Translate } from '../i18n.ts'
-import { laneDisplayName } from '../lib/chain.ts'
+import { laneDisplayName, shortDirectory } from '../lib/chain.ts'
 
 export interface TicketDetailViewProps {
   t: Translate
-  language: string
   detail: TicketDetailResponse
   onBack: () => void
   onOpenSession?: (sessionId: string) => void
   /** 测试与深链：初始展开某一行。 */
-  initialExpandedId?: string
+  initialSelectedId?: string
 }
 
 export function TicketDetailView({
   t,
-  language,
   detail,
   onBack,
   onOpenSession,
-  initialExpandedId,
+  initialSelectedId,
 }: TicketDetailViewProps): ReactElement {
   return (
     <div className="pa-detail">
@@ -45,10 +42,9 @@ export function TicketDetailView({
       />
       <ChainCard
         t={t}
-        language={language}
         detail={detail}
         {...(onOpenSession === undefined ? {} : { onOpenSession })}
-        {...(initialExpandedId === undefined ? {} : { initialExpandedId })}
+        {...(initialSelectedId === undefined ? {} : { initialSelectedId })}
       />
       <DeliveryCard t={t} detail={detail} />
       <SessionsFold t={t} detail={detail} />
@@ -58,28 +54,21 @@ export function TicketDetailView({
 
 export interface TicketDetailProps {
   t: Translate
-  language: string
   ticketId: string
   onBack: () => void
   actions?: ConsoleActions
 }
 
 /** 取数版：轮询详情，失败保留上一份，工单不存在时给出它自己的空态。 */
-export function TicketDetail({
-  t,
-  language,
-  ticketId,
-  onBack,
-  actions = NO_ACTIONS,
-}: TicketDetailProps): ReactElement {
+export function TicketDetail({ t, ticketId, onBack, actions = NO_ACTIONS }: TicketDetailProps): ReactElement {
   const { detail, error, errorCode, loading } = useTicketDetail(ticketId)
 
   if (detail === undefined) {
     return (
       <div className="pa-detail pa-detail--empty">
-        <Button className="pa-detail__back" variant="ghost" size="sm" aria-label={t('ticketDetailBack')} onClick={onBack}>
+        <button type="button" className="pa-detail__back" aria-label={t('ticketDetailBack')} onClick={onBack}>
           {'‹'}
-        </Button>
+        </button>
         <p className="pa-detail__placeholder">
           {errorCode === 'ticket-not-found'
             ? t('ticketDetailNotFound')
@@ -94,7 +83,6 @@ export function TicketDetail({
   return (
     <TicketDetailView
       t={t}
-      language={language}
       detail={detail}
       onBack={onBack}
       onOpenSession={sessionId => actions.openSession(sessionId)}
@@ -102,29 +90,42 @@ export function TicketDetail({
   )
 }
 
-/** 会话与目录：链上的会话 id 对人不友好，这里给出名字与工作目录。 */
+/** 会话与目录：链上的会话 id 对人不友好，这里给出名字与完整路径。 */
 function SessionsFold({ t, detail }: { t: Translate; detail: TicketDetailResponse }): ReactElement {
+  const [open, setOpen] = useState(false)
   const sessions = detail.lanes.filter(lane => lane.sessionId !== undefined)
+  const directory = detail.ticket.directory
+  const meta = [
+    t('detailSessionsCount', { count: sessions.length }),
+    shortDirectory(directory),
+  ]
+    .filter((part): part is string => part !== undefined && part.length > 0)
+    .join(' · ')
+
   return (
-    <details className="pa-detail__fold">
-      <summary className="pa-detail__fold-title">
-        {t('detailSessionsTitle')}
-        {sessions.length === 0 ? null : <span className="pa-detail__fold-count">{sessions.length}</span>}
-      </summary>
-      <ul className="pa-detail__sessions">
-        {sessions.map(lane => (
-          <li className="pa-detail__session" key={lane.id}>
-            <span className="pa-detail__session-name">{laneDisplayName(t, lane)}</span>
-            <span className="pa-detail__session-id">{lane.sessionId}</span>
-          </li>
-        ))}
-      </ul>
-      {detail.ticket.directory === undefined ? null : (
-        <div className="pa-detail__session">
-          <span className="pa-detail__session-name">{t('detailWorkingDirectory')}</span>
-          <span className="pa-detail__session-id">{detail.ticket.directory}</span>
-        </div>
-      )}
-    </details>
+    <div>
+      <button type="button" className="pa-fold" aria-expanded={open} onClick={() => setOpen(current => !current)}>
+        <span className="pa-fold__caret">{open ? '▾' : '▸'}</span>
+        <span>{t('detailSessionsTitle')}</span>
+        <span className="pa-detail__spacer" />
+        <span className="pa-fold__mono">{meta}</span>
+      </button>
+      {open ? (
+        <ul className="pa-fold__list">
+          {sessions.map(lane => (
+            <li className="pa-fold__item" key={lane.id}>
+              <b>{laneDisplayName(t, lane)}</b>
+              <span>{lane.sessionId}</span>
+            </li>
+          ))}
+          {directory === undefined ? null : (
+            <li className="pa-fold__item">
+              <b>{t('detailWorkingDirectory')}</b>
+              <span>{directory}</span>
+            </li>
+          )}
+        </ul>
+      ) : null}
+    </div>
   )
 }

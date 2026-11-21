@@ -1,17 +1,16 @@
 // src/client/components/ticket/TicketDetailHeader.tsx
 //
-// 详情页头部：返回、工单短码、阶段徽标、打开会话；标题；一行元信息。
+// 详情页头部：返回、工单短码、阶段、打开会话；标题；一行元信息（负责人 / Agent 数 /
+// 投递次数 / 时长 / 更新时间）。
 //
-// 元信息只放判断这一单「多重、多久、谁来干的」所需的数量：负责人、Agent 数、
-// 投递数、补充数、时长。追加单额外标出「复用会话」，因为它的链路不能脱离上一单读。
+// 阶段徽标与「打开会话」是自绘的：它们与这一行的字号、行高、留白绑在一起，
+// 换成官方控件会带进另一套内边距，字和边界立刻对不齐。
 
-import { Button, IconLinkOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
 import type { TicketDetailResponse } from '../../../shared/ticket-detail.ts'
 import type { Translate } from '../../i18n.ts'
-import { formatDuration, laneDisplayName } from '../../lib/chain.ts'
-import { outcomeKey, ticketBadge } from '../../lib/tickets.ts'
-import { ticketTagTone } from '../status.ts'
+import { formatClock, formatDuration, laneDisplayName } from '../../lib/chain.ts'
+import { ticketBadge } from '../../lib/tickets.ts'
 
 export interface TicketDetailHeaderProps {
   t: Translate
@@ -27,71 +26,58 @@ export function TicketDetailHeader({
   onBack,
   onOpenSession,
 }: TicketDetailHeaderProps): ReactElement {
-  const { ticket, metrics, mode, lanes } = detail
+  const { ticket, metrics, lanes } = detail
   const badge = ticketBadge(ticket)
   const owner = lanes.find(lane => lane.role === 'lead')
-  const workerSessionId = ticket.workerSessionId
 
   return (
     <header className="pa-detail__head">
       <div className="pa-detail__top">
-        <Button className="pa-detail__back" variant="ghost" size="sm" aria-label={t('ticketDetailBack')} onClick={onBack}>
+        <button type="button" className="pa-detail__back" aria-label={t('ticketDetailBack')} onClick={onBack}>
           {'‹'}
-        </Button>
+        </button>
         <span className="pa-detail__code">
-          {t('ticketLabel')} #{ticket.shortId}
+          {t('ticketLabel')} <b>#{ticket.shortId}</b>
         </span>
-        <Tag tone={ticketTagTone(badge.tone)} className="pa-detail__stage">
-          {t(badge.labelKey)}
-        </Tag>
-        {mode === 'append' ? (
-          <Tag tone="quiet" className="pa-detail__reuse">
-            {t('ticketDetailReusedSession')}
-          </Tag>
-        ) : null}
-        {workerSessionId !== undefined && onOpenSession !== undefined ? (
-          <Button
-            className="pa-detail__open"
-            variant="ghost"
-            size="sm"
-            icon={<IconLinkOutlineRegular />}
-            onClick={() => onOpenSession(workerSessionId)}
+        <span className={`pa-tag pa-tag--${stageTone(badge.tone)}`}>{t(badge.labelKey)}</span>
+        <span className="pa-detail__spacer" />
+        {ticket.workerSessionId === undefined || onOpenSession === undefined ? null : (
+          <button
+            type="button"
+            className="pa-ghost"
+            onClick={() => onOpenSession(ticket.workerSessionId as string)}
           >
-            {t('ticketDetailOpenSession')}
-          </Button>
-        ) : null}
+            {t('ticketDetailOpenSession')} ↗
+          </button>
+        )}
       </div>
       <h2 className="pa-detail__title">{ticket.title}</h2>
-      <dl className="pa-detail__meta">
+      <div className="pa-detail__meta">
         {owner === undefined ? null : (
-          <div className="pa-detail__meta-item">
-            <dt>{t('ticketDetailOwner')}</dt>
-            <dd>{laneDisplayName(t, owner)}</dd>
-          </div>
+          <span>
+            {t('ticketDetailOwner')} <b>{laneDisplayName(t, owner)}</b>
+          </span>
         )}
-        <div className="pa-detail__meta-item">
-          <dt>{t('ticketDetailAgents')}</dt>
-          <dd>{metrics.agents}</dd>
-        </div>
-        <div className="pa-detail__meta-item">
-          <dt>{t('ticketDetailHops')}</dt>
-          <dd>{metrics.hops}</dd>
-        </div>
-        <div className="pa-detail__meta-item">
-          <dt>{t('ticketDetailSupplements')}</dt>
-          <dd>{metrics.supplements}</dd>
-        </div>
-        <div className="pa-detail__meta-item">
-          <dt>{t('ticketDetailDuration')}</dt>
-          <dd>{formatDuration(t, metrics.durationMs)}</dd>
-        </div>
-        {ticket.outcome === undefined ? null : (
-          <div className="pa-detail__meta-item">
-            <dt>{t('deliveryOutcome')}</dt>
-            <dd>{t(outcomeKey(ticket.outcome))}</dd>
-          </div>
-        )}
-      </dl>
+        <span>{t('ticketDetailAgents', { count: metrics.agents })}</span>
+        <span>{t('ticketDetailHops', { count: metrics.hops })}</span>
+        <span>{formatDuration(t, metrics.durationMs)}</span>
+        <span>{t('ticketDetailUpdated', { time: formatClock(ticket.updatedAt) })}</span>
+      </div>
     </header>
   )
+}
+
+function stageTone(tone: ReturnType<typeof ticketBadge>['tone']): 'run' | 'done' | 'warn' | 'err' | 'idle' {
+  switch (tone) {
+    case 'idle':
+      return 'idle'
+    case 'business':
+      return 'run'
+    case 'warn':
+      return 'warn'
+    case 'error':
+      return 'err'
+    case 'success':
+      return 'done'
+  }
 }

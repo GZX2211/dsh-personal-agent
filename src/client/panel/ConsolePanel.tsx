@@ -114,7 +114,6 @@ export function ConsolePanel({
             {detailTicketId === undefined ? null : (
               <TicketDetail
                 t={t}
-                language={language}
                 ticketId={detailTicketId}
                 onBack={() => setDetailTicketId(undefined)}
                 actions={actions}

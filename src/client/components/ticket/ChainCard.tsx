@@ -1,179 +1,199 @@
 // src/client/components/ticket/ChainCard.tsx
 //
-// 调用链卡片：来源条 → 团队 chips → 泳道链 → 图例。
+// 调用链卡片：标题行（调用链 / 过程·结构 / N 投递 · N 并行）→ 来源条 → 团队 →
+// 泳道图 → 图例。
 //
-// 链是这一页的主角，因此它自己承担「谁把什么交给了谁」的叙述：每一行是一按钮，
-// 展开后就地给出全文、收到后的事实与可能的影响范围。团队 chips 是导航，不是装饰：
-// 点一下就跳到那个 Agent 的会话。
+// 图是这一页的主角，所以这里全部自绘：官方原子只会在链里带进不属于它的行高与内边距。
 
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState, type CSSProperties, type ReactElement } from 'react'
-import type {
-  AgentLaneView,
-  ChainRow,
-  TicketDetailResponse,
-} from '../../../shared/ticket-detail.ts'
+import type { AgentLaneView, ChainRow, LiveRow, TicketDetailResponse } from '../../../shared/ticket-detail.ts'
 import type { Translate } from '../../i18n.ts'
 import { signalKindKey } from '../../lib/signals.ts'
-import { laneColorHex, laneDisplayName, laneIndexLabel } from '../../lib/chain.ts'
+import {
+  formatClock,
+  formatDuration,
+  impactRows,
+  laneColorHex,
+  laneDisplayName,
+  laneIndexLabel,
+  laneState,
+  liveText,
+} from '../../lib/chain.ts'
 import { ChainRowItem } from './ChainRowItem.tsx'
 
 export interface ChainCardProps {
   t: Translate
-  language: string
   detail: TicketDetailResponse
-  /** 定位到某个会话；缺省时 chips 只读。 */
   onOpenSession?: (sessionId: string) => void
-  /** 测试与深链：初始展开某一行。 */
-  initialExpandedId?: string
+  /** 测试与深链：初始选中某一行。 */
+  initialSelectedId?: string
 }
 
 export function ChainCard({
   t,
-  language,
   detail,
   onOpenSession,
-  initialExpandedId,
+  initialSelectedId,
 }: ChainCardProps): ReactElement {
-  const [expandedId, setExpandedId] = useState<string | undefined>(initialExpandedId)
-  const { rows, lanes, origin } = detail
-  const signal = origin.signal
-  const decision = origin.decision
+  const [selectedId, setSelectedId] = useState<string | undefined>(initialSelectedId)
+  const { rows, lanes, origin, ticket } = detail
+  const selected = rows.find(row => row.id === selectedId)
+  const impact = selected === undefined ? [] : impactRows(rows, selected)
+  const impactIds = new Set(impact.map(row => row.id))
+  const live = rows.find((row): row is LiveRow => row.kind === 'live')
+  const approved = rows.some(row => row.kind === 'approval' && row.phase === 'decision')
+  const lastAt = rows.filter(row => row.kind !== 'live').reduce((latest, row) => Math.max(latest, row.at), 0)
 
   return (
-    <section className="pa-chain" aria-label={t('chainTitle')}>
-      <div className="pa-chain__head">
-        <h3 className="pa-chain__title">{t('chainTitle')}</h3>
-        <span className="pa-chain__meta">
-          {t('chainMeta', {
-            hops: detail.metrics.hops,
-            supplements: detail.metrics.supplements,
-          })}
+    <section className="pa-card">
+      <div className="pa-card__head">
+        <h3 className="pa-card__title">{t('chainTitle')}</h3>
+        <span className="pa-seg">
+          <span className="pa-seg__item pa-seg__item--active">{t('chainModeProcess')}</span>
+          <span className="pa-seg__item pa-seg__item--disabled" title={t('chainModeStructureHint')}>
+            {t('chainModeStructure')}
+          </span>
+        </span>
+        <span className="pa-detail__spacer" />
+        <span className="pa-card__meta">
+          {selected === undefined
+            ? t('chainMeta', { hops: detail.metrics.hops, parallel: detail.metrics.parallel })
+            : t('chainMetaSelected', { count: impact.length })}
         </span>
       </div>
 
-      {signal === undefined && decision === undefined ? null : (
-        <div className="pa-chain__origin">
-          <div className="pa-chain__origin-line">
-            {signal === undefined ? null : (
-              <>
-                <Tag tone="neutral" className="pa-chain__origin-kind">
-                  {t(signalKindKey(signal.kind))}
-                </Tag>
-                <span className="pa-chain__origin-text">{signal.text ?? ''}</span>
-                <span className="pa-chain__stamp">{clock(signal.receivedAt)}</span>
-              </>
-            )}
+      {origin.signal === undefined ? null : (
+        <div className="pa-origin">
+          <div className="pa-origin__top">
+            <span className="pa-origin__kind">{t(signalKindKey(origin.signal.kind))}</span>
+            <span className="pa-origin__text">{origin.signal.text ?? ''}</span>
+            <span className="pa-time">{formatClock(origin.signal.receivedAt)}</span>
           </div>
-          {decision === undefined ? null : (
-            <div className="pa-chain__origin-line pa-chain__origin-line--decision">
-              <span className="pa-chain__arrow" aria-hidden="true">
-                ↳
-              </span>
-              <span className="pa-chain__origin-text">
-                {t(decision.action === 'append' ? 'chainAppend' : decision.action === 'supplement' ? 'chainSupplement' : 'chainDispatch')}
-              </span>
-              <span className="pa-chain__stamp">{clock(decision.at)}</span>
+          {origin.decision === undefined ? null : (
+            <div className="pa-origin__sub">
+              →{' '}
+              <b>
+                {formatClock(origin.decision.at)}{' '}
+                {t(origin.decision.action === 'append' ? 'chainOriginAppend' : 'chainOriginDispatch')}
+              </b>
             </div>
           )}
         </div>
       )}
 
-      <div className="pa-chain__lanes" role="list" aria-label={t('detailSessionsTitle')}>
+      <div className="pa-team">
         {lanes.map(lane => (
-          <LaneChip key={lane.id} t={t} lane={lane} {...(onOpenSession === undefined ? {} : { onOpenSession })} />
+          <Chip
+            key={lane.id}
+            t={t}
+            lane={lane}
+            ticket={ticket}
+            approved={approved}
+            {...(onOpenSession === undefined ? {} : { onOpenSession })}
+          />
         ))}
       </div>
 
       {detail.completeness.logs === 'full' ? null : (
-        <p className="pa-chain__notice">{t('chainLogsUnavailable')}</p>
+        <div className="pa-empty-line">{t('detailLogUnavailable')}</div>
       )}
 
-      <div className="pa-chain__rows" role="list" aria-label={t('chainTitle')}>
+      <div className="pa-graph">
         {rows.length === 0 ? (
-          <p className="pa-chain__empty">
-            {detail.ticket.stage === 'queued' ? t('detailQueued') : t('chainEmpty')}
-          </p>
+          <div className="pa-empty-line">{t('detailEmptyChain')}</div>
         ) : (
-          rows.map(row => {
-            const expanded = row.id === expandedId
-            return (
-              <ChainRowGate
+          rows
+            .filter(row => row.kind !== 'live')
+            .map(row => (
+              <ChainRowItem
                 key={row.id}
                 t={t}
-                language={language}
                 row={row}
                 rows={rows}
                 lanes={lanes}
-                expanded={expanded}
-                onToggle={() => setExpandedId(expanded ? undefined : row.id)}
+                ticket={ticket}
+                selected={row.id === selectedId}
+                dim={selected !== undefined && row.at < selected.at}
+                impacting={impactIds.has(row.id)}
+                onToggle={() => setSelectedId(row.id === selectedId ? undefined : row.id)}
                 {...(onOpenSession === undefined ? {} : { onOpenSession })}
               />
-            )
-          })
+            ))
+        )}
+        {live === undefined ? null : (
+          <LiveLine
+            t={t}
+            row={live}
+            lane={lanes.find(lane => lane.id === live.lane)}
+            elapsedMs={live.at - lastAt}
+          />
         )}
       </div>
 
-      <p className="pa-chain__legend">{t('chainLegend')}</p>
+      <div className="pa-legend">
+        <span>
+          <span className="pa-legend__dot" aria-hidden="true" />
+          {t('chainLegendDot')}
+        </span>
+        <span>{t('chainLegendArc')}</span>
+        <span>{t('chainLegendReply')}</span>
+      </div>
     </section>
   )
 }
 
-function ChainRowGate(props: Parameters<typeof ChainRowItem>[0]): ReactElement {
-  return (
-    <div role="listitem">
-      <ChainRowItem {...props} />
-    </div>
-  )
-}
-
-interface LaneChipProps {
+interface ChipProps {
   t: Translate
   lane: AgentLaneView
+  ticket: TicketDetailResponse['ticket']
+  approved: boolean
   onOpenSession?: (sessionId: string) => void
 }
 
-function LaneChip({ t, lane, onOpenSession }: LaneChipProps): ReactElement {
-  const color = laneColorHex(lane)
-  const name = laneDisplayName(t, lane)
+function Chip({ t, lane, ticket, approved, onOpenSession }: ChipProps): ReactElement {
+  const state = laneState(t, lane, ticket, approved)
   const content = (
     <>
-      <span className="pa-chip__index" aria-hidden="true">
-        {laneIndexLabel(lane)}
-      </span>
-      <span className="pa-chip__name">{name}</span>
-      {lane.status === 'running' && lane.currentTurn !== undefined ? (
-        <span className="pa-chip__state" data-state="running">
-          {t('chainLiveRunning', { turn: lane.currentTurn })}
-        </span>
-      ) : null}
-    </>
-  )
-  const style = { '--pa-lane-color': color } as CSSProperties
-  return (
-    <span className="pa-chip-slot" role="listitem">
-      {lane.sessionId !== undefined && onOpenSession !== undefined ? (
-        <Button
-          className="pa-chip"
-          variant="ghost"
-          size="sm"
-          style={style}
-          onClick={() => onOpenSession(lane.sessionId as string)}
-        >
-          {content}
-        </Button>
-      ) : (
-        <span className="pa-chip" style={style}>
-          {content}
+      <span className="pa-chip__index">{laneIndexLabel(lane)}</span>
+      <span className="pa-chip__name">{laneDisplayName(t, lane)}</span>
+      {state === undefined ? null : (
+        <span className="pa-chip__state" data-state={state.state}>
+          {state.label}
         </span>
       )}
+    </>
+  )
+  const style = { '--c': laneColorHex(lane) } as CSSProperties
+  if (lane.sessionId !== undefined && onOpenSession !== undefined) {
+    return (
+      <button type="button" className="pa-chip" style={style} onClick={() => onOpenSession(lane.sessionId as string)}>
+        {content}
+      </button>
+    )
+  }
+  return (
+    <span className="pa-chip" style={style}>
+      {content}
     </span>
   )
 }
 
-function clock(at: number): string {
-  const date = new Date(at)
-  const pad = (value: number): string => String(value).padStart(2, '0')
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+function LiveLine({
+  t,
+  row,
+  lane,
+  elapsedMs,
+}: {
+  t: Translate
+  row: LiveRow
+  lane?: AgentLaneView
+  elapsedMs: number
+}): ReactElement {
+  return (
+    <div className="pa-live">
+      <span className="pa-live__pulse" aria-hidden="true" />
+      <span>{liveText(t, row, lane)}</span>
+      {elapsedMs > 0 ? <span className="pa-time">{t('chainElapsed', { duration: formatDuration(t, elapsedMs) })}</span> : null}
+    </div>
+  )
 }
-

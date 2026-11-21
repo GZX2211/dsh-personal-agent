@@ -1,305 +1,377 @@
 // src/client/components/ticket/ChainRowItem.tsx
 //
-// 调用链的一行：左侧是装饰性的 rail（点与连线），右侧是文案。
+// 调用链的一行：左边 96px 的 rail 画泳道列与这条投递的弧线，右边是这一行的文字。
 //
-// 行本身是按钮：整行可点、可聚焦，展开内容就地渲染在行下方，不弹层也不跳页。
-// rail 的 SVG 只是装饰（aria-hidden），读屏用户拿到的是标签、摘要与时间。
+// 行解剖照 mockup：一行 = 「谁 → 谁 [做了什么] … 时间」+ 一句内容；里程碑行没有边，
+// 只在 rail 上点一个点。整行是按钮，展开内容就地出现在行下方。
+//
+// 这里**不复用官方原子**：链的排版本就是自绘的（rail、徽标、行），用 Tag/Button
+// 只会把官方控件的内边距和行高带进来，字与边界都对不齐。
 
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
-import { useId, type ReactElement } from 'react'
-import type {
-  AgentLaneView,
-  ChainRow,
-} from '../../../shared/ticket-detail.ts'
+import type { CSSProperties, ReactElement } from 'react'
+import type { AgentLaneView, ChainRow } from '../../../shared/ticket-detail.ts'
+import type { TicketView } from '../../../shared/tickets.ts'
 import type { Translate } from '../../i18n.ts'
 import {
-  chainRowLabel,
+  chainBadge,
+  chainLinkColor,
   chainRowLink,
   chainRowSummary,
-  chainRowTone,
   factsAfter,
+  formatClock,
   impactRows,
   laneColorHex,
   laneDisplayName,
   laneX,
-  railWidth,
+  ROUTER_COLOR,
+  ROUTER_X,
+  rowHeight,
+  RAIL_WIDTH,
+  type ChainBadge,
 } from '../../lib/chain.ts'
-import { formatTimestamp } from '../../lib/format.ts'
-import { toneTagTone } from './tone.ts'
 
 export interface ChainRowItemProps {
   t: Translate
-  language: string
   row: ChainRow
   rows: readonly ChainRow[]
   lanes: readonly AgentLaneView[]
-  expanded: boolean
+  ticket: TicketView
+  selected: boolean
+  /** 选中行之前的行淡化：链是从上往下读的。 */
+  dim: boolean
+  /** 这一行在选中行的推断影响范围里。 */
+  impacting: boolean
   onToggle: () => void
-  /** 定位到某个会话；缺省时不渲染定位按钮。 */
   onOpenSession?: (sessionId: string) => void
-}
-
-const ROW_HEIGHT: Record<ChainRow['kind'], number> = {
-  milestone: 26,
-  live: 30,
-  dispatch: 34,
-  supplement: 34,
-  hop: 34,
-  spawn: 34,
-  fan: 50,
-  approval: 34,
 }
 
 export function ChainRowItem({
   t,
-  language,
   row,
   rows,
   lanes,
-  expanded,
+  selected,
+  dim,
+  impacting,
   onToggle,
   onOpenSession,
-}: ChainRowItemProps): ReactElement {
-  const panelId = useId()
+}: ChainRowItemProps): ReactElement | null {
+  if (row.kind === 'live') return null
+
   const laneById = new Map(lanes.map(lane => [lane.id, lane]))
   const link = chainRowLink(row)
-  const primaryLane = laneById.get(link?.from ?? rowLaneId(row) ?? '')
-  const color = primaryLane === undefined ? '#7C8698' : laneColorHex(primaryLane)
-  const label = chainRowLabel(t, row)
-  const target = connectedTargetName(t, row, laneById)
+  const fromLane = link === undefined ? undefined : laneById.get(link.from)
+  const toLanes =
+    link === undefined
+      ? []
+      : link.to
+          .map(id => laneById.get(id))
+          .filter((lane): lane is AgentLaneView => lane !== undefined)
+  const fromColor = fromLane === undefined ? ROUTER_COLOR : laneColorHex(fromLane)
+  const height = rowHeight(row.kind)
+  const milestone = row.kind === 'milestone' || row.kind === 'dispatch'
+  const badge = chainBadge(t, row)
   const summary = chainRowSummary(row)
-  const height = ROW_HEIGHT[row.kind]
+  const rowClass = ['pa-graph__row', selected ? 'pa-graph__row--sel' : '', dim ? 'pa-graph__row--dim' : '']
+    .filter(part => part.length > 0)
+    .join(' ')
 
   return (
-    <div
-      className={expanded ? 'pa-chain-row pa-chain-row--open' : 'pa-chain-row'}
-      data-row-id={row.id}
-      data-kind={row.kind}
-    >
-      <button
-        type="button"
-        className="pa-chain-row__hit"
-        aria-expanded={expanded}
-        aria-controls={expanded ? panelId : undefined}
-        onClick={onToggle}
-      >
-        <ChainRail
-          width={railWidth(lanes.length)}
-          height={height}
-          lanes={lanes}
-          row={row}
-          link={link}
-          color={color}
-        />
-        <span className="pa-chain-row__text">
-          <span className="pa-chain-row__label">
-            <span className="pa-chain-row__name">{label}</span>
-            {target === undefined ? null : (
-              <span className="pa-chain-row__target">{target}</span>
+    <div className="pa-graph__row-wrap">
+      <button type="button" className="pa-graph__hit" aria-expanded={selected} onClick={onToggle}>
+        <div className={rowClass} style={{ height }}>
+          <Rail
+            row={row}
+            lanes={lanes}
+            height={height}
+            fromX={fromLane === undefined ? ROUTER_X : laneX(fromLane.index)}
+            fromId={link?.from}
+            targets={toLanes.map(lane => laneX(lane.index))}
+            color={chainLinkColor(row, fromColor)}
+            dotColor={fromLane === undefined ? ROUTER_COLOR : laneColorHex(fromLane)}
+          />
+          <div className="pa-graph__txt">
+            {milestone ? (
+              <MilestoneLine t={t} row={row} />
+            ) : (
+              <HopLine
+                t={t}
+                row={row}
+                badge={badge}
+                summary={summary}
+                fromLane={fromLane}
+                toLanes={toLanes}
+                impacting={impacting}
+              />
             )}
-            {row.kind === 'milestone' && row.detail !== undefined ? (
-              <Tag tone={toneTagTone(chainRowTone(row))} className="pa-chain-row__badge">
-                {row.detail}
-              </Tag>
-            ) : null}
-            {row.kind === 'approval' && row.decision !== undefined ? (
-              <Tag tone={toneTagTone(chainRowTone(row))} className="pa-chain-row__badge">
-                {t(
-                  row.decision === 'selected'
-                    ? 'chainDecisionSelected'
-                    : row.decision === 'answered'
-                      ? 'chainDecisionAnswered'
-                      : 'chainDecisionSkipped',
-                )}
-              </Tag>
-            ) : null}
-          </span>
-          {summary === undefined ? null : <span className="pa-chain-row__summary">{summary}</span>}
-        </span>
-        <span className="pa-chain-row__time">{formatClock(row.at)}</span>
+          </div>
+        </div>
       </button>
-      {expanded ? (
-        <ChainRowDetail
+      {selected ? (
+        <EdgeDetail
           t={t}
-          language={language}
           row={row}
           rows={rows}
-          laneById={laneById}
-          panelId={panelId}
-          {...(onOpenSession === undefined ? {} : { onOpenSession })}
+          lanes={lanes}
+          fromLane={fromLane}
+          toLanes={toLanes}
+          onOpenSession={onOpenSession}
         />
       ) : null}
     </div>
   )
 }
 
-/** 落单的里程碑与等待行没有连线：点画在自己那条泳道上。 */
-function rowLaneId(row: ChainRow): string | undefined {
-  if (row.kind === 'milestone') return row.lane
-  if (row.kind === 'live') return row.lane
-  return undefined
-}
-
-function connectedTargetName(
-  t: Translate,
-  row: ChainRow,
-  lanes: ReadonlyMap<string, AgentLaneView>,
-): string | undefined {
-  const link = chainRowLink(row)
-  if (link === undefined) return undefined
-  const names = link.to
-    .map(id => lanes.get(id))
-    .filter((lane): lane is AgentLaneView => lane !== undefined)
-    .map(lane => laneDisplayName(t, lane))
-  return names.length === 0 ? undefined : names.join(' / ')
-}
-
-interface ChainRailProps {
-  width: number
-  height: number
-  lanes: readonly AgentLaneView[]
+interface HopLineProps {
+  t: Translate
   row: ChainRow
-  link?: { from: string; to: string[] }
-  color: string
+  badge?: ChainBadge
+  summary?: string
+  fromLane?: AgentLaneView
+  toLanes: readonly AgentLaneView[]
+  impacting: boolean
 }
 
-/**
- * rail 上的一行：起点与终点各画一个点，中间一条弧线。
- *
- * 弧线用二次贝塞尔而不是直线：平行与交叉的投递在同一屏里能分得开。
- */
-function ChainRail({ width, height, lanes, row, link, color }: ChainRailProps): ReactElement {
-  const indexOf = (id: string): number | undefined => {
-    const index = lanes.findIndex(lane => lane.id === id)
-    return index < 0 ? undefined : index
-  }
-  const y = height / 2
-  const rowLane = rowLaneId(row)
-  const dot = rowLane === undefined ? undefined : indexOf(rowLane)
-
+function HopLine({ t, row, badge, summary, fromLane, toLanes, impacting }: HopLineProps): ReactElement {
   return (
-    <svg className="pa-chain-row__rail" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      {link === undefined ? (
-        <circle cx={dot === undefined ? laneX(0) : laneX(dot)} cy={y} r={3} fill={color} data-role="dot" />
-      ) : (
-        link.to.map(toId => {
-          const from = indexOf(link.from)
-          const to = indexOf(toId)
-          if (from === undefined || to === undefined) return null
-          const x1 = laneX(Math.min(from, to))
-          const x2 = laneX(Math.max(from, to))
-          const mid = (x1 + x2) / 2
-          return (
-            <g key={toId} data-role="link">
-              <path
-                d={`M ${x1} ${y} Q ${mid} ${y - 9} ${x2} ${y}`}
-                fill="none"
-                stroke={color}
-                strokeWidth={1.25}
-                strokeLinecap="round"
-              />
-              <circle cx={x1} cy={y} r={3} fill={color} data-role="dot" />
-              <circle cx={x2} cy={y} r={3} fill={color} data-role="dot" />
-            </g>
-          )
-        })
-      )}
-    </svg>
+    <>
+      <div className="pa-hop-top">
+        <span
+          className="pa-who"
+          style={{ '--c': fromLane === undefined ? ROUTER_COLOR : laneColorHex(fromLane) } as CSSProperties}
+        >
+          {fromLane === undefined ? t('chainWhoRouter') : laneDisplayName(t, fromLane)}
+        </span>
+        <span className="pa-arw">{row.kind === 'fan' ? '⇉' : '→'}</span>
+        {row.kind === 'fan' ? (
+          <span>{t('chainFanTarget', { count: row.to.length })}</span>
+        ) : (
+          toLanes.map(lane => (
+            <span key={lane.id} className="pa-who" style={{ '--c': laneColorHex(lane) } as CSSProperties}>
+              {laneDisplayName(t, lane)}
+            </span>
+          ))
+        )}
+        {badge === undefined ? null : (
+          <span className={badge.tone === 'plain' ? 'pa-kind' : `pa-kind pa-kind--${badge.tone}`}>
+            {badge.label}
+          </span>
+        )}
+        {impacting ? <span className="pa-impact">{t('chainImpact')}</span> : null}
+        <span className="pa-time">{formatClock(row.at)}</span>
+      </div>
+      {summary === undefined || summary.length === 0 ? null : <div className="pa-graph__sum">{summary}</div>}
+    </>
   )
 }
 
-interface ChainRowDetailProps {
+function MilestoneLine({ t, row }: { t: Translate; row: ChainRow }): ReactElement {
+  const closed = row.kind === 'milestone' && row.milestone === 'closed'
+  const failed = row.kind === 'milestone' && row.milestone === 'failed'
+  const dotStyle = closed
+    ? ({ background: 'var(--dsw-alias-state-success-primary)', borderColor: 'var(--dsw-alias-state-success-primary)' } as CSSProperties)
+    : failed
+      ? ({ background: 'var(--dsw-alias-state-error-primary)', borderColor: 'var(--dsw-alias-state-error-primary)' } as CSSProperties)
+      : undefined
+  const label =
+    row.kind === 'dispatch'
+      ? `${t('chainBrief')} · ${row.summary}`
+      : row.kind === 'milestone'
+        ? `${t(milestoneKey(row.milestone))}${row.detail === undefined ? '' : ` · ${row.detail}`}`
+        : ''
+  return (
+    <div className="pa-ms">
+      <span className="pa-ms__dot" style={dotStyle} />
+      <span className="pa-ms__label">{label}</span>
+      <span className="pa-time">{formatClock(row.at)}</span>
+    </div>
+  )
+}
+
+function milestoneKey(kind: Extract<ChainRow, { kind: 'milestone' }>['milestone']): Parameters<Translate>[0] {
+  switch (kind) {
+    case 'queued':
+      return 'chainMilestoneQueued'
+    case 'queue-busy':
+      return 'chainMilestoneQueueBusy'
+    case 'queue-capacity':
+      return 'chainMilestoneQueueCapacity'
+    case 'interrupted':
+      return 'chainMilestoneInterrupted'
+    case 'resumed':
+      return 'chainMilestoneResumed'
+    case 'approval-discarded':
+      return 'chainMilestoneApprovalDiscarded'
+    case 'closed':
+      return 'chainMilestoneClosed'
+    case 'failed':
+      return 'chainMilestoneFailed'
+  }
+}
+
+interface RailProps {
+  row: ChainRow
+  lanes: readonly AgentLaneView[]
+  height: number
+  fromX: number
+  fromId?: string
+  targets: readonly number[]
+  color: string
+  dotColor: string
+}
+
+/**
+ * rail：先铺所有泳道列（每行都铺，纵向扫下去就是泳道），再画这一行的点与弧线。
+ *
+ * 里程碑没有边：只在它所属的泳道点一个点。
+ */
+function Rail({ row, lanes, height, fromX, fromId, targets, color, dotColor }: RailProps): ReactElement {
+  const markerId = `pa-arrow-${row.id.replace(/[^A-Za-z0-9_-]/g, '-')}`
+  const milestone = row.kind === 'milestone' || row.kind === 'dispatch'
+  const y = milestone ? height / 2 : 7
+
+  return (
+    <div className="pa-rail">
+      <svg width={RAIL_WIDTH} height={height} aria-hidden="true">
+        <defs>
+          <marker id={markerId} markerWidth={5} markerHeight={5} refX={4} refY={2.5} orient="auto">
+            <path d="M0,0 L5,2.5 L0,5 Z" fill={color} />
+          </marker>
+        </defs>
+        {lanes.map(lane => (
+          <line
+            key={lane.id}
+            x1={laneX(lane.index)}
+            y1={0}
+            x2={laneX(lane.index)}
+            y2={height}
+            stroke={laneColorHex(lane)}
+            strokeOpacity={0.2}
+            strokeWidth={1}
+          />
+        ))}
+        {milestone || targets.length === 0 ? (
+          <circle
+            cx={targets[0] ?? laneX(lanes[0]?.index ?? 0)}
+            cy={y}
+            r={3}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.2}
+            opacity={0.9}
+          />
+        ) : (
+          <>
+            <circle cx={fromX} cy={y} r={3} fill={dotColor} />
+            {targets.map(target => (
+              <path
+                key={target}
+                d={`M${fromX} ${y} C${fromX} ${height * 0.55}, ${target} ${height * 0.5}, ${target} ${height - 7}`}
+                fill="none"
+                stroke={color}
+                strokeWidth={1.3}
+                markerEnd={`url(#${markerId})`}
+              />
+            ))}
+          </>
+        )}
+      </svg>
+    </div>
+  )
+}
+
+interface EdgeDetailProps {
   t: Translate
-  language: string
   row: ChainRow
   rows: readonly ChainRow[]
-  laneById: ReadonlyMap<string, AgentLaneView>
-  panelId: string
+  lanes: readonly AgentLaneView[]
+  fromLane?: AgentLaneView
+  toLanes: readonly AgentLaneView[]
   onOpenSession?: (sessionId: string) => void
 }
 
-function ChainRowDetail({
-  t,
-  language,
-  row,
-  rows,
-  laneById,
-  panelId,
-  onOpenSession,
-}: ChainRowDetailProps): ReactElement {
-  const link = chainRowLink(row)
+function EdgeDetail({ t, row, rows, lanes, fromLane, toLanes, onOpenSession }: EdgeDetailProps): ReactElement {
+  const laneById = new Map(lanes.map(lane => [lane.id, lane]))
+  const badge = chainBadge(t, row)
   const text = 'text' in row && typeof row.text === 'string' ? row.text : undefined
   const facts = factsAfter(rows, row)
   const impact = impactRows(rows, row)
-  const from = link === undefined ? undefined : laneById.get(link.from)
-  const to =
-    link === undefined
-      ? []
-      : link.to
-          .map(id => laneById.get(id))
-          .filter((lane): lane is AgentLaneView => lane !== undefined)
+  const anchor = row.anchor
+  const metaParts: string[] = []
+  if (anchor?.turn !== undefined) metaParts.push(t('edgeRound', { turn: anchor.turn }))
+  if (anchor?.seq !== undefined) metaParts.push(`seq ${anchor.seq}`)
 
   return (
-    <div className="pa-chain-edge" id={panelId}>
-      <div className="pa-chain-edge__meta">
-        <span>
-          {from === undefined ? '' : laneDisplayName(t, from)}
-          {to.length === 0 ? '' : ` → ${to.map(lane => laneDisplayName(t, lane)).join(' / ')}`}
+    <div className="pa-edge">
+      <div className="pa-edge__head">
+        <span
+          className="pa-who"
+          style={{ '--c': fromLane === undefined ? ROUTER_COLOR : laneColorHex(fromLane) } as CSSProperties}
+        >
+          {fromLane === undefined ? t('chainWhoRouter') : laneDisplayName(t, fromLane)}
         </span>
-        <span>{chainRowLabel(t, row)}</span>
-        <span>{formatTimestamp(language, row.at)}</span>
-        {row.anchor === undefined ? null : (
-          <span>{t('edgeAt', { turn: row.anchor.turn ?? '-', step: row.anchor.step ?? '-', seq: row.anchor.seq ?? '-' })}</span>
+        <span className="pa-arw">→</span>
+        {toLanes.map(lane => (
+          <span key={lane.id} className="pa-who" style={{ '--c': laneColorHex(lane) } as CSSProperties}>
+            {laneDisplayName(t, lane)}
+          </span>
+        ))}
+        {badge === undefined ? null : (
+          <span className={badge.tone === 'plain' ? 'pa-kind' : `pa-kind pa-kind--${badge.tone}`}>
+            {badge.label}
+          </span>
         )}
+        {metaParts.length === 0 ? null : <span className="pa-edge__meta">· {metaParts.join(' · ')}</span>}
+        <span className="pa-time">{formatClock(row.at)}</span>
       </div>
-      {text === undefined ? null : <p className="pa-chain-edge__text">{text}</p>}
-      <section className="pa-chain-edge__section">
-        <h4>{t('edgeAfterFacts')}</h4>
-        {facts.length === 0 ? (
-          <p className="pa-chain-edge__empty">{t('edgeNoFacts')}</p>
-        ) : (
-          <ul>
-            {facts.map(fact => (
-              <li key={fact.id}>
-                <span>{chainRowLabel(t, fact)}</span>
-                {chainRowSummary(fact) === undefined ? null : <span>: {chainRowSummary(fact)}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <section className="pa-chain-edge__section">
-        <h4>{t('edgeImpact')}</h4>
-        {impact.length === 0 ? (
-          <p className="pa-chain-edge__empty">{t('edgeNoImpact')}</p>
-        ) : (
-          <ul>
-            {impact.map(item => (
-              <li key={item.id}>
-                <span>{chainRowLabel(t, item)}</span>
-                {chainRowSummary(item) === undefined ? null : <span>: {chainRowSummary(item)}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {text === undefined ? null : <p className="pa-edge__quote">{text}</p>}
+      <div className="pa-edge__sub">{t('edgeAfterFacts')}</div>
+      {facts.length === 0 ? (
+        <div className="pa-edge__empty">{t('edgeNoFacts')}</div>
+      ) : (
+        <div className="pa-edge__list">
+          {facts.map(fact => (
+            <div className="pa-edge__li" key={fact.id}>
+              <em>{formatClock(fact.at)}</em>
+              <span>{factText(t, fact, laneById)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="pa-edge__sub">{t('edgeImpact', { count: impact.length })}</div>
+      {impact.length === 0 ? (
+        <div className="pa-edge__empty">{t('edgeNoImpact')}</div>
+      ) : (
+        <div className="pa-edge__tree">
+          {impact.map((item, index) => (
+            <div key={item.id} className={index === 0 ? 'pa-edge__tree-item' : 'pa-edge__tree-indent'}>
+              {index === 0 ? <span className="pa-edge__tree-dot" /> : '↳ '}
+              {impactText(t, item, laneById)}
+            </div>
+          ))}
+        </div>
+      )}
       {onOpenSession === undefined ? null : (
-        <div className="pa-chain-edge__actions">
-          {from?.sessionId === undefined ? null : (
-            <Button variant="ghost" size="sm" onClick={() => onOpenSession(from.sessionId as string)}>
-              {t('edgeLocate', { name: laneDisplayName(t, from) })}
-            </Button>
+        <div className="pa-edge__actions">
+          {fromLane?.sessionId === undefined ? null : (
+            <button
+              type="button"
+              className="pa-edge__action"
+              onClick={() => onOpenSession(fromLane.sessionId as string)}
+            >
+              {t('edgeLocate', { name: laneDisplayName(t, fromLane) })}
+            </button>
           )}
-          {to.map(lane =>
+          {toLanes.map(lane =>
             lane.sessionId === undefined ? null : (
-              <Button
+              <button
+                type="button"
                 key={lane.id}
-                variant="ghost"
-                size="sm"
+                className="pa-edge__action"
                 onClick={() => onOpenSession(lane.sessionId as string)}
               >
                 {t('edgeLocate', { name: laneDisplayName(t, lane) })}
-              </Button>
+              </button>
             ),
           )}
         </div>
@@ -308,9 +380,42 @@ function ChainRowDetail({
   )
 }
 
-/** 行右侧只放时刻：同一屏里的行按时间读，比再写一遍日期省地方。 */
-function formatClock(at: number): string {
-  const date = new Date(at)
-  const pad = (value: number): string => String(value).padStart(2, '0')
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+/** 「收到后它做了什么」的一条：动作 + 目标 + 摘要。 */
+function factText(t: Translate, row: ChainRow, laneById: ReadonlyMap<string, AgentLaneView>): string {
+  if (row.kind === 'approval') return t('edgeFactApproval', { summary: row.summary })
+  const badge = chainBadge(t, row)
+  const link = chainRowLink(row)
+  const targets =
+    link === undefined
+      ? []
+      : link.to
+          .map(id => laneById.get(id))
+          .filter((lane): lane is AgentLaneView => lane !== undefined)
+          .map(lane => laneDisplayName(t, lane))
+  const target = targets.join(' / ')
+  const summary = chainRowSummary(row) ?? ''
+  if (badge === undefined) return summary
+  if (target.length === 0) return summary.length === 0 ? badge.label : `${badge.label}：${summary}`
+  return summary.length === 0
+    ? t('edgeFactTo', { action: badge.label, target })
+    : t('edgeFactToSummary', { action: badge.label, target, summary })
+}
+
+/** 影响范围的一条：A → B · 动作 · 时间。 */
+function impactText(t: Translate, row: ChainRow, laneById: ReadonlyMap<string, AgentLaneView>): string {
+  const link = chainRowLink(row)
+  if (row.kind === 'approval') return t('edgeFactApproval', { summary: row.summary })
+  if (link === undefined) return chainRowSummary(row) ?? ''
+  const from = laneById.get(link.from)
+  const to = link.to
+    .map(id => laneById.get(id))
+    .filter((lane): lane is AgentLaneView => lane !== undefined)
+    .map(lane => laneDisplayName(t, lane))
+  const badge = chainBadge(t, row)
+  return t('edgeImpactLine', {
+    from: from === undefined ? t('chainWhoRouter') : laneDisplayName(t, from),
+    target: to.join(' / '),
+    action: badge?.label ?? '',
+    time: formatClock(row.at),
+  })
 }

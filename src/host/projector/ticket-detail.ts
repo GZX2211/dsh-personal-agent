@@ -415,11 +415,14 @@ function relationOf(context: RowContext, from: string, to: string): 'down' | 'up
   return 'lateral'
 }
 
+/**
+ * 泳道：人（若参与）在最左，然后是负责人与子代理。
+ *
+ * router 不占泳道：它没有执行过程，派单只体现为「简报投递」那一行。把 router 画成
+ * 一列会让真正有过程的会话整体右移一列，窄栏里读起来更挤。
+ */
 function buildLanes(context: RowContext, rows: readonly ChainRow[]): AgentLaneView[] {
   const lanes: AgentLaneView[] = []
-  const router: AgentLaneView = { id: 'router', index: 0, role: 'router', status: 'idle' }
-  if (context.requestedBySessionId !== undefined) router.sessionId = context.requestedBySessionId
-  lanes.push(router)
 
   if (context.events.some(event => event.type === 'approval/pending')) {
     lanes.push({ id: 'human', index: 0, role: 'human', status: 'idle' })
@@ -432,7 +435,7 @@ function buildLanes(context: RowContext, rows: readonly ChainRow[]): AgentLaneVi
     if (id === root) continue
     lanes.push(laneOf(context, id, 'subagent', parentOf(context, id)))
   }
-  // 列顺序就是泳道顺序：router 最左，人其次，负责人，然后按出现顺序排列子代理。
+  // 列顺序就是泳道顺序：人最左，负责人其次，然后按出现顺序排列子代理。
   lanes.forEach((lane, index) => {
     lane.index = index
   })
