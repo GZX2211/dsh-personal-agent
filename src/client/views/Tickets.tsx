@@ -6,11 +6,13 @@
 import { AnimatedRows } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState, type ReactElement } from 'react'
 import type { SnapshotResponse } from '../../shared/api.ts'
+import { NO_ACTIONS, type ConsoleActions } from '../actions.ts'
 import { FilterBar } from '../components/FilterBar.tsx'
 import { TicketCard } from '../components/TicketCard.tsx'
 import type { Translate } from '../i18n.ts'
 import { filterTickets } from '../lib/filter.ts'
 import { matchesTicketCapsule, sortTicketsNewestFirst, type TicketCapsule } from '../lib/tickets.ts'
+import { TicketDetail } from './TicketDetail.tsx'
 
 const CAPSULES: readonly TicketCapsule[] = ['queued', 'running', 'ended', 'all']
 
@@ -20,11 +22,36 @@ export interface TicketsProps {
   snapshot?: SnapshotResponse
   /** 初始搜索词：事件页跳工单时用短码定位；变化由父级以 key 重挂载生效。 */
   initialQuery?: string
+  actions?: ConsoleActions
 }
 
-export function Tickets({ t, language, snapshot, initialQuery }: TicketsProps): ReactElement {
+export function Tickets({
+  t,
+  language,
+  snapshot,
+  initialQuery,
+  actions = NO_ACTIONS,
+}: TicketsProps): ReactElement {
   const [capsule, setCapsule] = useState<TicketCapsule>('running')
   const [query, setQuery] = useState(initialQuery ?? '')
+  const [selectedTicketId, setSelectedTicketId] = useState<string>()
+  const [notice, setNotice] = useState<string>()
+
+  if (selectedTicketId !== undefined) {
+    return (
+      <TicketDetail
+        ticketId={selectedTicketId}
+        t={t}
+        language={language}
+        actions={actions}
+        onBack={() => setSelectedTicketId(undefined)}
+        onMissing={() => {
+          setSelectedTicketId(undefined)
+          setNotice(t('ticketDetailNotFound'))
+        }}
+      />
+    )
+  }
 
   const tickets = snapshot?.tickets ?? []
   const ordered = sortTicketsNewestFirst(tickets)
@@ -33,6 +60,11 @@ export function Tickets({ t, language, snapshot, initialQuery }: TicketsProps): 
 
   return (
     <>
+      {notice === undefined ? null : (
+        <div className="pa-console__notice" role="status">
+          {notice}
+        </div>
+      )}
       <FilterBar
         options={CAPSULES.map(id => ({ id, label: t(capsuleLabelKey(id)) }))}
         active={capsule}
@@ -59,7 +91,18 @@ export function Tickets({ t, language, snapshot, initialQuery }: TicketsProps): 
         {visible.length === 0 ? (
           <span className="pa-console__empty">{t(emptyKey(capsule, query, capsuleHasItems))}</span>
         ) : (
-          visible.map(ticket => <TicketCard key={ticket.id} t={t} language={language} ticket={ticket} />)
+          visible.map(ticket => (
+            <TicketCard
+              key={ticket.id}
+              t={t}
+              language={language}
+              ticket={ticket}
+              onOpen={() => {
+                setNotice(undefined)
+                setSelectedTicketId(ticket.id)
+              }}
+            />
+          ))
         )}
       </AnimatedRows>
     </>

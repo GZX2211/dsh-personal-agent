@@ -29,7 +29,9 @@ function classNames(files: readonly string[]): string[] {
     const text = readFileSync(file, 'utf8')
     for (const match of text.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
       const value = match[1] ?? match[2] ?? ''
-      for (const token of value.split(/\s+/)) {
+      for (const raw of value.split(/\s+/)) {
+        // 模板字符串里的条件类名形如 `'pa-row--interactive'`，去掉包裹的引号。
+        const token = raw.replace(/^['"]+|['"]+$/g, '')
         if (token.startsWith('pa-')) names.push(token)
       }
     }

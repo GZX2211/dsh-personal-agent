@@ -76,4 +76,11 @@ describe('Tickets view', () => {
     expect(html).toContain('进行中')
     expect(html).toContain('pa-toolbar__search')
   })
+
+  it('makes each ticket row the entry into its detail page', () => {
+    const html = render({ snapshot: snapshot({ tickets: [ticket()] }) })
+
+    expect(html).toContain('role="button"')
+    expect(html).toContain('pa-row--interactive')
+  })
 })

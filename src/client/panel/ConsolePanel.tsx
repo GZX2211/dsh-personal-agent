@@ -97,6 +97,7 @@ export function ConsolePanel({
             language={language}
             snapshot={snapshot}
             initialQuery={ticketFocus}
+            actions={actions}
           />
         ) : null}
         {active === 'events' ? (

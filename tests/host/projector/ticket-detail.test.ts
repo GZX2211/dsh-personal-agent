@@ -113,6 +113,10 @@ function turnStart(seq: number, time: number, turn = 1): SessionEvent {
   return sessionEvent(seq, time, 'turn/start', { turn })
 }
 
+function turnEnd(seq: number, time: number, turn = 1): SessionEvent {
+  return sessionEvent(seq, time, 'turn/end', { turn })
+}
+
 function userMessage(
   seq: number,
   time: number,
@@ -141,6 +145,24 @@ function assistantMessage(
     message: { role: 'assistant', content: [] },
     stream: [],
     usage,
+  })
+}
+
+function assistantText(
+  seq: number,
+  time: number,
+  text: string,
+  turn = 1,
+  step = 1,
+  interrupted = false,
+): SessionEvent {
+  return sessionEvent(seq, time, 'assistant/message', {
+    turn,
+    step,
+    message: { role: 'assistant', content: [{ type: 'text', text }] },
+    stream: [],
+    usage: {},
+    ...(interrupted ? { interrupted: true } : {}),
   })
 }
 
@@ -204,13 +226,16 @@ describe('deriveTicketDetail', () => {
       now: BASE + 3000,
     })
 
-    // router 不占泳道：人（若参与）在最左，其次是负责人与子代理。
+    // 三主轨常驻：Router、人、负责人在前，子代理从 3 开始。
     expect(detail.lanes.map(lane => [lane.id, lane.index, lane.role])).toEqual([
-      [WORKER, 0, 'lead'],
-      [REVIEWER, 1, 'subagent'],
+      ['router', 0, 'router'],
+      ['human', 1, 'human'],
+      [WORKER, 2, 'lead'],
+      [REVIEWER, 3, 'subagent'],
     ])
-    expect(detail.lanes[1]).toMatchObject({ name: 'reviewer', parentId: WORKER })
-    expect(detail.lanes[0]?.sessionId).toBe(WORKER)
+    expect(detail.lanes[3]).toMatchObject({ name: 'reviewer', parentId: WORKER })
+    expect(detail.lanes[2]?.sessionId).toBe(WORKER)
+    expect(detail.metrics.agents).toBe(2)
   })
 
   it('draws the dispatch row from the ledger and the brief from the worker log', () => {
@@ -246,7 +271,7 @@ describe('deriveTicketDetail', () => {
     })
   })
 
-  it('keeps a queued ticket without worker lanes', () => {
+  it('keeps a queued ticket on three permanent lanes with an unbound worker', () => {
     const detail = deriveTicketDetail({
       ticket: ticket({ stage: 'queued', queueReason: 'capacity-full' }),
       ledger: [signalEvent(1, 's-1', '事实'), queuedEvent(2, { queueReason: 'capacity-full' })],
@@ -254,10 +279,16 @@ describe('deriveTicketDetail', () => {
       now: BASE + 500,
     })
 
-    expect(detail.lanes).toEqual([])
+    expect(detail.lanes).toEqual([
+      { id: 'router', index: 0, role: 'router', status: 'idle' },
+      { id: 'human', index: 1, role: 'human', status: 'idle' },
+      { id: 'worker', index: 2, role: 'lead', status: 'idle' },
+    ])
     expect(detail.rows).toEqual([
       expect.objectContaining({ kind: 'milestone', milestone: 'queue-capacity', at: BASE + 2 }),
     ])
+    // 占位 Worker 没有会话，不计入执行会话数。
+    expect(detail.metrics.agents).toBe(0)
     expect(detail.completeness.logs).toBe('full')
   })
 
@@ -311,9 +342,15 @@ describe('deriveTicketDetail', () => {
     })
 
     expect(detail.rows.at(-1)).toEqual(
-      expect.objectContaining({ kind: 'live', lane: WORKER, live: 'running', turn: 2 }),
+      expect.objectContaining({
+        kind: 'live',
+        lane: WORKER,
+        live: 'running',
+        turn: 2,
+        liveAgents: [{ lane: WORKER, turn: 2 }],
+      }),
     )
-    expect(detail.lanes[0]).toMatchObject({ status: 'running', currentTurn: 2, turns: 1 })
+    expect(detail.lanes[2]).toMatchObject({ status: 'running', currentTurn: 2, turns: 1 })
   })
 
   it('turns an agent message into a hop from the sender to the receiver', () => {
@@ -370,8 +407,8 @@ describe('deriveTicketDetail', () => {
     })
 
     expect(detail.rows.filter(row => row.kind === 'spawn')).toEqual([])
-    expect(detail.lanes.map(lane => lane.role)).toEqual(['lead', 'subagent'])
-    expect(detail.lanes[1]).toMatchObject({ id: REVIEWER, name: 'reviewer', parentId: WORKER })
+    expect(detail.lanes.map(lane => lane.role)).toEqual(['router', 'human', 'lead', 'subagent'])
+    expect(detail.lanes[3]).toMatchObject({ id: REVIEWER, name: 'reviewer', parentId: WORKER })
     expect(detail.rows).toContainEqual(
       expect.objectContaining({ kind: 'hop', from: WORKER, to: REVIEWER, direction: 'down' }),
     )
@@ -481,7 +518,7 @@ describe('deriveTicketDetail', () => {
         at: BASE + 3000,
       }),
     )
-    expect(detail.lanes.map(lane => lane.role)).toEqual(['human', 'lead'])
+    expect(detail.lanes.map(lane => lane.role)).toEqual(['router', 'human', 'lead'])
   })
 
   it('waits on the human while an approval is pending', () => {
@@ -598,6 +635,167 @@ describe('deriveTicketDetail', () => {
     // WORKER→REVIEWER 之后紧跟 REVIEWER→WORKER：一问一答，算一次来回。
     expect(detail.metrics.hops).toBe(2)
     expect(detail.metrics.pingPong).toBe(1)
+  })
+
+  it('lists every running agent in the live row', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [queuedEvent(1), dispatchedEvent(2)],
+      sessions: new Map([
+        [
+          WORKER,
+          facts(
+            [
+              turnStart(1, BASE + 1002, 2),
+              assistantText(2, BASE + 1100, '正在重写接口契约\n第二行不该出现在活动里', 2),
+            ],
+            [{ childId: REVIEWER, childCreatedAt: BASE + 1200, name: 'reviewer' }],
+          ),
+        ],
+        [REVIEWER, facts([turnStart(1, BASE + 1300), assistantText(2, BASE + 1400, '复核 v2 契约', 1)])],
+      ]),
+      now: BASE + 3000,
+    })
+
+    expect(detail.rows.at(-1)).toMatchObject({
+      kind: 'live',
+      live: 'running',
+      liveAgents: [
+        { lane: WORKER, activity: '正在重写接口契约', turn: 2 },
+        { lane: REVIEWER, activity: '复核 v2 契约', turn: 1 },
+      ],
+    })
+  })
+
+  it('falls back to the turn when a running agent has no assistant text', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [queuedEvent(1), dispatchedEvent(2)],
+      sessions: new Map([[WORKER, facts([turnStart(1, BASE + 1002, 3), assistantText(2, BASE + 1100, '已完成', 3, 1, true)])]]),
+      now: BASE + 3000,
+    })
+
+    expect(detail.rows.at(-1)).toMatchObject({
+      kind: 'live',
+      liveAgents: [{ lane: WORKER, turn: 3 }],
+    })
+  })
+
+  it('does not attach live agents while an approval waits on the human', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ stage: 'blocked', dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [
+        queuedEvent(1),
+        dispatchedEvent(2),
+        event(3, 'approval/pending', {
+          approvalId: 'a-1',
+          ticketId: TICKET_ID,
+          question: '要不要发布？',
+          options: [{ label: '发布', description: '上线' }],
+          requestedBySessionId: WORKER,
+        }, { time: BASE + 2000, actor: 'worker', sessionId: WORKER }),
+      ],
+      sessions: new Map([[WORKER, facts([turnStart(1, BASE + 1002, 2)])]]),
+      now: BASE + 4000,
+    })
+
+    expect(detail.rows.at(-1)).toMatchObject({ kind: 'live', live: 'waiting-approval', lane: 'human' })
+    expect(detail.rows.at(-1)).not.toHaveProperty('liveAgents')
+  })
+
+  it('waits on the worker when no agent is running', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [queuedEvent(1), dispatchedEvent(2)],
+      sessions: new Map([[WORKER, facts([turnStart(1, BASE + 1002, 1), turnEnd(2, BASE + 1200, 1)])]]),
+      now: BASE + 3000,
+    })
+
+    expect(detail.rows.at(-1)).toMatchObject({
+      kind: 'live',
+      live: 'waiting-agent',
+      lane: WORKER,
+      waitingOn: WORKER,
+      turn: 1,
+    })
+  })
+
+  it('records a direct user message to the worker as an intervention', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({ dispatchedAt: BASE + 1000, workerSessionId: WORKER }),
+      ledger: [queuedEvent(1), dispatchedEvent(2)],
+      sessions: new Map([
+        [
+          WORKER,
+          facts([
+            userMessage(1, BASE + 2000, '回归范围包含 v1 兼容\n按这个范围继续', { kind: 'user' }, 'user-1'),
+            userMessage(
+              2,
+              BASE + 2100,
+              '插件补充不算介入',
+              { kind: 'dsh-personal-agent' },
+              'pa-delivery:one',
+            ),
+            userMessage(
+              3,
+              BASE + 2200,
+              '子代理消息是投递',
+              { kind: 'agent-message', senderSessionId: REVIEWER },
+              'agent-1',
+            ),
+          ]),
+        ],
+      ]),
+      now: BASE + 3000,
+    })
+
+    expect(detail.rows).toContainEqual(
+      expect.objectContaining({
+        kind: 'intervene',
+        from: 'human',
+        to: WORKER,
+        summary: '回归范围包含 v1 兼容',
+        text: '回归范围包含 v1 兼容\n按这个范围继续',
+        anchor: { sessionId: WORKER, seq: 1 },
+        at: BASE + 2000,
+      }),
+    )
+    expect(detail.rows.filter(row => row.kind === 'intervene')).toHaveLength(1)
+    expect(detail.rows).toContainEqual(
+      expect.objectContaining({ kind: 'hop', from: REVIEWER, to: WORKER }),
+    )
+  })
+
+  it('does not record user messages after the ticket ended or to subagents', () => {
+    const detail = deriveTicketDetail({
+      ticket: ticket({
+        stage: 'ended',
+        dispatchedAt: BASE + 1000,
+        endedAt: BASE + 2500,
+        outcome: 'completed',
+        workerSessionId: WORKER,
+      }),
+      ledger: [queuedEvent(1), dispatchedEvent(2), closedEvent(3, BASE + 2500)],
+      sessions: new Map([
+        [
+          WORKER,
+          facts(
+            [
+              userMessage(1, BASE + 2000, '结束前的最后一句', { kind: 'user' }, 'user-1'),
+              userMessage(2, BASE + 2500, '结束同一刻的消息', { kind: 'user' }, 'user-2'),
+              userMessage(3, BASE + 2600, '结束后的消息', { kind: 'user' }, 'user-3'),
+            ],
+            [{ childId: REVIEWER, childCreatedAt: BASE + 1500, name: 'reviewer' }],
+          ),
+        ],
+        [REVIEWER, facts([userMessage(1, BASE + 2400, '用户直接对子代理说', { kind: 'user' }, 'user-4')])],
+      ]),
+      now: BASE + 5000,
+    })
+
+    expect(detail.rows.filter(row => row.kind === 'intervene')).toEqual([
+      expect.objectContaining({ kind: 'intervene', summary: '结束前的最后一句', at: BASE + 2000 }),
+    ])
   })
 
   it('counts agents, hops, turns, tokens and duration', () => {

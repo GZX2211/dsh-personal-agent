@@ -16,11 +16,13 @@ export interface TicketCardProps {
   t: Translate
   language: string
   ticket: TicketView
+  /** 整行点击进入详情。 */
+  onOpen?: () => void
   /** 渲染时刻：相对时间与测试用，缺省取当前时钟。 */
   now?: number
 }
 
-export function TicketCard({ t, language, ticket, now = Date.now() }: TicketCardProps): ReactElement {
+export function TicketCard({ t, language, ticket, onOpen, now = Date.now() }: TicketCardProps): ReactElement {
   const badge = ticketBadge(ticket)
 
   return (
@@ -34,6 +36,7 @@ export function TicketCard({ t, language, ticket, now = Date.now() }: TicketCard
         detail: formatTimestamp(language, ticket.updatedAt),
       }}
       status={{ tone: ticketTagTone(badge.tone), label: t(badge.labelKey) }}
+      {...(onOpen === undefined ? {} : { onActivate: onOpen })}
       action={
         <Tag tone="outline" className="pa-row__ref">
           {`${t('ticketLabel')} #${ticket.shortId}`}

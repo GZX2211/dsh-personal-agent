@@ -91,7 +91,7 @@ describe('createTicketDetailService', () => {
       ticket: { id: TICKET_ID },
       completeness: { logs: 'full' },
     })
-    expect(detail?.lanes.map(lane => lane.role)).toEqual(['lead'])
+    expect(detail?.lanes.map(lane => lane.role)).toEqual(['router', 'human', 'lead'])
     expect(detail?.rows[0]).toMatchObject({ kind: 'dispatch', to: WORKER })
   })
 
@@ -136,7 +136,7 @@ describe('createTicketDetailService', () => {
     const second = await details.detail(TICKET_ID)
 
     expect(second).not.toBe(first)
-    expect(second?.lanes[0]).toMatchObject({ status: 'running', turns: 1 })
+    expect(second?.lanes[2]).toMatchObject({ status: 'running', turns: 1 })
   })
 
   it('keeps an ended ticket cached longer than a running one', async () => {

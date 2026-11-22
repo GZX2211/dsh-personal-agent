@@ -18,6 +18,8 @@ import type {
   DispatchRow,
   FanRow,
   HopRow,
+  InterveneRow,
+  LiveAgentView,
   LiveRow,
   MilestoneKind,
   MilestoneRow,
@@ -33,6 +35,8 @@ import type { TicketView } from '../../shared/tickets.ts'
 const TEXT_LIMIT = 4000
 /** 行摘要长度：一行装得下的量。 */
 const SUMMARY_LIMIT = 120
+/** Live 活动文案上限：一行轮播装得下。 */
+const LIVE_ACTIVITY_LIMIT = 80
 /** 扇出合并窗口：同一父级在这段时间内的连续 spawn 视为一次并行派发。 */
 const FAN_WINDOW_MS = 10_000
 
@@ -378,7 +382,12 @@ function spawnRows(
   return rows
 }
 
-/** 一条 Agent 主动投递 → 一条 hop；工具返回与完成通知是回执，不画。 */
+/**
+ * 一条会话投递 → hop / intervene；工具返回与完成通知是回执，不画。
+ *
+ * 介入只认根 Worker 会话里 `source.kind === 'user'` 的消息：插件简报、补充、审批结果
+ * 也是 user/message，但它们是本插件投递的，不是人绕过 Router 的插话。
+ */
 function messageRow(context: RowContext, sessionId: string, event: SessionEvent): ChainRow[] {
   if (event.type !== 'user/message') return []
   const message = event.data as {
@@ -386,24 +395,44 @@ function messageRow(context: RowContext, sessionId: string, event: SessionEvent)
     source?: { kind?: string; senderSessionId?: string }
   }
   const source = message.source
-  if (source?.kind !== 'agent-message' || typeof source.senderSessionId !== 'string') return []
-  const sender = source.senderSessionId
-  if (sender === sessionId) return []
-  const text = stripAgentPrefix(joinText(message.content))
+
+  if (source?.kind === 'agent-message' && typeof source.senderSessionId === 'string') {
+    const sender = source.senderSessionId
+    if (sender === sessionId) return []
+    const text = stripAgentPrefix(joinText(message.content))
+    if (text.length === 0) return []
+    return [
+      {
+        id: `hop:${sessionId}:${event.seq}`,
+        kind: 'hop',
+        at: event.time,
+        from: sender,
+        to: sessionId,
+        direction: relationOf(context, sender, sessionId),
+        summary: firstLine(text, SUMMARY_LIMIT),
+        text: truncate(text, TEXT_LIMIT),
+        anchor: { sessionId, seq: event.seq },
+      } satisfies HopRow,
+    ]
+  }
+
+  if (source?.kind !== 'user') return []
+  if (sessionId !== context.ticket.workerSessionId) return []
+  // 结束后用户再发消息属于下一段对话，不是这张单的交接。
+  if (context.ticket.endedAt !== undefined && event.time >= context.ticket.endedAt) return []
+  const text = joinText(message.content)
   if (text.length === 0) return []
-  const direction = relationOf(context, sender, sessionId)
   return [
     {
-      id: `hop:${sessionId}:${event.seq}`,
-      kind: 'hop',
+      id: `intervene:${sessionId}:${event.seq}`,
+      kind: 'intervene',
       at: event.time,
-      from: sender,
+      from: 'human',
       to: sessionId,
-      direction,
       summary: firstLine(text, SUMMARY_LIMIT),
       text: truncate(text, TEXT_LIMIT),
       anchor: { sessionId, seq: event.seq },
-    } satisfies HopRow,
+    } satisfies InterveneRow,
   ]
 }
 
@@ -416,26 +445,29 @@ function relationOf(context: RowContext, from: string, to: string): 'down' | 'up
 }
 
 /**
- * 泳道：人（若参与）在最左，然后是负责人与子代理。
+ * 泳道：Router、人、负责人三主轨常驻，子代理排在负责人右侧。
  *
- * router 不占泳道：它没有执行过程，派单只体现为「简报投递」那一行。把 router 画成
- * 一列会让真正有过程的会话整体右移一列，窄栏里读起来更挤。
+ * 三轨常驻是为了让时间线在任何状态下都有可读的流向：排队时 Worker 列显示待放行，
+ * 没有子代理时 Router → Worker 的派发线仍然成立。占位 Worker 没有会话，因此不带
+ * sessionId，也不参与 Agent 计数。
  */
 function buildLanes(context: RowContext, rows: readonly ChainRow[]): AgentLaneView[] {
-  const lanes: AgentLaneView[] = []
-
-  if (context.events.some(event => event.type === 'approval/pending')) {
-    lanes.push({ id: 'human', index: 0, role: 'human', status: 'idle' })
-  }
+  const lanes: AgentLaneView[] = [
+    { id: 'router', index: 0, role: 'router', status: 'idle' },
+    { id: 'human', index: 1, role: 'human', status: 'idle' },
+  ]
 
   const root = context.ticket.workerSessionId
-  if (root !== undefined) lanes.push(laneOf(context, root, 'lead', undefined))
+  lanes.push(
+    root === undefined
+      ? { id: 'worker', index: 2, role: 'lead', status: 'idle' }
+      : laneOf(context, root, 'lead', undefined),
+  )
 
   for (const id of childOrder(context, rows)) {
     if (id === root) continue
     lanes.push(laneOf(context, id, 'subagent', parentOf(context, id)))
   }
-  // 列顺序就是泳道顺序：人最左，负责人其次，然后按出现顺序排列子代理。
   lanes.forEach((lane, index) => {
     lane.index = index
   })
@@ -467,7 +499,7 @@ function childName(context: RowContext, childId: string): string | undefined {
 function childOrder(context: RowContext, rows: readonly ChainRow[]): string[] {
   const order: string[] = []
   const push = (id: string | undefined): void => {
-    if (id === undefined || id === 'router' || id === 'human') return
+    if (id === undefined || id === 'router' || id === 'human' || id === 'worker') return
     if (!order.includes(id)) order.push(id)
   }
   for (const sessionId of orderedSessionIds(context)) {
@@ -490,7 +522,14 @@ function childOrder(context: RowContext, rows: readonly ChainRow[]): string[] {
         break
     }
   }
-  return order
+  // catalog 顺序通常已经是父在前；按深度稳定排序兜住嵌套登记乱序的情况。
+  const depth = (id: string, seen: ReadonlySet<string> = new Set()): number => {
+    if (seen.has(id)) return 1
+    const parent = parentOf(context, id)
+    if (parent === undefined || parent === id || parent === context.ticket.workerSessionId) return 1
+    return depth(parent, new Set([...seen, id])) + 1
+  }
+  return order.sort((left, right) => depth(left) - depth(right))
 }
 
 function laneOf(
@@ -594,20 +633,68 @@ function buildLive(context: RowContext, lanes: readonly AgentLaneView[]): LiveRo
       waitingOn: pending.requestedBySessionId,
     }
   }
-  const active = lanes.find(lane => lane.status === 'running' && lane.role !== 'human')
-  if (active !== undefined) {
+
+  const running = lanes.filter(
+    lane => lane.status === 'running' && (lane.role === 'lead' || lane.role === 'subagent'),
+  )
+  if (running.length > 0) {
+    const agents = running.map(lane => liveAgentOf(context, lane))
+    const first = running[0]
     return {
-      id: `live:${active.id}`,
+      id: `live:${first?.id ?? 'agent'}`,
       kind: 'live',
       at: context.now,
-      lane: active.id,
+      ...(first === undefined ? {} : { lane: first.id }),
       live: 'running',
-      ...(active.currentTurn === undefined ? {} : { turn: active.currentTurn }),
+      ...(first?.currentTurn === undefined ? {} : { turn: first.currentTurn }),
+      liveAgents: agents,
     }
   }
+
   const root = context.ticket.workerSessionId
   if (root === undefined) return undefined
-  return { id: 'live:ticket', kind: 'live', at: context.now, lane: root, live: 'waiting-agent', waitingOn: root }
+  const rootLane = lanes.find(lane => lane.id === root)
+  return {
+    id: 'live:ticket',
+    kind: 'live',
+    at: context.now,
+    lane: root,
+    live: 'waiting-agent',
+    waitingOn: root,
+    ...(rootLane?.turns === undefined || rootLane.turns <= 0 ? {} : { turn: rootLane.turns }),
+  }
+}
+
+function liveAgentOf(context: RowContext, lane: AgentLaneView): LiveAgentView {
+  const activity = latestAssistantLine(context, lane.id)
+  return {
+    lane: lane.id,
+    ...(activity === undefined ? {} : { activity }),
+    ...(lane.currentTurn === undefined ? {} : { turn: lane.currentTurn }),
+  }
+}
+
+/**
+ * 当前活动取会话窗口里最后一条 assistant 文本的首行。
+ *
+ * 被中断的半截输出不能代表「正在做什么」，跳过；只有工具调用时没有文本，返回空，
+ * 由客户端回退到轮次。
+ */
+function latestAssistantLine(context: RowContext, sessionId: string): string | undefined {
+  const facts = context.sessions.get(sessionId)
+  if (facts === undefined) return undefined
+  for (let index = facts.events.length - 1; index >= 0; index -= 1) {
+    const event = facts.events[index]
+    if (event === undefined || event.type !== 'assistant/message') continue
+    const data = event.data as {
+      interrupted?: boolean
+      message?: { content?: readonly { type: string; text?: string }[] }
+    }
+    if (data.interrupted === true) continue
+    const text = joinText(data.message?.content)
+    if (text.length > 0) return firstLine(text, LIVE_ACTIVITY_LIMIT)
+  }
+  return undefined
 }
 
 /** 最后一条没有被决定/作废收口的审批。 */
@@ -654,7 +741,9 @@ function countMetrics(
     tokens += stats.tokens
   }
   return {
-    agents: lanes.filter(lane => lane.role === 'lead' || lane.role === 'subagent').length,
+    agents: lanes.filter(
+      lane => (lane.role === 'lead' || lane.role === 'subagent') && lane.sessionId !== undefined,
+    ).length,
     hops: hops.length,
     supplements: rows.filter(row => row.kind === 'supplement').length,
     parallel: maxFan(rows),

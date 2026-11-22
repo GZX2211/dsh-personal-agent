@@ -82,6 +82,16 @@ describe('TicketCard', () => {
     expect(render(ticket({ stage: 'ended', outcome: 'failed' }))).toContain('data-tone="danger"')
   })
 
+  it('makes the whole row activatable when it opens the detail page', () => {
+    const html = renderToStaticMarkup(
+      <TicketCard t={t} language="zh-CN" ticket={ticket()} onOpen={() => undefined} now={CLOCK} />,
+    )
+
+    expect(html).toContain('role="button"')
+    expect(html).toContain('tabindex="0"')
+    expect(html).toContain('pa-row--interactive')
+  })
+
   it('does not repeat the report on the row', () => {
     expect(render(ticket({ stage: 'ended', outcome: 'completed', report: '做完了，产物在 out/' }))).not.toContain('做完了')
   })

@@ -78,6 +78,10 @@ export function Tooltip({ children }: PrimitiveProps): ReactNode {
   return children
 }
 
+export function MarkdownText({ text }: { text: string; labels?: unknown; variant?: string }): ReactElement {
+  return <div data-primitive="markdown">{text}</div>
+}
+
 export function AnimatedRows({ className, role, label, children }: PrimitiveProps): ReactElement {
   return (
     <div className={className} role={role} aria-label={label} data-primitive="animated-rows">

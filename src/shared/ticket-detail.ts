@@ -119,6 +119,16 @@ export interface FanRow extends ChainRowBase {
   to: { sessionId: string; summary: string }[]
 }
 
+/** 介入：用户绕过 Router 直接给执行会话发消息。只在详情视图里出现，不写账本。 */
+export interface InterveneRow extends ChainRowBase {
+  kind: 'intervene'
+  from: 'human'
+  to: string
+  summary: string
+  text: string
+  anchor: { sessionId: string; seq?: number }
+}
+
 /** 审批：请求发给人类，决定从人类发出。 */
 export interface ApprovalRow extends ChainRowBase {
   kind: 'approval'
@@ -161,6 +171,14 @@ export const LIVE_STATES = ['waiting-approval', 'waiting-agent', 'running'] as c
 
 export type LiveState = (typeof LIVE_STATES)[number]
 
+/** 一个正在运行的 Agent：绿点画在它的泳道上，文案取它的当前活动。 */
+export interface LiveAgentView {
+  lane: string
+  /** 最近一条 assistant 文本的首行；没有文本时留空，客户端回退到轮次。 */
+  activity?: string
+  turn?: number
+}
+
 export interface LiveRow extends ChainRowBase {
   kind: 'live'
   lane?: string
@@ -168,6 +186,8 @@ export interface LiveRow extends ChainRowBase {
   waitingOn?: string
   /** 正在进行的回合号。 */
   turn?: number
+  /** 全部运行中 Agent；等待审批时不生成。 */
+  liveAgents?: LiveAgentView[]
 }
 
 export type ChainRow =
@@ -176,6 +196,7 @@ export type ChainRow =
   | SpawnRow
   | HopRow
   | FanRow
+  | InterveneRow
   | ApprovalRow
   | MilestoneRow
   | LiveRow

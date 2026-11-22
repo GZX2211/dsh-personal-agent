@@ -48,6 +48,8 @@ export interface ListRowProps {
   expanded?: boolean
   toggleLabel?: string
   panelId?: string
+  /** 整行可点：工单行用它进入详情；审批行不需要。 */
+  onActivate?: () => void
   children?: ReactNode
 }
 
@@ -62,13 +64,28 @@ export function ListRow({
   expanded = false,
   toggleLabel,
   panelId,
+  onActivate,
   children,
 }: ListRowProps): ReactElement {
   const expandable = onToggle !== undefined
+  const interactive = onActivate !== undefined
   return (
     <article
-      className="pa-row"
-      role="listitem"
+      className={`pa-row${interactive ? ' pa-row--interactive' : ''}`}
+      role={interactive ? 'button' : 'listitem'}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? title : undefined}
+      onClick={onActivate}
+      onKeyDown={
+        interactive
+          ? event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onActivate?.()
+              }
+            }
+          : undefined
+      }
       data-row-key={rowKey}
       data-expanded={expandable ? (expanded ? 'true' : 'false') : undefined}
     >
