@@ -80,9 +80,9 @@ export function createTicketSupplementTool(deps: TicketSupplementDependencies): 
   return {
     name: TICKET_SUPPLEMENT_TOOL_NAME,
     description:
-      '给一张正在执行的工单补充信息：直接插进它当前回合的下一步，不新建工单、不起新回合。'
-      + '用于补充约束、纠正事实、补上漏掉的上下文；有新交付物或新任务时用 pa_task_route 派发或追加。'
-      + '工单还在排队或已经结束时不能补充——那时应该派发一张新工单。',
+      '把一条新到的事实转发给正在执行的工单：直接插进它当前回合的下一步，不新建工单、不起新回合。'
+      + '只转述事件里的事实，不要写执行建议、验收标准或约束判断；需要派新工单时用 pa_ticket_dispatch。'
+      + '工单还在排队或已经结束时不能转发——那时应该派发一张新工单。',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -97,7 +97,8 @@ export function createTicketSupplementTool(deps: TicketSupplementDependencies): 
           type: 'string',
           minLength: 1,
           maxLength: SUPPLEMENT_TEXT_LIMIT,
-          description: '补进去的信息正文：说清事实，以及它会影响当前任务的哪一部分。',
+          description:
+            '要转给执行中工单的新事实（用户原话、感知事件或定时提醒的内容）；忠实转述即可，不要写执行建议、验收标准或约束判断。',
         },
         signalId: {
           type: 'string',
@@ -209,7 +210,7 @@ async function deliver(
     if (error instanceof DeliveryError) {
       throw new TicketSupplementError(
         `工单 #${short} 的执行会话 ${targetSessionId} 已不在线（可能被归档或已销毁）；`
-          + '请用 pa_task_route 追加一张新工单',
+          + '请用 pa_ticket_dispatch 追加一张新工单',
         'session-not-live',
       )
     }
@@ -248,7 +249,7 @@ function assertSupplementable(ticket: TicketView): void {
   }
   const outcome = ticket.outcome === undefined ? '' : `（结果 ${ticket.outcome}）`
   throw new TicketSupplementError(
-    `工单 #${short} 已结束${outcome}，不能再补充；要继续这件事请用 pa_task_route append 追加到执行会话`,
+    `工单 #${short} 已结束${outcome}，不能再补充；要继续这件事请用 pa_ticket_dispatch append 追加到执行会话`,
     'ticket-not-running',
   )
 }

@@ -53,9 +53,6 @@ interface TicketAccumulator {
   id: string
   title: string
   goal: string
-  context?: string
-  constraints?: string[]
-  expectedOutput?: string
   queueReason?: QueueReason
   directory?: string
   workerSessionId?: string
@@ -213,9 +210,6 @@ function applyDomainEvent(
           id: event.payload.ticketId,
           title: event.payload.title,
           goal: event.payload.goal,
-          context: event.payload.context,
-          constraints: event.payload.constraints,
-          expectedOutput: event.payload.expectedOutput,
           queueReason: event.payload.queueReason,
           directory: event.payload.directory,
           createdAt: event.time,
@@ -232,9 +226,6 @@ function applyDomainEvent(
         existing.queueReason = event.payload.queueReason
         existing.title = event.payload.title
         existing.goal = event.payload.goal
-        existing.context = event.payload.context
-        existing.constraints = event.payload.constraints
-        existing.expectedOutput = event.payload.expectedOutput
         if (event.payload.directory !== undefined) existing.directory = event.payload.directory
       }
       return
@@ -345,9 +336,6 @@ function toTicketView(ticket: TicketAccumulator, pendingTickets: ReadonlySet<str
   if (view.stage === 'queued' && ticket.queueReason !== undefined) view.queueReason = ticket.queueReason
   // 中断只修饰「进行中」：待处理不可能中断，阻塞中与已结束各有更准确的状态。
   if (view.stage === 'running' && ticket.interrupted) view.interrupted = true
-  if (ticket.context !== undefined) view.context = ticket.context
-  if (ticket.constraints !== undefined) view.constraints = ticket.constraints
-  if (ticket.expectedOutput !== undefined) view.expectedOutput = ticket.expectedOutput
   if (ticket.workerSessionId !== undefined) view.workerSessionId = ticket.workerSessionId
   if (ticket.directory !== undefined) view.directory = ticket.directory
   if (ticket.dispatchedAt !== undefined) view.dispatchedAt = ticket.dispatchedAt

@@ -1,6 +1,6 @@
 // tests/host/dispatcher/brief.test.ts
 //
-// 简报是 worker 唯一的任务入口：缺一段信息就意味着执行者要回读总控台或猜。
+// 工单说明是 worker 唯一的信息入口：目标与工作目录必须到位，其余由执行者判断。
 
 import { describe, expect, it } from 'vitest'
 import { formatTaskBrief, type TaskBrief } from '../../../src/host/dispatcher/brief.ts'
@@ -19,32 +19,27 @@ describe('formatTaskBrief', () => {
     expect(text).toContain('目标：把 v2 发布到生产')
   })
 
-  it('carries context, constraints, acceptance criteria and directory', () => {
+  it('carries the working directory when it is known', () => {
     const text = formatTaskBrief(
-      {
-        ...BASE,
-        context: '用户原话：今晚发',
-        constraints: ['不要改数据库', '不要动灰度开关'],
-        expectedOutput: '生产返回 200 且版本号为 v2',
-        directory: 'C:\\state\\work\\t-abcdef1234',
-      },
+      { ...BASE, directory: 'C:\\state\\work\\t-abcdef1234' },
       'dispatch',
     )
 
-    expect(text).toContain('背景：用户原话：今晚发')
-    expect(text).toContain('- 不要改数据库')
-    expect(text).toContain('- 不要动灰度开关')
-    expect(text).toContain('验收标准：生产返回 200 且版本号为 v2')
     expect(text).toContain('工作目录：C:\\state\\work\\t-abcdef1234')
   })
 
-  it('omits optional sections that are absent', () => {
+  it('omits the working directory when it is absent', () => {
     const text = formatTaskBrief(BASE, 'dispatch')
+
+    expect(text).not.toContain('工作目录：')
+  })
+
+  it('does not carry background, constraints or acceptance criteria', () => {
+    const text = formatTaskBrief({ ...BASE, directory: '/state/work/t-abcdef1234' }, 'dispatch')
 
     expect(text).not.toContain('背景：')
     expect(text).not.toContain('约束：')
     expect(text).not.toContain('验收标准：')
-    expect(text).not.toContain('工作目录：')
   })
 
   it('marks an appended ticket and warns against redoing finished work', () => {

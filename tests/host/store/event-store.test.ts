@@ -7,7 +7,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { EventDraft, L2Event, TaskQueuedPayload } from '../../../src/shared/events.ts'
+import type { ApprovalPendingPayload, EventDraft, L2Event, TaskQueuedPayload } from '../../../src/shared/events.ts'
 import { EventStore, type EventStoreOptions } from '../../../src/host/store/event-store.ts'
 import { encodeLedgerLine } from '../../../src/host/store/ledger-format.ts'
 
@@ -267,11 +267,21 @@ describe('ledger read isolation', () => {
   it('freezes stored events so a caller cannot rewrite the ledger view', async () => {
     const store = await openStore()
 
-    const { event } = store.append(queuedDraft({ constraints: ['不要动数据库'] }))
+    const { event } = store.append({
+      type: 'approval/pending',
+      actor: 'worker',
+      correlationId: 'a-abcdef1234',
+      payload: {
+        approvalId: 'a-abcdef1234',
+        question: '要发布吗？',
+        options: [{ label: '发布', description: '立刻上线' }],
+        requestedBySessionId: 'session-worker',
+      },
+    })
 
     expect(Object.isFrozen(event)).toBe(true)
     expect(Object.isFrozen(event.payload)).toBe(true)
-    expect(Object.isFrozen((event.payload as TaskQueuedPayload).constraints ?? [])).toBe(true)
+    expect(Object.isFrozen((event.payload as ApprovalPendingPayload).options ?? [])).toBe(true)
   })
 
   it('keeps the projection unchanged when a caller tries to mutate a payload', async () => {

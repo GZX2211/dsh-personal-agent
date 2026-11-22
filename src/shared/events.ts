@@ -167,9 +167,6 @@ export interface TaskQueuedPayload {
   mode: TaskMode
   /** `append` 的目标 worker 会话。 */
   workerSessionId?: string
-  context?: string
-  constraints?: string[]
-  expectedOutput?: string
   /** 工单工作目录；缺省为 `<state>/work/<ticketId>`。 */
   directory?: string
   /** 入队时已知的放行阻塞条件；后续放行不修改此事件。 */

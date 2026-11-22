@@ -630,7 +630,6 @@ function pendingApproval(events: readonly L2Event[]): { requestedBySessionId: st
 function buildDelivery(context: RowContext): TicketDeliveryView {
   const delivery: TicketDeliveryView = {}
   if (context.ticket.report !== undefined) delivery.report = context.ticket.report
-  if (context.ticket.expectedOutput !== undefined) delivery.expectedOutput = context.ticket.expectedOutput
   if (context.ticket.outcome !== undefined) delivery.outcome = context.ticket.outcome
   const closed = [...context.events].reverse().find(event => event.type === 'task/closed')
   if (closed?.type === 'task/closed' && closed.payload.reason !== undefined) {

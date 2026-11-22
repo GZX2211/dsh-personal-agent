@@ -14,7 +14,7 @@ import { createScheduler } from '../../src/host/dispatcher/scheduler.ts'
 import { createClaimRegistry, type ClaimRegistry } from '../../src/host/signals/claim.ts'
 import { registerRouterSignalObserver } from '../../src/host/signals/observer.ts'
 import { EventStore } from '../../src/host/store/event-store.ts'
-import { createTaskRouteTool } from '../../src/host/tools/pa_task_route/index.ts'
+import { createTicketDispatchTool } from '../../src/host/tools/pa_ticket_dispatch/index.ts'
 import { createFakeHost, type FakeHost } from '../support/fake-host.ts'
 
 const ROUTER_SESSION = 'session-router'
@@ -23,7 +23,7 @@ let directory: string
 let store: EventStore
 let host: FakeHost
 let claims: ClaimRegistry
-let tool: ReturnType<typeof createTaskRouteTool>
+let tool: ReturnType<typeof createTicketDispatchTool>
 let disposeObserver: () => void
 
 beforeEach(async () => {
@@ -45,7 +45,7 @@ beforeEach(async () => {
     maxWorkers: () => 5,
     log: () => undefined,
   })
-  tool = createTaskRouteTool({ ctx: host.ctx, store, scheduler, claims, maxWorkers: () => 5 })
+  tool = createTicketDispatchTool({ ctx: host.ctx, store, scheduler, claims, maxWorkers: () => 5 })
 })
 
 afterEach(async () => {
@@ -90,7 +90,7 @@ async function dispatch(args: Record<string, unknown>): Promise<{ ticketId: stri
     agent: host.sessions.get(ROUTER_SESSION)?.agent,
     callId: 'call-1',
     rootCallId: 'call-1',
-    name: 'pa_task_route',
+    name: 'pa_ticket_dispatch',
     arguments: {},
     token: Symbol('call'),
   } as unknown as ToolRunContext

@@ -99,9 +99,6 @@ export function ticketHaystack(ticket: TicketView, ctx: FilterContext): string {
   const parts: unknown[] = [
     ticket.title,
     ticket.goal,
-    ticket.context,
-    ticket.constraints,
-    ticket.expectedOutput,
     ticket.report,
     ticket.directory,
     ticket.id,

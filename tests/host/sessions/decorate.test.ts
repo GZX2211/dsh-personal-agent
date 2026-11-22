@@ -112,7 +112,7 @@ describe('createAgentDecorator', () => {
     expect(agent?.sections[0]?.name).toBe('personal-agent/router')
     expect(sectionText(agent!.sections[0]!)).toBe('路由角色提示词')
     expect(agent?.toolNames).toEqual([
-      'pa_task_route',
+      'pa_ticket_dispatch',
       'pa_ticket_supplement',
       'pa_ledger_query',
       'pa_source_create',
@@ -182,7 +182,7 @@ describe('createAgentDecorator', () => {
     decorator.decorate(agent as never)
 
     expect(host.sessions.get('session-router')?.agent.toolNames).toEqual([
-      'pa_task_route',
+      'pa_ticket_dispatch',
       'pa_ticket_supplement',
       'pa_ledger_query',
       'pa_source_create',

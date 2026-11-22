@@ -141,13 +141,10 @@ function turnEndCompleted(): SessionEvent {
 }
 
 async function dispatch(ticketTitle: string): Promise<{ ticketId: string; status: string; sessionId?: string; queueReason?: string }> {
-  return (await callTool(ROUTER_SESSION, 'pa_task_route', {
+  return (await callTool(ROUTER_SESSION, 'pa_ticket_dispatch', {
     action: 'dispatch',
     title: ticketTitle,
     goal: `完成：${ticketTitle}`,
-    context: '用户原话：尽快',
-    constraints: ['不要动数据库'],
-    expectedOutput: '结果可验证',
   })) as { ticketId: string; status: string; sessionId?: string; queueReason?: string }
 }
 

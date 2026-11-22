@@ -180,10 +180,9 @@ export type ChainRow =
   | MilestoneRow
   | LiveRow
 
-/** 交付对照：这一单交回了什么、离验收标准还差什么。 */
+/** 交付对照：这一单交回了什么、结果如何。 */
 export interface TicketDeliveryView {
   report?: string
-  expectedOutput?: string
   outcome?: TicketOutcome
   reason?: string
 }

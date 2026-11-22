@@ -46,7 +46,7 @@ describe('loadPrompt', () => {
   })
 
   it('loads the role-specific instructions', () => {
-    expect(loadPrompt('router')).toContain('pa_task_route')
+    expect(loadPrompt('router')).toContain('pa_ticket_dispatch')
     expect(loadPrompt('router')).toContain('pa_ledger_query')
     expect(loadPrompt('worker')).toContain('pa_approval_submit')
     expect(loadPrompt('shared')).toContain('账本')

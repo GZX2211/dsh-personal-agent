@@ -49,9 +49,6 @@ function seedQueued(mode: 'dispatch' | 'append' = 'dispatch', workerSessionId?: 
       title: '发布新版本',
       goal: '把 v2 发布到生产',
       mode,
-      context: '用户原话：今晚发',
-      constraints: ['不要改数据库'],
-      expectedOutput: '生产返回 200',
       ...(workerSessionId === undefined ? {} : { workerSessionId }),
     },
   })
@@ -84,8 +81,6 @@ describe('executeDispatchAction', () => {
     // 消息 id 由 requestId 派生，是会话侧去重的真正依据（见 sessions/message.ts）。
     expect(session?.delivered[0]?.requestId).toBe(`pa-delivery:${ticketDeliveryRequestId(TICKET_ID)}`)
     expect(session?.delivered[0]?.text).toContain('目标：把 v2 发布到生产')
-    expect(session?.delivered[0]?.text).toContain('- 不要改数据库')
-    expect(session?.delivered[0]?.text).toContain('验收标准：生产返回 200')
     // 简报的 source 带上工单：账本之外也能看出这条消息属于哪一单。
     expect(session?.delivered[0]?.message?.source).toEqual(
       expect.objectContaining({ kind: 'dsh-personal-agent', ticketId: TICKET_ID }),

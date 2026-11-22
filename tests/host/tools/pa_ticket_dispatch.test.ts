@@ -1,6 +1,6 @@
-// tests/host/tools/pa_task_route.test.ts
+// tests/host/tools/pa_ticket_dispatch.test.ts
 //
-// pa_task_route 是 router 唯一的派发入口：它只入队，然后让调度器决定何时放行。
+// pa_ticket_dispatch 是 router 唯一的派发入口：它只入队，然后让调度器决定何时放行。
 // 失败码必须稳定可路由（invalid-append-target / invalid-directory / invalid-arguments）。
 
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
@@ -13,9 +13,9 @@ import { createScheduler } from '../../../src/host/dispatcher/scheduler.ts'
 import { createClaimRegistry, type ClaimRegistry } from '../../../src/host/signals/claim.ts'
 import { EventStore } from '../../../src/host/store/event-store.ts'
 import {
-  createTaskRouteTool,
-  parseTaskRouteArgs,
-} from '../../../src/host/tools/pa_task_route/index.ts'
+  createTicketDispatchTool,
+  parseTicketDispatchArgs,
+} from '../../../src/host/tools/pa_ticket_dispatch/index.ts'
 import { createFakeHost, type FakeHost } from '../../support/fake-host.ts'
 
 const ROUTER_SESSION = 'session-router'
@@ -39,7 +39,7 @@ afterEach(async () => {
 function makeTool(
   maxWorkers: number | (() => number) = 5,
   claims: ClaimRegistry = createClaimRegistry(),
-): ReturnType<typeof createTaskRouteTool> {
+): ReturnType<typeof createTicketDispatchTool> {
   const limit = typeof maxWorkers === 'function' ? maxWorkers : () => maxWorkers
   const scheduler = createScheduler({
     ctx: host.ctx,
@@ -48,7 +48,7 @@ function makeTool(
     maxWorkers: limit,
     log: () => undefined,
   })
-  return createTaskRouteTool({ ctx: host.ctx, store, scheduler, maxWorkers: limit, claims })
+  return createTicketDispatchTool({ ctx: host.ctx, store, scheduler, maxWorkers: limit, claims })
 }
 
 function execution(): ToolRunContext {
@@ -57,14 +57,14 @@ function execution(): ToolRunContext {
     agent: { session: { id: ROUTER_SESSION } },
     callId: 'call-1',
     rootCallId: 'call-1',
-    name: 'pa_task_route',
+    name: 'pa_ticket_dispatch',
     arguments: {},
     token: Symbol('call'),
   } as unknown as ToolRunContext
 }
 
 async function run(
-  tool: ReturnType<typeof createTaskRouteTool>,
+  tool: ReturnType<typeof createTicketDispatchTool>,
   args: Record<string, unknown>,
 ): Promise<{ ticketId: string; status: string; sessionId?: string; queueReason?: string; signalId?: string }> {
   return (await tool.execute(args, execution())) as {
@@ -90,9 +90,9 @@ function decisions(): { action: string; signalId: string; ticketId?: string }[] 
   )
 }
 
-describe('parseTaskRouteArgs', () => {
+describe('parseTicketDispatchArgs', () => {
   it('accepts a dispatch request', () => {
-    const parsed = parseTaskRouteArgs({ action: 'dispatch', title: '发布新版本', goal: '把 v2 发出去' })
+    const parsed = parseTicketDispatchArgs({ action: 'dispatch', title: '发布新版本', goal: '把 v2 发出去' })
 
     expect(parsed).toEqual({
       action: 'dispatch',
@@ -102,31 +102,28 @@ describe('parseTaskRouteArgs', () => {
   })
 
   it('rejects an append without a target', () => {
-    expect(() => parseTaskRouteArgs({ action: 'append', title: '发布', goal: '发出去' })).toThrow(
+    expect(() => parseTicketDispatchArgs({ action: 'append', title: '发布', goal: '发出去' })).toThrow(
       /workerSessionId/,
     )
   })
 
   it('rejects a title longer than 40 code points', () => {
     expect(() =>
-      parseTaskRouteArgs({ action: 'dispatch', title: '很'.repeat(41), goal: '发出去' }),
+      parseTicketDispatchArgs({ action: 'dispatch', title: '很'.repeat(41), goal: '发出去' }),
     ).toThrow(/40/)
   })
 
   it('rejects empty required text', () => {
-    expect(() => parseTaskRouteArgs({ action: 'dispatch', title: '  ', goal: '发出去' })).toThrow(/title/)
-    expect(() => parseTaskRouteArgs({ action: 'dispatch', title: '发布', goal: '' })).toThrow(/goal/)
+    expect(() => parseTicketDispatchArgs({ action: 'dispatch', title: '  ', goal: '发出去' })).toThrow(/title/)
+    expect(() => parseTicketDispatchArgs({ action: 'dispatch', title: '发布', goal: '' })).toThrow(/goal/)
   })
 
-  it('rejects unknown actions and bad constraint lists', () => {
-    expect(() => parseTaskRouteArgs({ action: 'later', title: '发布', goal: '发' })).toThrow(/action/)
-    expect(() =>
-      parseTaskRouteArgs({ action: 'dispatch', title: '发布', goal: '发', constraints: [1] }),
-    ).toThrow(/constraints/)
+  it('rejects an unknown action', () => {
+    expect(() => parseTicketDispatchArgs({ action: 'later', title: '发布', goal: '发' })).toThrow(/action/)
   })
 })
 
-describe('pa_task_route', () => {
+describe('pa_ticket_dispatch', () => {
   it('queues a ticket and lets the scheduler dispatch it immediately', async () => {
     const tool = makeTool()
 
@@ -134,9 +131,6 @@ describe('pa_task_route', () => {
       action: 'dispatch',
       title: '发布新版本',
       goal: '把 v2 发布到生产',
-      context: '用户原话：今晚发',
-      constraints: ['不要动数据库'],
-      expectedOutput: '返回 200',
     })
 
     expect(result.ticketId).toMatch(/^t-[0-9a-f]{10}$/)
@@ -152,7 +146,6 @@ describe('pa_task_route', () => {
     expect(queued?.payload).toMatchObject({
       mode: 'dispatch',
       requestedBySessionId: 'session-router',
-      constraints: ['不要动数据库'],
     })
   })
 
@@ -290,7 +283,7 @@ describe('pa_task_route', () => {
 
   it('rejects a non-string signal id', () => {
     expect(() =>
-      parseTaskRouteArgs({ action: 'dispatch', title: '发布', goal: '发', signalId: 42 }),
+      parseTicketDispatchArgs({ action: 'dispatch', title: '发布', goal: '发', signalId: 42 }),
     ).toThrow(/signalId/)
   })
 })

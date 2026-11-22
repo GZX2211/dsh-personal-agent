@@ -90,9 +90,6 @@ const PAYLOAD_SPECS: Record<EventType, PayloadSpec> = {
     },
     optional: {
       workerSessionId: { type: 'string' },
-      context: { type: 'string' },
-      constraints: { type: 'strings' },
-      expectedOutput: { type: 'string' },
       directory: { type: 'string' },
       queueReason: { type: 'enum', values: QUEUE_REASONS },
       requestedBySessionId: { type: 'string' },
