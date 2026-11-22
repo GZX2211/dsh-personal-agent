@@ -3,7 +3,11 @@
 // 注意力条：只在需要人时出现，最多两条；每类合并成一条，用 count 表达数量。
 // 整行是按钮，跳到对应页面或执行会话。
 
-import { Tag, type TagTone } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconChevronRightOutlineRegular,
+  Tag,
+  type TagTone,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
 import type { Translate } from '../../i18n.ts'
 import { formatDuration, riskKey } from '../../lib/format.ts'
@@ -42,7 +46,7 @@ export function AttentionBar({ t, language, items, now, onActivate }: AttentionB
               {meta.length === 0 ? null : <span className="pa-overview__attention-meta">{meta}</span>}
             </span>
             <span className="pa-overview__attention-arrow" aria-hidden="true">
-              →
+              <IconChevronRightOutlineRegular size={14} />
             </span>
           </button>
         )

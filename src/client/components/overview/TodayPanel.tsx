@@ -20,11 +20,11 @@ export function TodayPanel({ t, language, today }: TodayPanelProps): ReactElemen
         <h2 className="pa-overview__section-title">{t('overviewToday')}</h2>
         <span className="pa-overview__section-side">{t('overviewTodaySince')}</span>
       </div>
-      <div className="pa-overview__tiles">
-        <div className="pa-overview__tile">
-          <span className="pa-overview__tile-label">{t('overviewTodayApprovals')}</span>
-          <span className="pa-overview__tile-value">{formatNumber(language, today.approvalsDecided)}</span>
-          <span className="pa-overview__tile-sub">
+      <div className="pa-metrics">
+        <div className="pa-metric">
+          <span className="pa-metric__label">{t('overviewTodayApprovals')}</span>
+          <span className="pa-metric__value">{formatNumber(language, today.approvalsDecided)}</span>
+          <span className="pa-metric__sub">
             {t('overviewTodayApprovalsSub', {
               decided: formatNumber(language, today.approvalsDecided),
               pending: formatNumber(language, today.approvalsPending),
@@ -32,11 +32,11 @@ export function TodayPanel({ t, language, today }: TodayPanelProps): ReactElemen
           </span>
         </div>
 
-        <div className="pa-overview__tile">
-          <span className="pa-overview__tile-label">{t('overviewTodayTickets')}</span>
-          <span className="pa-overview__tile-value">{formatNumber(language, today.ticketsCompleted)}</span>
+        <div className="pa-metric">
+          <span className="pa-metric__label">{t('overviewTodayTickets')}</span>
+          <span className="pa-metric__value">{formatNumber(language, today.ticketsCompleted)}</span>
           <span
-            className="pa-overview__tile-sub"
+            className="pa-metric__sub"
             data-failed={today.ticketsFailed > 0 ? 'true' : undefined}
             title={
               today.averageTicketMs === undefined
@@ -53,12 +53,12 @@ export function TodayPanel({ t, language, today }: TodayPanelProps): ReactElemen
           </span>
         </div>
 
-        <div className="pa-overview__tile">
-          <span className="pa-overview__tile-label">{t('overviewTodayEvents')}</span>
-          <span className="pa-overview__tile-value">
+        <div className="pa-metric">
+          <span className="pa-metric__label">{t('overviewTodayEvents')}</span>
+          <span className="pa-metric__value">
             {today.signals === undefined ? t('overviewUnknown') : formatNumber(language, today.signals.total)}
           </span>
-          <span className="pa-overview__tile-sub">
+          <span className="pa-metric__sub">
             {today.signals === undefined
               ? t('overviewUnknown')
               : t('overviewTodayEventsSub', {

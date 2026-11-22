@@ -105,7 +105,7 @@ export const SETTINGS_POLICY_CSS = `
   align-items: center;
   gap: var(--pa-space-8);
   min-width: 0;
-  height: var(--pa-control-height-xl);
+  height: var(--pa-control-height-lg);
   padding: 0 var(--pa-space-4) 0 var(--pa-space-6);
   border: 0;
   border-radius: var(--dsw-radius-sm);
@@ -177,8 +177,8 @@ export const SETTINGS_POLICY_CSS = `
 }
 .pa-rule__chevron {
   flex: none;
-  width: var(--pa-icon-size-sm);
-  height: var(--pa-icon-size-sm);
+  width: var(--pa-icon-size-md);
+  height: var(--pa-icon-size-md);
   color: var(--dsw-alias-label-tertiary);
   transition: transform var(--pa-duration-fast) var(--pa-ease-standard);
 }

@@ -2,6 +2,7 @@
 //
 // 详情页底部的折叠区：交付与会话目录共用同一个折叠头，保持相同的 28px 高度。
 
+import { IconTriangleRightFillRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement, ReactNode } from 'react'
 
 export interface FoldSectionProps {
@@ -33,10 +34,14 @@ export function FoldSection({
         onClick={onToggle}
       >
         <span className="pa-fold__caret" aria-hidden="true">
-          ▸
+          <IconTriangleRightFillRegular size={12} />
         </span>
         <span className="pa-fold__title">{title}</span>
-        {subtitle === undefined ? null : <span className="pa-fold__sub">{subtitle}</span>}
+        {subtitle === undefined ? null : (
+          <span className="pa-fold__sub" title={subtitle}>
+            {subtitle}
+          </span>
+        )}
         <span className="pa-fold__spacer" />
         {meta === undefined ? null : <span className="pa-fold__meta">{meta}</span>}
       </button>

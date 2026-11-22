@@ -101,7 +101,7 @@ export const SETTINGS_FORM_CSS = `
 .pa-settings__select {
   box-sizing: border-box;
   width: 100%;
-  height: var(--pa-control-height-lg);
+  height: var(--pa-control-height-md);
   padding: 0 var(--pa-space-12);
   border: var(--pa-hairline) solid var(--dsw-alias-border-l4);
   border-radius: var(--dsw-radius-md);

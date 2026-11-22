@@ -3,6 +3,7 @@
 // 工单详情页：头部 + 交接时间线 + 交付 + 会话目录。它覆盖同 tab 的列表，
 // 返回时列表的胶囊与搜索词由父级保留，不在这里重新挂载。
 
+import { IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import type { ConsoleActions } from '../actions.ts'
 import { DeliveryFold } from '../components/ticket/DeliveryFold.tsx'
@@ -72,7 +73,9 @@ export function TicketDetail({
             aria-label={t('ticketDetailBack')}
             onClick={onBack}
           >
-            ‹
+            <span aria-hidden="true">
+              <IconChevronLeftOutlineRegular size={16} />
+            </span>
           </button>
         </div>
       ) : null}

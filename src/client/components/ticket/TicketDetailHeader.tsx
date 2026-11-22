@@ -3,7 +3,10 @@
 // 详情头部：返回、短码、阶段、标题、负责人、Agent 数、交接数、时长与打开会话。
 // 这里不重复时间线里的信息；用户扫一眼就能知道「这是哪张单、现在什么状态」。
 
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconChevronLeftOutlineRegular,
+  Tag,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
 import type { TicketDetailResponse } from '../../../shared/ticket-detail.ts'
 import type { ConsoleActions } from '../../actions.ts'
@@ -44,7 +47,9 @@ export function TicketDetailHeader({
           aria-label={t('ticketDetailBack')}
           onClick={onBack}
         >
-          ‹
+          <span aria-hidden="true">
+            <IconChevronLeftOutlineRegular size={16} />
+          </span>
         </button>
         <span className="pa-td__ref">
           {t('ticketLabel')} <b>#{ticket.shortId}</b>

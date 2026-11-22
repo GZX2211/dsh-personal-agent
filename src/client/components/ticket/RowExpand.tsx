@@ -3,6 +3,7 @@
 // 行内展开：保持上下文，不跳页。只展示这一条交接的 from → to、类型、完整时间、
 // 全文与可打开的会话；不做影响树，也不展示「收到后做了什么」。
 
+import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
 import type {
   AgentLaneView,
@@ -63,7 +64,7 @@ export function RowExpand({
           {nameOf(row.from, lanes, t)}
         </span>
         <span className="pa-chain__arrow" aria-hidden="true">
-          →
+          <IconChevronRightOutlineRegular size={12} />
         </span>
         <span className="pa-chain__who">{toNames}</span>
         <span className="pa-chain__kind">{t(rowTypeKey(row))}</span>

@@ -43,11 +43,11 @@ export const SHARED_CSS = `
 /* 官方 Input 默认 14/32；工具条里收一档，与 24px 的 Pill 同一行不抢视线。 */
 .pa-toolbar__search input {
   font-size: var(--pa-font-size-body);
-  line-height: var(--pa-line-height-18);
+  line-height: var(--pa-line-height-20);
 }
 .pa-toolbar__search svg {
-  width: var(--pa-icon-size-sm);
-  height: var(--pa-icon-size-sm);
+  width: var(--pa-icon-size-md);
+  height: var(--pa-icon-size-md);
 }
 .pa-toolbar__help {
   flex: 0 0 auto;
@@ -65,8 +65,8 @@ export const SHARED_CSS = `
 .pa-filter-menu__chevron {
   display: inline-flex;
   flex: 0 0 auto;
-  width: var(--pa-icon-size-sm);
-  height: var(--pa-icon-size-sm);
+  width: var(--pa-icon-size-md);
+  height: var(--pa-icon-size-md);
   margin-left: var(--pa-space-4);
   color: var(--dsw-alias-label-tertiary);
 }
@@ -254,5 +254,47 @@ export const SHARED_CSS = `
 .pa-row--interactive:focus-visible {
   outline: var(--pa-focus-ring);
   outline-offset: -1px;
+}
+
+/* ── 指标卡：概览与工单详情共用同一套视觉 ───────────────────────────── */
+.pa-metrics {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  overflow: hidden;
+  border: var(--pa-hairline) solid var(--dsw-alias-border-l2);
+  border-radius: var(--pa-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
+}
+.pa-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pa-space-1);
+  min-width: 0;
+  padding: var(--pa-space-8) var(--pa-space-10);
+  border-left: var(--pa-hairline) solid var(--dsw-alias-border-l2);
+}
+.pa-metric:first-child {
+  border-left: 0;
+}
+.pa-metric__label {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--pa-font-size-micro);
+  line-height: var(--pa-line-height-14);
+}
+.pa-metric__value {
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--pa-font-size-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--pa-font-weight-medium);
+  line-height: var(--pa-line-height-24);
+}
+.pa-metric__sub {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--pa-font-size-micro);
+  line-height: var(--pa-line-height-14);
+}
+.pa-metric__sub[data-failed='true'] {
+  color: var(--dsw-alias-state-error-primary);
 }
 `

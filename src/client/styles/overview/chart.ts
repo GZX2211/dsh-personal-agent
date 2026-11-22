@@ -21,7 +21,7 @@ export const OVERVIEW_CHART_CSS = `
   align-items: center;
   gap: var(--pa-space-4);
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
 }
 .pa-overview__legend-dot {
@@ -77,7 +77,7 @@ export const OVERVIEW_CHART_CSS = `
   overflow: hidden;
   min-width: 0;
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-2xs);
+  font-size: var(--pa-font-size-micro);
   line-height: var(--pa-line-height-14);
   text-align: center;
   text-overflow: ellipsis;

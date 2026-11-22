@@ -26,7 +26,7 @@ export const TICKET_TIMELINE_CSS = `
 .pa-timeline__title {
   flex: 0 0 auto;
   color: var(--dsw-alias-label-secondary);
-  font-size: var(--pa-font-size-subtitle);
+  font-size: var(--pa-font-size-caption);
   font-weight: var(--pa-font-weight-semibold);
   letter-spacing: var(--pa-letter-spacing-wide);
   white-space: nowrap;
@@ -37,25 +37,26 @@ export const TICKET_TIMELINE_CSS = `
   align-items: center;
   gap: var(--pa-space-1);
   box-sizing: border-box;
-  height: var(--pa-control-height-2xs);
+  height: var(--pa-control-height-xs);
   padding: var(--pa-space-1);
   border: var(--pa-hairline) solid var(--dsw-alias-border-l1);
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
   background: var(--dsw-alias-bg-layer-2);
 }
 .pa-timeline__view-tab {
   box-sizing: border-box;
-  height: 17px;
+  height: 20px;
   padding: 0 var(--pa-space-6);
   border: 0;
   border-radius: var(--pa-radius-xs);
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
-  font-size: var(--pa-font-size-xs);
-  line-height: var(--pa-line-height-17);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
   white-space: nowrap;
   cursor: pointer;
+  font-weight: var(--pa-font-weight-medium);
 }
 .pa-timeline__view-tab:hover {
   color: var(--dsw-alias-label-primary);
@@ -81,17 +82,18 @@ export const TICKET_TIMELINE_CSS = `
   background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 10%, transparent);
   color: var(--dsw-alias-state-business-primary);
   font: inherit;
-  font-size: var(--pa-font-size-2xs);
-  line-height: var(--pa-line-height-15);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  height: var(--pa-tag-height);
 }
 .pa-timeline__meta {
   flex: 0 1 auto;
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -107,14 +109,17 @@ export const TICKET_TIMELINE_CSS = `
 }
 .pa-timeline__origin-kind {
   flex: 0 0 auto;
-  padding: 0 var(--pa-space-4);
+  padding: 0 var(--pa-tag-padding-x);
   border: var(--pa-hairline) solid color-mix(in srgb, var(--dsw-alias-state-business-primary) 26%, transparent);
   border-radius: var(--pa-radius-xs);
   background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent);
   color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 72%, var(--dsw-alias-label-primary));
-  font-size: var(--pa-font-size-2xs);
-  font-weight: var(--pa-font-weight-semibold);
-  line-height: var(--pa-line-height-15);
+  font-size: var(--pa-font-size-label);
+  font-weight: var(--pa-font-weight-medium);
+  line-height: var(--pa-line-height-16);
+  height: var(--pa-tag-height);
+  display: inline-flex;
+  align-items: center;
 }
 .pa-timeline__origin-text {
   overflow: hidden;
@@ -127,15 +132,16 @@ export const TICKET_TIMELINE_CSS = `
   flex: 0 0 auto;
   margin-left: auto;
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-xs);
+  font-size: var(--pa-font-size-label);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  line-height: var(--pa-line-height-16);
 }
 .pa-timeline__banner {
   padding: var(--pa-space-4) var(--pa-space-8);
-  border-radius: var(--pa-radius-6);
-  font-size: var(--pa-font-size-xs);
-  line-height: var(--pa-line-height-15);
+  border-radius: var(--pa-radius-sm);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
 }
 .pa-timeline__banner--unavailable {
   border: var(--pa-hairline) solid color-mix(in srgb, var(--dsw-alias-state-warn-primary) 28%, transparent);
@@ -150,7 +156,7 @@ export const TICKET_TIMELINE_CSS = `
 .pa-timeline__empty {
   padding: var(--pa-space-12) var(--pa-space-4);
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
   text-align: center;
 }
@@ -161,7 +167,7 @@ export const TICKET_TIMELINE_CSS = `
   gap: var(--pa-space-4) var(--pa-space-10);
   padding-top: var(--pa-space-1);
   color: var(--dsw-alias-label-caption);
-  font-size: var(--pa-font-size-nano);
+  font-size: var(--pa-font-size-micro);
   line-height: var(--pa-line-height-14);
 }
 .pa-timeline__legend span {
@@ -209,23 +215,26 @@ export const TICKET_TIMELINE_CSS = `
   bottom: 8px;
   align-self: center;
   margin-top: var(--pa-space-2);
-  padding: var(--pa-space-2) var(--pa-space-8);
+  padding: 0 var(--pa-space-8);
   border: var(--pa-hairline) solid color-mix(in srgb, var(--dsw-alias-state-business-primary) 32%, transparent);
   border-radius: var(--pa-radius-pill);
   background: var(--dsw-alias-bg-layer-3);
   color: var(--dsw-alias-state-business-primary);
   font: inherit;
-  font-size: var(--pa-font-size-xs);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
   cursor: pointer;
   box-shadow: var(--pa-shadow-float);
+  height: var(--pa-control-height-xs);
+  display: inline-flex;
+  align-items: center;
 }
 .pa-live__text {
   overflow: hidden;
   min-width: 0;
   color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 72%, var(--dsw-alias-label-primary));
-  font-size: var(--pa-font-size-meta);
-  line-height: var(--pa-line-height-17);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -246,8 +255,8 @@ export const TICKET_TIMELINE_CSS = `
   height: 17px;
   overflow: hidden;
   color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 72%, var(--dsw-alias-label-primary));
-  font-size: var(--pa-font-size-meta);
-  line-height: var(--pa-line-height-17);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

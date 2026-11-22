@@ -3,7 +3,10 @@
 // 事件流：规模化降级视图。只列交接行（含介入），保留 from → to 与摘要；
 // 里程碑与 Live 留在泳道视图。点击行同样就地展开。
 
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconChevronRightOutlineRegular,
+  Tooltip,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
 import type { AgentLaneView, ChainRow } from '../../../shared/ticket-detail.ts'
 import type { ConsoleActions } from '../../actions.ts'
@@ -89,7 +92,9 @@ export function StreamTimeline({
                 </span>
                 <span className="pa-stream__flow">
                   <b style={{ color: laneColor(row.from, lanes) }}>{from}</b>
-                  <span className="pa-stream__arrow">→</span>
+                  <span className="pa-stream__arrow" aria-hidden="true">
+                    <IconChevronRightOutlineRegular size={12} />
+                  </span>
                   <b
                     style={{
                       color:

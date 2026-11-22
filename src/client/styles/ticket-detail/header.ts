@@ -27,13 +27,13 @@ export const TICKET_HEADER_CSS = `
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  height: var(--pa-control-height-2xs);
+  height: var(--pa-control-height-xs);
 }
 .pa-td__topline {
   display: flex;
   align-items: center;
   gap: var(--pa-space-8);
-  height: var(--pa-control-height-2xs);
+  height: var(--pa-control-height-xs);
   min-width: 0;
 }
 .pa-td__back {
@@ -41,16 +41,16 @@ export const TICKET_HEADER_CSS = `
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: var(--pa-control-height-2xs);
-  min-width: var(--pa-control-height-2xs);
-  height: var(--pa-control-height-2xs);
+  width: var(--pa-control-height-xs);
+  min-width: var(--pa-control-height-xs);
+  height: var(--pa-control-height-xs);
   padding: 0;
   border: 0;
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-size: var(--pa-font-size-glyph);
+  font-size: inherit;
   line-height: var(--pa-line-height-none);
   cursor: pointer;
 }
@@ -71,6 +71,7 @@ export const TICKET_HEADER_CSS = `
   font-size: var(--pa-font-size-label);
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: var(--pa-line-height-16);
 }
 .pa-td__ref b {
   color: var(--dsw-alias-label-secondary);
@@ -93,13 +94,13 @@ export const TICKET_HEADER_CSS = `
   height: var(--pa-control-height-xs);
   padding: 0 var(--pa-space-8);
   border: 0;
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
   background: transparent;
   box-shadow: inset 0 0 0 var(--pa-hairline) var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-size: var(--pa-font-size-meta);
-  line-height: var(--pa-line-height-15);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -119,13 +120,13 @@ export const TICKET_HEADER_CSS = `
   height: var(--pa-control-height-xs);
   padding: 0 var(--pa-space-8);
   border: 0;
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
   background: transparent;
   box-shadow: inset 0 0 0 var(--pa-hairline) var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-size: var(--pa-font-size-meta);
-  line-height: var(--pa-line-height-15);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
   cursor: pointer;
 }
 .pa-td__retry:hover {
@@ -134,8 +135,8 @@ export const TICKET_HEADER_CSS = `
 }
 .pa-td__retry--inline {
   flex: 0 0 auto;
-  height: var(--pa-control-height-2xs);
-  font-size: var(--pa-font-size-xs);
+  height: var(--pa-control-height-xs);
+  font-size: var(--pa-font-size-label);
 }
 .pa-td__title {
   overflow: hidden;
@@ -143,7 +144,7 @@ export const TICKET_HEADER_CSS = `
   color: var(--dsw-alias-label-primary);
   font-size: var(--pa-font-size-title-lg);
   font-weight: var(--pa-font-weight-semibold);
-  line-height: var(--pa-line-height-22);
+  line-height: var(--pa-line-height-24);
   letter-spacing: var(--pa-letter-spacing-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -155,7 +156,7 @@ export const TICKET_HEADER_CSS = `
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--pa-font-size-label);
-  line-height: var(--pa-line-height-17);
+  line-height: var(--pa-line-height-16);
   white-space: nowrap;
 }
 .pa-td__meta-item {
@@ -174,7 +175,7 @@ export const TICKET_HEADER_CSS = `
 .pa-td__meta-item b {
   color: var(--dsw-alias-label-secondary);
   font-family: var(--pa-font-family-mono);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   font-weight: var(--pa-font-weight-medium);
 }
 .pa-td__notice {
@@ -186,8 +187,8 @@ export const TICKET_HEADER_CSS = `
   border-radius: var(--dsw-radius-sm);
   background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent);
   color: var(--dsw-alias-state-warn-label);
-  font-size: var(--pa-font-size-meta);
-  line-height: var(--pa-line-height-15);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
 }
 .pa-td__notice span {
   flex: 1;
@@ -220,6 +221,6 @@ export const TICKET_HEADER_CSS = `
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-secondary);
   font-size: var(--pa-font-size-label);
-  line-height: var(--pa-line-height-17);
+  line-height: var(--pa-line-height-16);
 }
 `

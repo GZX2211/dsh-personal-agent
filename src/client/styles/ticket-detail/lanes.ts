@@ -29,7 +29,7 @@ export const TICKET_LANES_CSS = `
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
@@ -51,9 +51,9 @@ export const TICKET_LANES_CSS = `
   padding: 0 var(--pa-space-1);
   color: inherit;
   font-family: var(--pa-font-family-mono);
-  font-size: var(--pa-font-size-xs);
+  font-size: var(--pa-font-size-micro);
   font-weight: var(--pa-font-weight-medium);
-  line-height: var(--pa-line-height-13);
+  line-height: var(--pa-line-height-14);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -67,8 +67,8 @@ export const TICKET_LANES_CSS = `
   overflow: hidden;
   max-width: 100%;
   color: var(--dsw-alias-label-caption);
-  font-size: var(--pa-font-size-nano);
-  line-height: var(--pa-line-height-11);
+  font-size: var(--pa-font-size-micro);
+  line-height: var(--pa-line-height-14);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

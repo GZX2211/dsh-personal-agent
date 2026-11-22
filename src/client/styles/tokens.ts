@@ -2,15 +2,15 @@
 //
 // 全站唯一的设计变量来源。分三段：
 //   ① 平台引用：宿主主题已经给出变量，插件只起名，不复制值；
-//   ② 插件刻度：宿主没有的维度（间距、行高、控件高度、层级、领域色板）；
-//   ③ 过渡值：宿主有对应刻度但当前实现取值不同，先锁定现状，收敛目标写在注释里。
+//   ② 插件刻度：宿主没有的维度（字号七档、行高六档、间距、控件高度、层级、领域色板）；
+//   ③ Tab 条官方对齐区：独立锁定，不随排版刻度变化。
+//
+// 已收敛的刻度：
+//   · 字号 18/16/14/13/12/11/10；
+//   · 行高 24/22/20/18/16/14；
+//   · 圆角一律走官方 4/8/12/16，插件只保留 1px/2px 微圆角与胶囊。
 //
 // 除本文件外，任何样式文件都不得写这些维度的具体值。
-//
-// 字体规则：
-//   · 字号 13 档是过渡状态，最终目标是收敛到官方刻度 14/13/12/11 + 两个微型档；
-//   · 行高按数值命名，只允许与对应字号档配对使用（配对表见 docs 规划）；
-//   · Tab 条是官方对齐区，单独一组 token，禁止随排版刻度调整。
 
 export const TOKENS_CSS = `
 :root {
@@ -19,13 +19,11 @@ export const TOKENS_CSS = `
   --pa-rail-w: 10px;
 
   /* ── ① 平台引用 ─────────────────────────────────────────────────── */
-  --pa-font-family: var(--dsw-font-family);
   --pa-font-family-mono: var(--ds-font-family-code, 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, monospace);
 
   --pa-radius-xs: var(--dsw-radius-xs);
   --pa-radius-sm: var(--dsw-radius-sm);
   --pa-radius-md: var(--dsw-radius-md);
-  --pa-radius-lg: var(--dsw-radius-lg);
 
   --pa-focus-ring: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
 
@@ -43,33 +41,25 @@ export const TOKENS_CSS = `
   --pa-kind-fail: #ff6b6b;
   --pa-kind-fail-label: #ff9b9b;
 
-  /* ── ② 插件刻度：字号（过渡值，目标见文件头） ───────────────────── */
+  /* ── ② 插件刻度：字号（七档，已收敛） ───────────────────────────── */
   --pa-font-size-display: 18px;
-  --pa-font-size-title-lg: 15.5px;
-  --pa-font-size-glyph: 15px;
+  --pa-font-size-title-lg: 16px;
   --pa-font-size-title: 14px;
   --pa-font-size-body: 13px;
-  --pa-font-size-subtitle: 12.5px;
   --pa-font-size-caption: 12px;
-  --pa-font-size-note: 11.5px;
   --pa-font-size-label: 11px;
-  --pa-font-size-meta: 10.5px;
-  --pa-font-size-xs: 10px;
-  --pa-font-size-2xs: 9.5px;
-  --pa-font-size-nano: 9px;
+  --pa-font-size-micro: 10px;
 
-  /* 行高：数值即刻度，只能与字号档配对使用。 */
+
+  /* 行高：六档，只与字号档配对使用。 */
   --pa-line-height-none: 1;
-  --pa-line-height-11: 11px;
-  --pa-line-height-13: 13px;
   --pa-line-height-14: 14px;
-  --pa-line-height-15: 15px;
   --pa-line-height-16: 16px;
-  --pa-line-height-17: 17px;
   --pa-line-height-18: 18px;
   --pa-line-height-20: 20px;
   --pa-line-height-22: 22px;
   --pa-line-height-24: 24px;
+
 
   --pa-font-weight-regular: 400;
   --pa-font-weight-medium: 500;
@@ -101,21 +91,19 @@ export const TOKENS_CSS = `
   /* ── ② 插件刻度：圆角（官方刻度之外的现状值） ───────────────────── */
   --pa-radius-1: 1px;
   --pa-radius-2: 2px;
-  --pa-radius-3: 3px;
-  --pa-radius-6: 6px;
   --pa-radius-pill: 999px;
   --pa-radius-circle: 50%;
 
-  /* ── ② 插件刻度：控件高度（现状六档，按钮 22 档待收敛） ──────────── */
-  --pa-control-height-2xs: 20px;
-  --pa-control-height-xs: 22px;
+  /* ── ② 插件刻度：控件高度（两档按钮 + 输入/规则行） ──────────────── */
+  --pa-control-height-xs: 24px;
   --pa-control-height-sm: 28px;
-  --pa-control-height-md: 30px;
-  --pa-control-height-lg: 32px;
-  --pa-control-height-xl: 36px;
+  --pa-control-height-md: 32px;
+  --pa-control-height-lg: 36px;
+  --pa-tag-height: 20px;
+  --pa-tag-padding-x: 6px;
+
 
   /* ── ② 插件刻度：图标与圆点 ────────────────────────────────────── */
-  --pa-icon-size-sm: 14px;
   --pa-icon-size-md: 16px;
   --pa-dot-size-xs: 4px;
   --pa-dot-size-sm: 5px;

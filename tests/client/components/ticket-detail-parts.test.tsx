@@ -132,8 +132,8 @@ describe('DeliveryFold', () => {
     )
 
     expect(html).toContain('契约已修复，冒烟测试通过。')
-    // 折叠头与状态行各一次；不再有重复的「结果」行。
-    expect(html.match(/已完成/g)).toHaveLength(2)
+    // 状态只在折叠头出现；展开体里不再重复状态行，正文直接就是交接汇报。
+    expect(html).not.toContain('状态')
     expect(html).toContain('2')
     expect(html).toContain('3')
     expect(html).toContain('1分钟')

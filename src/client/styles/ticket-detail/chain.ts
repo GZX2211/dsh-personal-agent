@@ -8,7 +8,7 @@ export const TICKET_CHAIN_CSS = `
 .pa-chain {
   --pa-kind: var(--dsw-alias-label-tertiary);
   border-bottom: var(--pa-border-width-thin) solid color-mix(in srgb, var(--dsw-alias-border-l1) 55%, transparent);
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
 }
 .pa-chain:last-child {
   border-bottom: 0;
@@ -43,7 +43,7 @@ export const TICKET_CHAIN_CSS = `
   min-height: 32px;
   padding: 0;
   border: 0;
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -92,24 +92,28 @@ export const TICKET_CHAIN_CSS = `
   border-left: var(--pa-border-width-thin) solid color-mix(in srgb, var(--dsw-alias-label-primary) 4.5%, transparent);
 }
 .pa-chain__kind {
+  display: inline-flex;
   flex: 0 0 auto;
-  padding: 0 var(--pa-space-5);
+  align-items: center;
+  height: var(--pa-tag-height);
+  padding: 0 var(--pa-tag-padding-x);
   border: var(--pa-hairline) solid color-mix(in srgb, var(--pa-kind) 34%, transparent);
   border-radius: var(--pa-radius-xs);
   background: color-mix(in srgb, var(--pa-kind) 12%, transparent);
   color: var(--pa-kind);
-  font-size: var(--pa-font-size-xs);
-  line-height: var(--pa-line-height-17);
-  height: 18px;
+  font-size: var(--pa-font-size-label);
+  font-weight: var(--pa-font-weight-medium);
+  line-height: var(--pa-line-height-16);
   white-space: nowrap;
 }
 .pa-chain__time {
   flex: 0 0 auto;
   margin-left: auto;
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-xs);
+  font-size: var(--pa-font-size-label);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  line-height: var(--pa-line-height-16);
 }
 .pa-chain--milestone .pa-chain__kind,
 .pa-chain--live .pa-chain__kind {
@@ -147,20 +151,24 @@ export const TICKET_CHAIN_CSS = `
   align-items: center;
   gap: var(--pa-space-6);
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
 }
 .pa-chain__who {
   overflow: hidden;
   color: var(--dsw-alias-label-secondary);
   font-family: var(--pa-font-family-mono);
-  font-size: var(--pa-font-size-xs);
+  font-size: var(--pa-font-size-label);
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: var(--pa-line-height-16);
 }
 .pa-chain__arrow {
+  display: inline-flex;
+  align-items: center;
   color: var(--dsw-alias-label-caption);
-  font-size: var(--pa-font-size-xs);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
 }
 .pa-chain__etime {
   color: var(--dsw-alias-label-caption);
@@ -181,8 +189,8 @@ export const TICKET_CHAIN_CSS = `
   margin: var(--pa-space-4) 0 0;
   padding-left: var(--pa-space-16);
   color: var(--dsw-alias-label-secondary);
-  font-size: var(--pa-font-size-meta);
-  line-height: var(--pa-line-height-17);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
 }
 .pa-chain__options {
   display: flex;
@@ -193,15 +201,19 @@ export const TICKET_CHAIN_CSS = `
 }
 .pa-chain__options-label {
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-2xs);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
 }
 .pa-chain__option {
-  padding: 0 var(--pa-space-5);
+  padding: 0 var(--pa-tag-padding-x);
   border: var(--pa-hairline) solid var(--dsw-alias-border-l2);
   border-radius: var(--pa-radius-xs);
   color: var(--dsw-alias-label-secondary);
-  font-size: var(--pa-font-size-2xs);
-  line-height: var(--pa-line-height-15);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
+  height: var(--pa-tag-height);
+  display: inline-flex;
+  align-items: center;
 }
 .pa-chain__actions {
   display: flex;
@@ -215,16 +227,16 @@ export const TICKET_CHAIN_CSS = `
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 22px;
+  height: var(--pa-control-height-xs);
   padding: 0 var(--pa-space-8);
   border: 0;
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
   background: transparent;
   box-shadow: inset 0 0 0 var(--pa-hairline) var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-size: var(--pa-font-size-meta);
-  line-height: var(--pa-line-height-15);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
   white-space: nowrap;
   cursor: pointer;
 }

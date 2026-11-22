@@ -64,7 +64,7 @@ button.pa-overview__pulse {
   flex: 0 0 auto;
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--pa-font-size-label);
-  line-height: var(--pa-line-height-18);
+  line-height: var(--pa-line-height-16);
 }
 
 .pa-overview__attention {
@@ -112,19 +112,19 @@ button.pa-overview__pulse {
 }
 .pa-overview__attention-meta {
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
 }
 .pa-overview__attention-arrow {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-caption);
-  line-height: var(--pa-line-height-18);
 }
 .pa-overview__attention-more {
   padding-left: var(--pa-space-2);
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
 }
 
@@ -187,7 +187,7 @@ button.pa-overview__pulse {
 .pa-overview__queue {
   margin-left: auto;
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
   white-space: nowrap;
 }
@@ -231,7 +231,7 @@ button.pa-overview__pulse {
   overflow: hidden;
   min-width: 0;
   color: var(--dsw-alias-label-primary);
-  font-size: var(--pa-font-size-subtitle);
+  font-size: var(--pa-font-size-caption);
   line-height: var(--pa-line-height-18);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -244,7 +244,7 @@ button.pa-overview__pulse {
   min-width: 0;
   padding-left: var(--pa-space-16);
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
 }
 .pa-overview__worker-sub > span:first-child {
@@ -261,7 +261,7 @@ button.pa-overview__pulse {
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
   text-align: left;
   cursor: pointer;
@@ -296,47 +296,8 @@ button.pa-overview__pulse {
 }
 .pa-overview__section-side {
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   line-height: var(--pa-line-height-16);
-}
-.pa-overview__tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  overflow: hidden;
-  border: var(--pa-hairline) solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-1);
-}
-.pa-overview__tile {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pa-space-1);
-  min-width: 0;
-  padding: var(--pa-space-8) var(--pa-space-10);
-  border-left: var(--pa-hairline) solid var(--dsw-alias-border-l2);
-}
-.pa-overview__tile:first-child {
-  border-left: 0;
-}
-.pa-overview__tile-label {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-2xs);
-  line-height: var(--pa-line-height-14);
-}
-.pa-overview__tile-value {
-  color: var(--dsw-alias-label-primary);
-  font-size: var(--pa-font-size-display);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--pa-font-weight-medium);
-  line-height: var(--pa-line-height-24);
-}
-.pa-overview__tile-sub {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-2xs);
-  line-height: var(--pa-line-height-14);
-}
-.pa-overview__tile-sub[data-failed='true'] {
-  color: var(--dsw-alias-state-error-primary);
 }
 .pa-overview__footer {
   display: flex;
@@ -347,8 +308,8 @@ button.pa-overview__pulse {
   margin-top: auto;
   padding-top: var(--pa-space-2);
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-xs);
-  line-height: var(--pa-line-height-15);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
 }
 .pa-overview__totals {
   min-width: 0;
@@ -407,7 +368,7 @@ button.pa-overview__pulse {
     padding: var(--pa-space-10) var(--pa-space-12) var(--pa-space-14);
   }
   .pa-overview__pulse-ago {
-    font-size: var(--pa-font-size-meta);
+    font-size: var(--pa-font-size-label);
   }
 }
 `

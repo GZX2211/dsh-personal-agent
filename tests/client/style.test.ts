@@ -44,7 +44,7 @@ function classNames(files: readonly string[]): string[] {
 
 function ruleBlock(css: string, selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+  return new RegExp(`(?:^|\\n)[\\t ]*${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? ''
 }
 
 function tokenValue(name: string): string | undefined {
@@ -176,5 +176,45 @@ describe('style fragments', () => {
     expect(resolvedTab).toMatch(/font-size:\s*13px/)
     expect(resolvedTab).toMatch(/line-height:\s*20px/)
     expect(resolvedTab).toMatch(/font-weight:\s*500/)
+  })
+
+  it('keeps one type scale and one line-height scale', () => {
+    const fontSizes = [...TOKENS_CSS.matchAll(/--pa-font-size-[a-z0-9-]+:\s*(\d+px);/g)].map(match => match[1])
+    expect(new Set(fontSizes)).toEqual(new Set(['18px', '16px', '14px', '13px', '12px', '11px', '10px']))
+
+    const lineHeights = [...TOKENS_CSS.matchAll(/--pa-line-height-[a-z0-9-]+:\s*(\d+px);/g)].map(match => match[1] ?? '')
+    expect(new Set(lineHeights)).toEqual(new Set(['24px', '22px', '20px', '18px', '16px', '14px']))
+  })
+
+  it('keeps only the official radius scale plus 1px/2px micro corners', () => {
+    const radii = [...TOKENS_CSS.matchAll(/--pa-radius-[a-z0-9-]+:\s*([^;]+);/g)].map(match => (match[1] ?? '').trim())
+    for (const value of radii) {
+      expect(['1px', '2px', '999px', '50%', 'var(--dsw-radius-xs)', 'var(--dsw-radius-sm)', 'var(--dsw-radius-md)']).toContain(value)
+    }
+  })
+
+  it('keeps two control heights for compact and standard buttons', () => {
+    const open = ruleBlock(CONSOLE_CSS, '.pa-td__open')
+    expect(open).toContain('height: var(--pa-control-height-xs)')
+    expect(resolve(open)).toContain('height: 24px')
+    expect(open).toContain('border-radius: var(--pa-radius-sm)')
+
+    const chainAction = ruleBlock(CONSOLE_CSS, '.pa-chain__action')
+    expect(resolve(chainAction)).toContain('height: 24px')
+
+    const foldButton = ruleBlock(CONSOLE_CSS, '.pa-fold__button')
+    expect(resolve(foldButton)).toContain('height: 28px')
+
+    const back = ruleBlock(CONSOLE_CSS, '.pa-td__back')
+    expect(resolve(back)).toContain('width: 24px')
+    expect(resolve(back)).toContain('height: 24px')
+  })
+
+  it('renders self-drawn tags at the shared tag size', () => {
+    for (const selector of ['.pa-chain__kind', '.pa-stream__kind', '.pa-timeline__origin-kind']) {
+      const block = ruleBlock(CONSOLE_CSS, selector)
+      expect(resolve(block)).toContain('height: 20px')
+      expect(resolve(block)).toContain('font-size: 11px')
+    }
   })
 })

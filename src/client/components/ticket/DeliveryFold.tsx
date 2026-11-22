@@ -42,10 +42,6 @@ export function DeliveryFold({
       open={open}
       onToggle={onToggle}
     >
-      <div className="pa-fold__kv">
-        <span className="pa-fold__key">{t('ticketDeliveryStatus')}</span>
-        <span className="pa-fold__value">{status}</span>
-      </div>
       {delivery.reason === undefined ? null : (
         <div className="pa-fold__kv">
           <span className="pa-fold__key">{t('ticketDeliveryReason')}</span>

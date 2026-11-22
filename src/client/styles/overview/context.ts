@@ -10,8 +10,8 @@ export const OVERVIEW_CONTEXT_CSS = `
   align-items: center;
   gap: var(--pa-space-4);
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-2xs);
-  line-height: var(--pa-line-height-16);
+  font-size: var(--pa-font-size-micro);
+  line-height: var(--pa-line-height-14);
   white-space: nowrap;
 }
 .pa-context__label {
@@ -19,8 +19,9 @@ export const OVERVIEW_CONTEXT_CSS = `
 }
 .pa-context__value {
   color: var(--dsw-alias-label-secondary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   font-variant-numeric: tabular-nums;
+  line-height: var(--pa-line-height-16);
 }
 .pa-context[data-level='warn'] .pa-context__value {
   color: var(--dsw-alias-state-warn-label);

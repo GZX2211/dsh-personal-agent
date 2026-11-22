@@ -25,7 +25,7 @@ export const TICKET_STREAM_CSS = `
   min-height: 36px;
   padding: 0 var(--pa-space-2);
   border: 0;
-  border-radius: var(--pa-radius-6);
+  border-radius: var(--pa-radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -45,25 +45,30 @@ export const TICKET_STREAM_CSS = `
 }
 .pa-stream__time {
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-xs);
+  font-size: var(--pa-font-size-label);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  line-height: var(--pa-line-height-16);
 }
 .pa-stream__kind {
   justify-self: start;
-  padding: 0 var(--pa-space-5);
+  padding: 0 var(--pa-tag-padding-x);
   border: var(--pa-hairline) solid color-mix(in srgb, var(--pa-kind) 34%, transparent);
   border-radius: var(--pa-radius-xs);
   background: color-mix(in srgb, var(--pa-kind) 12%, transparent);
   color: var(--pa-kind);
-  font-size: var(--pa-font-size-xs);
-  line-height: var(--pa-line-height-17);
+  font-size: var(--pa-font-size-label);
+  line-height: var(--pa-line-height-16);
   white-space: nowrap;
+  font-weight: var(--pa-font-weight-medium);
+  height: var(--pa-tag-height);
+  display: inline-flex;
+  align-items: center;
 }
 .pa-stream__flow {
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--pa-font-size-meta);
+  font-size: var(--pa-font-size-label);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -73,8 +78,11 @@ export const TICKET_STREAM_CSS = `
   font-weight: var(--pa-font-weight-medium);
 }
 .pa-stream__arrow {
+  display: inline-flex;
+  align-items: center;
   margin: 0 var(--pa-space-3);
   color: var(--dsw-alias-label-caption);
+  vertical-align: middle;
 }
 .pa-stream__summary {
   overflow: hidden;
@@ -82,6 +90,7 @@ export const TICKET_STREAM_CSS = `
   font-size: var(--pa-font-size-label);
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: var(--pa-line-height-16);
 }
 .pa-stream__expand {
   margin: 0 var(--pa-space-2) var(--pa-space-6);
