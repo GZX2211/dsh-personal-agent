@@ -8,7 +8,7 @@ import type { Translate } from '../../i18n.ts'
 import type { ActivityStats } from '../../../shared/runtime.ts'
 import { formatDayLabel } from '../../lib/format.ts'
 
-/** 图高：与 style.ts 的 `.pa-overview__bars` 保持一致。 */
+/** 图高：与 styles/overview/chart.ts 的 `.pa-overview__bars` 保持一致。 */
 const CHART_HEIGHT = 54
 
 export interface ActivityChartProps {

@@ -1,14 +1,17 @@
 // tests/client/style.test.ts
 //
 // 样式守卫：
-// - 组件用到的每个 `pa-*` 类都必须在 style.ts 里有定义；
+// - 组件用到的每个 `pa-*` 类都必须在样式片段里有定义；
 // - 官方原子包已经提供的控件不得在本插件里复刻第二份；
-// - 过滤条与列表行必须从官方 primitives 取控件。
+// - 过滤条与列表行必须从官方 primitives 取控件；
+// - 设计变量只有一个来源（tokens.ts），其余片段只能引用；
+// - Tab 条与官方标签页对齐，尺寸与横线被显式锁定。
 
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CONSOLE_CSS } from '../../src/client/style.ts'
+import { CONSOLE_CSS } from '../../src/client/styles/index.ts'
+import { TOKENS_CSS } from '../../src/client/styles/tokens.ts'
 
 const CLIENT_DIR = join(process.cwd(), 'src', 'client')
 
@@ -39,7 +42,25 @@ function classNames(files: readonly string[]): string[] {
   return names
 }
 
-describe('style.ts', () => {
+function ruleBlock(css: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+}
+
+function tokenValue(name: string): string | undefined {
+  return new RegExp(`--pa-${name}:\\s*([^;]+);`).exec(TOKENS_CSS)?.[1]?.trim()
+}
+
+/** 把 var(--pa-*) 展开回具体值，用于验证 Token 化没有改变样式取值。 */
+function resolve(css: string): string {
+  let out = css
+  for (let round = 0; round < 5; round += 1) {
+    out = out.replace(/var\(--pa-([a-z0-9-]+)\)/gi, (whole, name: string) => tokenValue(name) ?? whole)
+  }
+  return out
+}
+
+describe('style fragments', () => {
   it('defines every class the components render', () => {
     const defined = new Set(
       [...CONSOLE_CSS.matchAll(/\.(pa-[A-Za-z0-9_-]+)/g)]
@@ -83,22 +104,26 @@ describe('style.ts', () => {
   })
 
   it('keeps the toolbar search compact and the list free of horizontal scrolling', () => {
-    expect(CONSOLE_CSS).toMatch(/\.pa-toolbar__search\s*\{[^}]*height:\s*28px/)
-    expect(CONSOLE_CSS).toMatch(/\.pa-list\s*\{[^}]*overflow-x:\s*hidden/)
+    const search = ruleBlock(CONSOLE_CSS, '.pa-toolbar__search')
+    expect(search).toContain('height: var(--pa-control-height-sm)')
+    expect(resolve(search)).toMatch(/height:\s*28px/)
+
+    const list = ruleBlock(CONSOLE_CSS, '.pa-list')
+    expect(list).toContain('overflow-x: hidden')
   })
 
   it('keeps the settings save bar in reach while the form scrolls', () => {
-    const block = /\.pa-settings__savebar\s*\{([^}]*)\}/.exec(CONSOLE_CSS)?.[1] ?? ''
+    const block = ruleBlock(CONSOLE_CSS, '.pa-settings__savebar')
     expect(block).toMatch(/position:\s*sticky/)
     expect(block).toMatch(/bottom:\s*0/)
-    expect(block).toMatch(/padding:\s*8px 12px/)
+    expect(resolve(block)).toMatch(/padding:\s*8px 12px/)
     expect(block).toMatch(/background:\s*var\(--dsw-alias-bg-base/)
     // 按钮直接落在面板底色上，不再额外画一条灰色操作条。
     expect(block).not.toMatch(/(^|\n)\s*border(-[a-z]+)?\s*:/)
   })
 
   it('sizes the row editor inside its card', () => {
-    const block = /\.pa-rule__input\s*\{([^}]*)\}/.exec(CONSOLE_CSS)?.[1] ?? ''
+    const block = ruleBlock(CONSOLE_CSS, '.pa-rule__input')
     expect(block).toMatch(/box-sizing:\s*border-box/)
     expect(block).toMatch(/width:\s*100%/)
   })
@@ -106,9 +131,50 @@ describe('style.ts', () => {
   it('paints settings inputs with the official settings-field surface', () => {
     // 官方 ConfigField 用 bg-layer-3；bg-overlay 在深色主题里接近白，阅读时刺眼。
     for (const selector of ['.pa-settings__select', '.pa-settings__textarea', '.pa-settings__pre']) {
-      expect(CONSOLE_CSS).toMatch(
-        new RegExp(`${selector.replace('.', '\\.')}\\s*\\{[^}]*background:\\s*var\\(--dsw-alias-bg-layer-3\\)`),
-      )
+      expect(ruleBlock(CONSOLE_CSS, selector)).toMatch(/background:\s*var\(--dsw-alias-bg-layer-3\)/)
     }
+  })
+
+  it('declares every referenced token exactly once', () => {
+    const defined = [...TOKENS_CSS.matchAll(/--pa-([a-z0-9-]+):/gi)].map(match => match[1])
+    expect(defined.length).toBe(new Set(defined).size)
+
+    const referenced = [...CONSOLE_CSS.matchAll(/var\(--pa-([a-z0-9-]+)\)/gi)].map(match => match[1])
+    const undefinedRefs = [...new Set(referenced)].filter(name => !defined.includes(name))
+    expect(undefinedRefs).toEqual([])
+  })
+
+  it('keeps literal design values out of the domain fragments', () => {
+    const domainCss = CONSOLE_CSS.slice(TOKENS_CSS.length)
+    const literals: Array<[string, RegExp]> = [
+      ['font-size', /font-size:\s*[0-9]/],
+      ['line-height', /line-height:\s*[0-9]/],
+      ['font-weight', /font-weight:\s*[0-9]/],
+      ['border-radius', /border-radius:\s*[1-9]/],
+      ['spacing', /(?:^|[;{\s])(?:padding|margin|gap)(?:-[a-z]+)?:\s*[^;]*[0-9]px/],
+      ['z-index', /z-index:\s*[0-9]/],
+      ['font-family', /font-family:(?!\s*var\(--pa-)/],
+      ['color literal', /#[0-9a-fA-F]{3,8}/],
+      ['color function', /rgba?\(/],
+      ['focus ring', /outline:\s*[0-9]/],
+    ]
+    for (const [label, pattern] of literals) {
+      expect({ label, match: pattern.exec(domainCss)?.[0] }).toEqual({ label, match: undefined })
+    }
+  })
+
+  it('locks the tab strip to the official geometry', () => {
+    const tabs = ruleBlock(CONSOLE_CSS, '.pa-console__tabs')
+    const resolved = resolve(tabs)
+    expect(resolved).toMatch(/min-height:\s*38px/)
+    expect(resolved).toMatch(/padding:\s*0 16px/)
+    expect(resolved).toMatch(/gap:\s*0 24px/)
+    expect(tabs).toContain('border-bottom: var(--pa-hairline) solid var(--dsw-alias-border-l2)')
+
+    const tab = ruleBlock(CONSOLE_CSS, '.pa-console__tab')
+    const resolvedTab = resolve(tab)
+    expect(resolvedTab).toMatch(/font-size:\s*13px/)
+    expect(resolvedTab).toMatch(/line-height:\s*20px/)
+    expect(resolvedTab).toMatch(/font-weight:\s*500/)
   })
 })
