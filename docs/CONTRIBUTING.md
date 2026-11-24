@@ -31,7 +31,7 @@ PR 小而精最受欢迎。小型、聚焦的 PR 更容易快速处理。
 
 ## 开发与测试
 
-开发环境搭建、构建、测试与类型检查的命令见 [README](https://github.com/GZX2211/dsh-personal-agent/blob/main/README.md) 的「本地开发」一节。
+开发环境搭建、构建、测试与类型检查的命令见 [README.md](../README.md) 的「本地开发」一节。
 
 提交前请确保相关测试通过；如果新增了行为，请附带对应的测试。代码风格与模块内部的实现约定见各目录下的 `AGENTS.md`。
 
