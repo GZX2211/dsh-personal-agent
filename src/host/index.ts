@@ -36,7 +36,7 @@ import { resolveStateDirectory } from './state/directory.ts'
 import { EventStore } from './store/event-store.ts'
 import { KvStore } from './store/kv-store.ts'
 
-export const name = 'dsh-personal-agent'
+export const name = 'dsh-gzx-agent'
 
 /** 需要的宿主服务：缺任何一个都不该沉默地半启动。 */
 export const inject = [

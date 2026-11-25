@@ -16,7 +16,7 @@ import { sessionFileAddress } from './lib/files.ts'
 import { sessionTitleOf } from './lib/sessions.ts'
 import { ConsolePanel } from './panel/ConsolePanel.tsx'
 
-export const name = 'dsh-personal-agent'
+export const name = 'dsh-gzx-agent'
 
 /** 需要的浏览器服务：标签页类型注册表、正文 slot 与文案。 */
 export const inject = ['slots', 'locale', 'sidebarRightTabs']

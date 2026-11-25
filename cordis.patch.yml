@@ -1,6 +1,6 @@
-# dsh-personal-agent bundle layer: inserts the Personal Agent plugin. The plugin's
+# dsh-gzx-agent bundle layer: inserts the Personal Agent plugin. The plugin's
 # state directory defaults to <DSH_HOME>/state/personal-agent and can be overridden
 # by this row's `stateDir` config.
 - insert:
     - id: personal-agent
-      name: dsh-personal-agent
+      name: dsh-gzx-agent

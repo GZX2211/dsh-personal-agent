@@ -3,7 +3,7 @@
   <img src="" width="100%" />
 </p>
 
-<h1 align="center">dsh-personal-agent</h1>
+<h1 align="center">dsh-gzx-agent</h1>
 
 <p align="center">
   基于 <a href="https://github.com/deepseek-ai">DeepSeek Harness（DSH）</a> 打造的私人代理插件<br>
@@ -28,7 +28,7 @@
 
 一个人同时盯多个执行会话、逐窗口点审批、追着问进度，注意力很快被切碎。DSH 本体把每个会话做成独立的事件日志，会话之间没有共享状态通道，跨会话的状态与审批因此无处安放。
 
-**dsh-personal-agent** 把任务状态与审批从概率层（模型）上提到一个独立的**确定性事件层**：左栏固定一个 **Router 会话**承接对话并派单，每件任务落到一个独立的 **Worker 会话**，需要人介入时由右侧栏的**总控台**呈现审批。状态与审批由总控台直接投影给用户，不经过 Router 转述，也不占用它的上下文预算。
+**dsh-gzx-agent** 把任务状态与审批从概率层（模型）上提到一个独立的**确定性事件层**：左栏固定一个 **Router 会话**承接对话并派单，每件任务落到一个独立的 **Worker 会话**，需要人介入时由右侧栏的**总控台**呈现审批。状态与审批由总控台直接投影给用户，不经过 Router 转述，也不占用它的上下文预算。
 
 ```text
 用户 ──对话──▶ Router 会话 ──派单──▶ L2 账本(append-only)
@@ -115,11 +115,13 @@ Agent 可见工具按角色分配，Router 与 Worker 拿到的工具集不同�
 >
 > tips：可直接将以下段落复制给 Claude Codex 等 AI 助手安装该插件。使用 web profile 时，把下文命令中的 `desktop` 换成 `web`。
 
+> **包名说明**：本插件发布在 npm 上的包名是 `dsh-gzx-agent`（`dsh-personal-agent` 已被他人占用）；GitHub 仓库名仍为 `dsh-personal-agent`。
+
 ### 方式一：一键安装全部（推荐）
 
 我们提供了一个聚合包，包含以下所有功能：
 - `dsh-capability-manager`（能力管理器）
-- `dsh-personal-agent`（个人助手）
+- `dsh-gzx-agent`（个人助手）
 - `dsh-run-python`（Python 工作台）
 
 在终端执行以下命令，即可一次性安装并配置所有插件：
@@ -145,7 +147,7 @@ dsh plugin add dsh-capability-manager
 
 [个人助手](https://github.com/GZX2211/dsh-personal-agent "如果你需要一个能自己“主动”干活的助手，不妨了解一下（通常与另两个插件搭配使用，否则会缺失部分能力）")
 ```bash
-dsh plugin add dsh-personal-agent
+dsh plugin add dsh-gzx-agent
 ```
 
 [python 工作台](https://github.com/GZX2211/dsh-run-python "如果你需要一个能直接执行 Python 代码并逐 cell 维持内核状态的工具，不妨了解一下")
@@ -156,7 +158,7 @@ dsh plugin add dsh-run-python
 ### 卸载
 
 ```bash
-dsh plugin --profile desktop remove dsh-personal-agent
+dsh plugin --profile desktop remove dsh-gzx-agent
 ```
 
 > 卸载只移除插件挂载，状态目录（账本、设置、工单工作目录）会保留，便于日后重装恢复；如需彻底清理，请手动删除该状态目录。

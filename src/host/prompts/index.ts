@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import type { PromptTexts } from '../../shared/settings.ts'
 
 /** 本包在 manifests 里的名字，用于定位包根。 */
-const PACKAGE_NAME = 'dsh-personal-agent'
+const PACKAGE_NAME = 'dsh-gzx-agent'
 
 /** 随包分发的提示词文件（不含扩展名）。 */
 export type PromptName = 'shared' | 'router' | 'worker'

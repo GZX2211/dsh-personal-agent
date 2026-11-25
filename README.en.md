@@ -3,7 +3,7 @@
   <img src="" width="100%" />
 </p>
 
-<h1 align="center">dsh-personal-agent</h1>
+<h1 align="center">dsh-gzx-agent</h1>
 
 <p align="center">
   A personal agent plugin built on <a href="https://github.com/deepseek-ai">DeepSeek Harness (DSH)</a><br>
@@ -28,7 +28,7 @@
 
 Keeping track of several worker sessions, clicking through approvals window by window, and constantly asking for progress quickly fragments your attention. DSH itself makes every session an independent event log with no shared state channel between sessions, so cross-session state and approvals have nowhere to live.
 
-**dsh-personal-agent** lifts task state and approvals out of the probabilistic layer (the models) into a dedicated **deterministic event layer**: a **Router session** is pinned in the left sidebar to take conversation and dispatch work, each task lands in its own **Worker session**, and anything requiring your input is surfaced by the **Console** in the right sidebar. State and approvals are projected directly to you by the Console — not relayed through the Router and not charged to its context budget.
+**dsh-gzx-agent** lifts task state and approvals out of the probabilistic layer (the models) into a dedicated **deterministic event layer**: a **Router session** is pinned in the left sidebar to take conversation and dispatch work, each task lands in its own **Worker session**, and anything requiring your input is surfaced by the **Console** in the right sidebar. State and approvals are projected directly to you by the Console — not relayed through the Router and not charged to its context budget.
 
 ```text
 User ──chat──▶ Router session ──dispatch──▶ L2 ledger (append-only)
@@ -115,11 +115,13 @@ The Console reads and writes state through a same-origin HTTP surface (prefix `/
 >
 > Tip: You can copy the following paragraphs directly to an AI assistant such as Claude Codex to install this plugin. When using the web profile, replace `desktop` with `web` in the commands below.
 
+> **Package name**: this plugin is published on npm as `dsh-gzx-agent` (`dsh-personal-agent` is taken by another author); the GitHub repository is still named `dsh-personal-agent`.
+
 ### Option 1: Install everything with one command (recommended)
 
 We provide an aggregation package that includes all the following features:
 - `dsh-capability-manager` (Capability Manager)
-- `dsh-personal-agent` (Personal Assistant)
+- `dsh-gzx-agent` (Personal Assistant)
 - `dsh-run-python` (Python Workbench)
 
 Run the following command in a terminal to install and configure all plugins at once:
@@ -145,7 +147,7 @@ dsh plugin add dsh-capability-manager
 
 [Personal Assistant](https://github.com/GZX2211/dsh-personal-agent "If you need an assistant that can proactively get work done on its own, take a look (usually used together with the other two plugins, otherwise some capabilities will be missing)")
 ```bash
-dsh plugin add dsh-personal-agent
+dsh plugin add dsh-gzx-agent
 ```
 
 [Python Workbench](https://github.com/GZX2211/dsh-run-python "If you need a tool that can directly execute Python code and maintain kernel state cell by cell, take a look")
@@ -156,7 +158,7 @@ dsh plugin add dsh-run-python
 ### Uninstall
 
 ```bash
-dsh plugin --profile desktop remove dsh-personal-agent
+dsh plugin --profile desktop remove dsh-gzx-agent
 ```
 
 > Uninstalling only removes the plugin mount — the state directory (ledger, settings, ticket working directories) is kept so a later reinstall can restore state. To clean up completely, delete that state directory manually.

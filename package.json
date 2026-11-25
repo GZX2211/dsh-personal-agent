@@ -1,10 +1,27 @@
 {
-  "name": "dsh-personal-agent",
+  "name": "dsh-gzx-agent",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Personal Agent for DeepSeek Harness: a pinned Router Session dispatches Tickets to Worker Sessions, and a right-sidebar console carries the approvals that unblock them.",
   "license": "MIT",
+  "author": "GZX2211",
+  "homepage": "https://github.com/GZX2211/dsh-personal-agent#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GZX2211/dsh-personal-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GZX2211/dsh-personal-agent/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "personal-agent",
+    "router",
+    "worker",
+    "approvals"
+  ],
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
@@ -34,7 +51,7 @@
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": "^0.2.2-rc.1"
+    "dsh": "^0.2.2-rc.5"
   },
   "scripts": {
     "build": "tsdown && node scripts/wrap-client.mjs",

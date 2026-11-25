@@ -6,7 +6,7 @@
 
 import { readFile, rm, writeFile } from 'node:fs/promises'
 
-const PACKAGE_NAME = 'dsh-personal-agent'
+const PACKAGE_NAME = 'dsh-gzx-agent'
 const BODY = new URL('../lib/client.body.js', import.meta.url)
 const OUT = new URL('../lib/client.js', import.meta.url)
 
