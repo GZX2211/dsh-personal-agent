@@ -109,26 +109,49 @@ The Console reads and writes state through a same-origin HTTP surface (prefix `/
 
 ---
 
-## Installation (DSH host)
+## 📦 Installation
 
-> **Version compatibility**: requires a DSH (DeepSeek Harness) host `^0.2.2-rc.1` and Node `^22.19.0 || >=24.0.0`. This plugin is a Cordis bundle injected into the host profile via `cordis.patch.yml`.
-> Tip: you can copy the following section to an AI assistant to perform the installation.
+> **Version compatibility**: This plugin is compatible with **DeepSeek Harness `0.2.2-rc.5` and above**. Please install or upgrade the host first (before upgrading, **fully stop the dsh process** in an external terminal):
+>
+> Tip: You can copy the following paragraphs directly to an AI assistant such as Claude Codex to install this plugin. When using the web profile, replace `desktop` with `web` in the commands below.
 
-1. Make sure DSH is installed locally and the `dsh plugin` command is available
-2. Mount this repository via link (recommended for local development):
+### Option 1: Install everything with one command (recommended)
 
+We provide an aggregation package that includes all the following features:
+- `dsh-capability-manager` (Capability Manager)
+- `dsh-personal-agent` (Personal Assistant)
+- `dsh-run-python` (Python Workbench)
+
+Run the following command in a terminal to install and configure all plugins at once:
+
+**Desktop** (recommended: click the plugin page and enter the package name to install):
+
+```
+dsh-gzx-plugin
+```
+or
 ```bash
-dsh plugin --profile desktop add "link:/absolute/path/to/dsh-personal-agent"
+dsh plugin --profile desktop add dsh-gzx-plugin
 ```
 
-3. The command writes the bundle into `dsh.profile.bundles`; HMR picks up the config change and mounts it
-4. Restart the host, open the "Console" tab in the right sidebar, and confirm success when a pinned "Personal Agent · Router" session appears in the left sidebar
+---
 
-### Installation troubleshooting
+### Option 2: Install individually as needed
 
-**The "Console" tab does not appear** → confirm the plugin is mounted and the host was restarted; check that `dsh.profile.bundles` contains this bundle.
+[Capability Manager](https://github.com/GZX2211/dsh-capability-manager "If you need meta_search's on-demand tool recall, take a look")
+```bash
+dsh plugin add dsh-capability-manager
+```
 
-**Wrong state directory** → the plugin first uses the profile's `stateDir` config; without it, the `DSH_HOME` environment variable; then it falls back to `~/.dsh`. The final directory is `<root>/state/personal-agent`.
+[Personal Assistant](https://github.com/GZX2211/dsh-personal-agent "If you need an assistant that can proactively get work done on its own, take a look (usually used together with the other two plugins, otherwise some capabilities will be missing)")
+```bash
+dsh plugin add dsh-personal-agent
+```
+
+[Python Workbench](https://github.com/GZX2211/dsh-run-python "If you need a tool that can directly execute Python code and maintain kernel state cell by cell, take a look")
+```bash
+dsh plugin add dsh-run-python
+```
 
 ### Uninstall
 

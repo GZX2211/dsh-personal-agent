@@ -109,26 +109,49 @@ Agent 可见工具按角色分配，Router 与 Worker 拿到的工具集不同�
 
 ---
 
-## 安装（DSH 宿主）
+## 📦 安装
 
-> **版本适配**：需要 DSH（DeepSeek Harness）宿主 `^0.2.2-rc.1`，Node `^22.19.0 || >=24.0.0`。本插件是 Cordis bundle，通过 `cordis.patch.yml` 把 `personal-agent` 注入宿主 profile。
-> tips：可直接把以下段落复制给 AI 助手执行安装。
+> **版本适配**：本插件适配 **DeepSeek Harness `0.2.2-rc.5`及以上版本**。请先安装或升级宿主（升级前先在外部终端**完全停止 dsh 进程**）：
+>
+> tips：可直接将以下段落复制给 Claude Codex 等 AI 助手安装该插件。使用 web profile 时，把下文命令中的 `desktop` 换成 `web`。
 
-1. 确认本机已安装 DSH，并能执行 `dsh plugin` 命令
-2. 用 link 方式挂载本仓库（本地开发推荐）：
+### 方式一：一键安装全部（推荐）
 
+我们提供了一个聚合包，包含以下所有功能：
+- `dsh-capability-manager`（能力管理器）
+- `dsh-personal-agent`（个人助手）
+- `dsh-run-python`（Python 工作台）
+
+在终端执行以下命令，即可一次性安装并配置所有插件：
+
+**桌面端**（推荐点击插件页面直接输入包名安装）：
+
+```
+dsh-gzx-plugin
+```
+或
 ```bash
-dsh plugin --profile desktop add "link:/absolute/path/to/dsh-personal-agent"
+dsh plugin --profile desktop add dsh-gzx-plugin
 ```
 
-3. 该命令把 bundle 写入 `dsh.profile.bundles`；HMR 捕获配置变更完成挂载
-4. 重启宿主，在右侧栏打开「总控台」，左栏出现固定置顶的「个人代理 · 路由」会话即安装成功
+---
 
-### 安装问题速查
+### 方式二：按需单独安装
 
-**看不到「总控台」标签** → 确认插件已挂载、宿主已重启；检查 `dsh.profile.bundles` 是否包含本 bundle。
+[能力管理器](https://github.com/GZX2211/dsh-capability-manager "如果你需要 meta_search 的 tool 按需召回功能，不妨了解一下")
+```bash
+dsh plugin add dsh-capability-manager
+```
 
-**状态目录位置不对** → 插件优先用 profile 的 `stateDir` 配置；没有时取环境变量 `DSH_HOME`，再退回 `~/.dsh`。最终目录为 `<root>/state/personal-agent`。
+[个人助手](https://github.com/GZX2211/dsh-personal-agent "如果你需要一个能自己“主动”干活的助手，不妨了解一下（通常与另两个插件搭配使用，否则会缺失部分能力）")
+```bash
+dsh plugin add dsh-personal-agent
+```
+
+[python 工作台](https://github.com/GZX2211/dsh-run-python "如果你需要一个能直接执行 Python 代码并逐 cell 维持内核状态的工具，不妨了解一下")
+```bash
+dsh plugin add dsh-run-python
+```
 
 ### 卸载
 
