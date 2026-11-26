@@ -1,6 +1,6 @@
 // tests/host/dispatcher/brief.test.ts
 //
-// 工单说明是 worker 唯一的信息入口：目标与工作目录必须到位，其余由执行者判断。
+// 工单说明只转交工单事实：标题与目标。执行要求由 worker 提示词提供，不在这里重复。
 
 import { describe, expect, it } from 'vitest'
 import { formatTaskBrief, type TaskBrief } from '../../../src/host/dispatcher/brief.ts'
@@ -19,23 +19,22 @@ describe('formatTaskBrief', () => {
     expect(text).toContain('目标：把 v2 发布到生产')
   })
 
-  it('carries the working directory when it is known', () => {
-    const text = formatTaskBrief(
-      { ...BASE, directory: 'C:\\state\\work\\t-abcdef1234' },
-      'dispatch',
-    )
-
-    expect(text).toContain('工作目录：C:\\state\\work\\t-abcdef1234')
-  })
-
-  it('omits the working directory when it is absent', () => {
+  it('does not carry the working directory', () => {
     const text = formatTaskBrief(BASE, 'dispatch')
 
-    expect(text).not.toContain('工作目录：')
+    expect(text).not.toContain('工作目录')
+  })
+
+  it('does not repeat the execution instructions from the worker prompt', () => {
+    const text = formatTaskBrief(BASE, 'dispatch')
+
+    expect(text).not.toContain('pa_approval_submit')
+    expect(text).not.toContain('汇报')
+    expect(text).not.toContain('请开始执行')
   })
 
   it('does not carry background, constraints or acceptance criteria', () => {
-    const text = formatTaskBrief({ ...BASE, directory: '/state/work/t-abcdef1234' }, 'dispatch')
+    const text = formatTaskBrief(BASE, 'dispatch')
 
     expect(text).not.toContain('背景：')
     expect(text).not.toContain('约束：')
@@ -49,10 +48,4 @@ describe('formatTaskBrief', () => {
     expect(text).toContain('不要重做已完成的工作')
   })
 
-  it('always points at the approval tool and the closing report', () => {
-    const text = formatTaskBrief(BASE, 'dispatch')
-
-    expect(text).toContain('pa_approval_submit')
-    expect(text).toContain('汇报')
-  })
 })

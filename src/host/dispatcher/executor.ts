@@ -103,7 +103,6 @@ export async function executeDispatchAction(
       ticketId: ticket.id,
       title: ticket.title,
       goal: ticket.goal,
-      directory,
     },
     mode,
   )

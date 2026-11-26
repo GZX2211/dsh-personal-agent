@@ -1,8 +1,8 @@
 // src/host/dispatcher/brief.ts
 //
-// 投递给执行会话的工单说明。它是 worker 唯一的信息入口，所以必须自解释：
-// 工单目标、工作目录与执行要求都在这里，不让模型回读总控台。
-// 它只转交事实，不替执行者定义背景、约束或验收标准。
+// 投递给执行会话的工单说明。它只转交工单事实：标题、目标，append 时附一句提醒。
+// 角色要求、审批工具用法与汇报格式由 worker 提示词提供，这里不重复；
+// 也不替执行者定义背景、约束或验收标准。
 
 import type { TaskMode } from '../../shared/events.ts'
 import { shortTicketId } from '../../shared/tickets.ts'
@@ -11,7 +11,6 @@ export interface TaskBrief {
   ticketId: string
   title: string
   goal: string
-  directory?: string
 }
 
 export function formatTaskBrief(brief: TaskBrief, mode: TaskMode): string {
@@ -23,13 +22,5 @@ export function formatTaskBrief(brief: TaskBrief, mode: TaskMode): string {
   }
 
   lines.push(`目标：${brief.goal}`)
-  if (brief.directory !== undefined) {
-    lines.push('', `工作目录：${brief.directory}`)
-  }
-
-  lines.push(
-    '',
-    '请开始执行。需要人类决定时调用 pa_approval_submit；结束这一单时给出一段简洁的中文汇报。',
-  )
   return lines.join('\n')
 }
