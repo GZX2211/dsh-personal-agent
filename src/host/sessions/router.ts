@@ -25,10 +25,53 @@ export interface RouterSession {
 }
 
 /**
+ * 清空 router 身份槽，供归档事件在新建之前调用。
+ *
+ * 只删身份不建会话：调用方随后必须 ensureRouterSession，否则本轮没有 router。
+ */
+export async function releaseRouterIdentity(identities: KvStore): Promise<void> {
+  await identities.delete(KV_ROUTER_SESSION)
+}
+
+export interface RouterArchiveRebindOptions {
+  ctx: HostContext
+  stateDirectory: string
+  identities: KvStore
+  /** 当前 router 身份；只有被归档的正是它才触发重绑。 */
+  currentRouterSessionId: () => string | undefined
+  /** 新会话已建好并写入身份槽，通知调用方完成装饰等运行时装配。 */
+  onRebound: (session: RouterSession) => void | Promise<void>
+  log?: (message: string) => void
+}
+
+/**
+ * 监听归档事件，把 router 身份从一个已归档会话迁到新会话。
+ *
+ * 空身份槽 + 新建写入新 id 是不可逆的：旧会话日后复原也拿不回 router，
+ * 始终只留一个。事件只按 sessionId 认领，不猜归档原因，也不碰别的会话。
+ */
+export function registerRouterArchiveRebind(options: RouterArchiveRebindOptions): () => void {
+  return options.ctx.on('workspace/session-archived', request => {
+    if (request.sessionId !== options.currentRouterSessionId()) return
+    void (async () => {
+      await releaseRouterIdentity(options.identities)
+      const session = await ensureRouterSession(options.ctx, options.stateDirectory, options.identities)
+      await options.onRebound(session)
+    })().catch(error => {
+      options.log?.(`router rebind after archive failed: ${error instanceof Error ? error.message : String(error)}`)
+    })
+  })
+}
+
+/**
  * 建好（或复用）路由会话并置顶，幂等。
  *
  * 身份记在账本 kv 里：插件重载或进程重启后再建一次，会在左栏多出一个同名
  * 置顶会话，那不是用户的第二个助手。旧身份文件会被迁移并删除。
+ *
+ * 归档的会话仍在会话表里，但 pin 与归档互斥，且复原后也不能重新成为 router：
+ * 一条归档身份按失效处理，清掉 kv 记录再建新会话。新 id 覆盖旧记录，因此旧会话
+ * 即使日后复原也拿不回 router 身份，始终只有一个。
  *
  * 工作区目录取状态目录本身：路由会话不该占住用户自己的工作区，也不该在用户
  * 目录里留下会话痕迹。工作区按规范路径复用，重复调用得到同一个。
@@ -56,17 +99,25 @@ export async function ensureRouterSession(
   return session
 }
 
-/** 依次尝试 kv 与旧文件；两条路都不成立时把旧文件清掉，避免下次继续误读。 */
+/**
+ * 依次尝试 kv 与旧文件；归档记录的身份槽会被清空，避免复原后重新绑回。
+ *
+ * 归档只由宿主记账，会话表里仍在，所以可用性判定必须同时排除归档集合。
+ * 身份槽是单值：清掉后新建会写入新 id，旧会话复原也不会再被认作 router。
+ */
 async function readRecordedIdentity(
   ctx: HostContext,
   directory: string,
   identities: KvStore,
 ): Promise<RouterSession | undefined> {
   const fromKv = parseIdentity(identities.get(KV_ROUTER_SESSION))
-  if (fromKv !== undefined && (await sessionExists(ctx, fromKv.sessionId))) return fromKv
+  if (fromKv !== undefined && (await sessionAvailable(ctx, fromKv.sessionId))) return fromKv
+  if (fromKv !== undefined && (await sessionArchived(ctx, fromKv.sessionId))) {
+    await identities.delete(KV_ROUTER_SESSION)
+  }
 
   const fromLegacy = parseIdentity(await readLegacyRecord(directory))
-  if (fromLegacy !== undefined && (await sessionExists(ctx, fromLegacy.sessionId))) {
+  if (fromLegacy !== undefined && (await sessionAvailable(ctx, fromLegacy.sessionId))) {
     await identities.set(KV_ROUTER_SESSION, JSON.stringify(fromLegacy))
     await removeLegacyRecord(directory)
     return fromLegacy
@@ -75,9 +126,15 @@ async function readRecordedIdentity(
   return undefined
 }
 
-async function sessionExists(ctx: HostContext, sessionId: SessionId): Promise<boolean> {
+/** 归档的会话不算可用：pin 与归档互斥，而 router 每次复用都要 pin。 */
+async function sessionAvailable(ctx: HostContext, sessionId: SessionId): Promise<boolean> {
+  if (sessionArchived(ctx, sessionId)) return false
   const value = await ctx.sessionController.list({}, new AbortController().signal)
   return value.items.some(item => item.sessionId === sessionId)
+}
+
+function sessionArchived(ctx: HostContext, sessionId: SessionId): boolean {
+  return ctx.workspaceRegistry.archivedSessionIds.includes(sessionId)
 }
 
 function parseIdentity(text: string | undefined): RouterSession | undefined {

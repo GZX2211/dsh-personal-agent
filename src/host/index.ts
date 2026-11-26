@@ -26,9 +26,9 @@ import { settingsErrorCode } from './settings/errors.ts'
 import { hostModelCatalog } from './settings/model.ts'
 import { createSettingsService } from './settings/service.ts'
 import { SettingsStore } from './settings/store.ts'
-import { createAgentDecorator, decorateLiveWorkerSessions } from './sessions/decorate.ts'
+import { createAgentDecorator, decorateLiveWorkerSessions, type AgentDecorator } from './sessions/decorate.ts'
 import { registerWorkerObserver } from './sessions/observer.ts'
-import { ensureRouterSession } from './sessions/router.ts'
+import { ensureRouterSession, registerRouterArchiveRebind, type RouterSession } from './sessions/router.ts'
 import { createClaimRegistry } from './signals/claim.ts'
 import { registerRouterSignalObserver } from './signals/observer.ts'
 import { registerPerceptionSkill } from './skills/perception.ts'
@@ -109,9 +109,21 @@ export function apply(ctx: HostContext, config?: Config): void {
   let disposeObserver: (() => void) | undefined
   let disposeSignalObserver: (() => void) | undefined
   let disposeDecorator: (() => void) | undefined
+  let disposeRouterArchive: (() => void) | undefined
   let stopPerception: (() => void) | undefined
   let stopRuntime: (() => void) | undefined
   let prepareWorker: ((sessionId: SessionId) => Promise<void>) | undefined
+
+  /**
+   * 把 router 身份写进运行时：所有消费点都读 routerSessionId 这个变量，重绑后
+   * 只需覆盖它，感知投递、角色查询与提示词装饰就一起指向新会话。
+   */
+  async function bindRouterSession(session: RouterSession, decorator: AgentDecorator): Promise<void> {
+    routerSessionId = session.sessionId
+    roles.setRouterSessionId(session.sessionId)
+    const resolved = await ctx.sessionController.resolveAgent(session.sessionId)
+    if ('agent' in resolved) decorator.decorate(resolved.agent)
+  }
 
   // 账本、kv 与设置就绪后装配有状态的服务：调度器、回合观察、角色装饰、感知来源。
   const ready = Promise.all([ledger, identities, settingsStore]).then(([store, kv, settings]) => {
@@ -305,6 +317,7 @@ export function apply(ctx: HostContext, config?: Config): void {
       disposeObserver?.()
       disposeSignalObserver?.()
       disposeDecorator?.()
+      disposeRouterArchive?.()
       stopPerception?.()
       stopRuntime?.()
       void ledger.then(store => store.close()).catch(() => undefined)
@@ -313,14 +326,24 @@ export function apply(ctx: HostContext, config?: Config): void {
     }
   }, 'personal-agent: console api')
 
+  // 归档当前 router 时释放旧身份并重建。身份槽是单值，重建覆盖它，旧会话即使
+  // 日后复原也拿不回 router；注册要等到服务就绪，注销手柄由调用方持有。
+  void ready.then(({ kv, decorator }) => {
+    disposeRouterArchive = registerRouterArchiveRebind({
+      ctx,
+      stateDirectory: stateDir,
+      identities: kv,
+      currentRouterSessionId: () => routerSessionId,
+      onRebound: session => bindRouterSession(session, decorator),
+      log: message => logWarning(ctx, message),
+    })
+  })
+
   // 启动收尾：恢复/创建路由会话 → 装饰 router 与活着的 worker → 启动感知来源 → 消化队列。
   void ready
     .then(async ({ store, kv, scheduler, decorator, perception }) => {
       const session = await ensureRouterSession(ctx, stateDir, kv)
-      routerSessionId = session.sessionId
-      roles.setRouterSessionId(session.sessionId)
-      const resolved = await ctx.sessionController.resolveAgent(session.sessionId)
-      if ('agent' in resolved) decorator.decorate(resolved.agent)
+      await bindRouterSession(session, decorator)
       // 重载后活着的 worker 不再发 agent/created，按账本绑定补装饰。
       decorateLiveWorkerSessions({ ctx, store, decorator, log: message => logWarning(ctx, message) })
       // 来源用同一个 router 会话投递，必须等身份确定之后再启动。

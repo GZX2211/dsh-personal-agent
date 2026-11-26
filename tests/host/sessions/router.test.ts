@@ -7,9 +7,14 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HostContext } from '../../../src/host/context.ts'
-import { ensureRouterSession, ROUTER_SESSION_TITLE } from '../../../src/host/sessions/router.ts'
+import {
+  ensureRouterSession,
+  registerRouterArchiveRebind,
+  releaseRouterIdentity,
+  ROUTER_SESSION_TITLE,
+} from '../../../src/host/sessions/router.ts'
 import { KvStore } from '../../../src/host/store/kv-store.ts'
 
 let directory: string
@@ -35,12 +40,18 @@ interface Harness {
   sessions: Map<string, { title?: string }>
   pinned: string[]
   createdCount: () => number
+  archived: string[]
+  archive: (sessionId: string) => void
+  restore: (sessionId: string) => void
+  emitArchived: (sessionId: string) => void
 }
 
 function harness(liveSessionIds: string[] = []): Harness {
   const sessions = new Map<string, { title?: string }>()
   for (const id of liveSessionIds) sessions.set(id, {})
   const pinned: string[] = []
+  const archived: string[] = []
+  const listeners = new Map<string, ((payload: { sessionId: string }) => void)[]>()
   const workspaces: { id: string; path: string; title: string; sessionIds: string[] }[] = []
   let created = 0
   const ctx = {
@@ -51,10 +62,16 @@ function harness(liveSessionIds: string[] = []): Harness {
         return workspace
       },
       pinSession: async (sessionId: string) => {
+        // 宿主对归档会话的 pin 会抛错；测试如实地模拟，避免只靠 list 判断漏掉它。
+        if (archived.includes(sessionId)) throw new Error(`cannot pin archived session ${sessionId}`)
         pinned.push(sessionId)
+      },
+      get archivedSessionIds() {
+        return archived
       },
     },
     sessionController: {
+      // 归档会话仍留在列表里，这是引发死锁的真实行为。
       list: async () => ({ items: [...sessions.keys()].map(sessionId => ({ sessionId })) }),
       create: async () => {
         created += 1
@@ -68,8 +85,32 @@ function harness(liveSessionIds: string[] = []): Harness {
         return { title: request.title, seq: 1 }
       },
     },
+    on: (name: string, listener: (payload: { sessionId: string }) => void) => {
+      const current = listeners.get(name) ?? []
+      current.push(listener)
+      listeners.set(name, current)
+      return () => {
+        listeners.set(name, (listeners.get(name) ?? []).filter(item => item !== listener))
+      }
+    },
   }
-  return { ctx: ctx as unknown as HostContext, sessions, pinned, createdCount: () => created }
+  return {
+    ctx: ctx as unknown as HostContext,
+    sessions,
+    pinned,
+    createdCount: () => created,
+    archived,
+    archive: (sessionId: string) => {
+      if (!archived.includes(sessionId)) archived.push(sessionId)
+    },
+    restore: (sessionId: string) => {
+      const index = archived.indexOf(sessionId)
+      if (index >= 0) archived.splice(index, 1)
+    },
+    emitArchived: (sessionId: string) => {
+      for (const listener of listeners.get('workspace/session-archived') ?? []) listener({ sessionId })
+    },
+  }
 }
 
 function legacyPath(): string {
@@ -177,5 +218,117 @@ describe('ensureRouterSession', () => {
     expect(JSON.parse(raw)['router.session']).toBe(
       JSON.stringify({ workspaceId: 'w-1', sessionId: 'session-1' }),
     )
+  })
+
+  it('replaces an archived recorded session instead of pinning it', async () => {
+    const { ctx, pinned, createdCount, archive } = harness(['session-archived'])
+    archive('session-archived')
+    const kv = await openKv()
+    await kv.set('router.session', JSON.stringify({ workspaceId: 'w-old', sessionId: 'session-archived' }))
+
+    const session = await ensureRouterSession(ctx, directory, kv)
+
+    expect(createdCount()).toBe(1)
+    expect(session.sessionId).toBe('session-1')
+    expect(pinned).toEqual(['session-1'])
+    expect(JSON.parse(kv.get('router.session') ?? 'null')).toMatchObject({ sessionId: 'session-1' })
+  })
+
+  it('does not rebind to the old session after it is restored', async () => {
+    const { ctx, pinned, createdCount, archive, restore } = harness(['session-archived'])
+    archive('session-archived')
+    const kv = await openKv()
+    await kv.set('router.session', JSON.stringify({ workspaceId: 'w-old', sessionId: 'session-archived' }))
+
+    const first = await ensureRouterSession(ctx, directory, kv)
+    restore('session-archived')
+    const second = await ensureRouterSession(ctx, directory, kv)
+
+    expect(second).toEqual(first)
+    expect(createdCount()).toBe(1)
+    expect(pinned).toEqual(['session-1', 'session-1'])
+  })
+})
+
+describe('registerRouterArchiveRebind', () => {
+  it('releases and rebuilds the identity when the current router is archived', async () => {
+    const { ctx, pinned, createdCount, archive, emitArchived } = harness(['session-router'])
+    const kv = await openKv()
+    await kv.set('router.session', JSON.stringify({ workspaceId: 'w-1', sessionId: 'session-router' }))
+    const rebounded: string[] = []
+    registerRouterArchiveRebind({
+      ctx,
+      stateDirectory: directory,
+      identities: kv,
+      currentRouterSessionId: () => 'session-router',
+      onRebound: session => {
+        rebounded.push(session.sessionId)
+      },
+    })
+
+    archive('session-router')
+    emitArchived('session-router')
+    await vi.waitFor(() => expect(rebounded).toEqual(['session-1']))
+
+    expect(createdCount()).toBe(1)
+    expect(pinned).toEqual(['session-1'])
+    expect(JSON.parse(kv.get('router.session') ?? 'null')).toMatchObject({ sessionId: 'session-1' })
+  })
+
+  it('ignores archives of other sessions', async () => {
+    const { ctx, createdCount, archive, emitArchived } = harness(['session-router', 'session-worker'])
+    const kv = await openKv()
+    const rebounded: string[] = []
+    registerRouterArchiveRebind({
+      ctx,
+      stateDirectory: directory,
+      identities: kv,
+      currentRouterSessionId: () => 'session-router',
+      onRebound: session => {
+        rebounded.push(session.sessionId)
+      },
+    })
+
+    archive('session-worker')
+    emitArchived('session-worker')
+    await Promise.resolve()
+
+    expect(rebounded).toEqual([])
+    expect(createdCount()).toBe(0)
+    expect(kv.get('router.session')).toBeUndefined()
+  })
+
+  it('stops listening after disposal', async () => {
+    const { ctx, createdCount, archive, emitArchived } = harness(['session-router'])
+    const kv = await openKv()
+    const rebounded: string[] = []
+    const dispose = registerRouterArchiveRebind({
+      ctx,
+      stateDirectory: directory,
+      identities: kv,
+      currentRouterSessionId: () => 'session-router',
+      onRebound: session => {
+        rebounded.push(session.sessionId)
+      },
+    })
+
+    dispose()
+    archive('session-router')
+    emitArchived('session-router')
+    await Promise.resolve()
+
+    expect(rebounded).toEqual([])
+    expect(createdCount()).toBe(0)
+  })
+})
+
+describe('releaseRouterIdentity', () => {
+  it('clears the recorded identity without creating a session', async () => {
+    const kv = await openKv()
+    await kv.set('router.session', JSON.stringify({ workspaceId: 'w-old', sessionId: 'session-old' }))
+
+    await releaseRouterIdentity(kv)
+
+    expect(kv.get('router.session')).toBeUndefined()
   })
 })
