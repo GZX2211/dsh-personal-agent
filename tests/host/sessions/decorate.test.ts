@@ -1,7 +1,8 @@
 // tests/host/sessions/decorate.test.ts
 //
-// 角色装饰按会话身份装配：router 得到派发与查询、worker 得到审批；不相关会话
-// 不被碰；重复 agent/created 不重复注册；agent 销毁时注册全部卸载。
+// 角色装饰按会话身份装配：router 得到派发与查询、worker 得到审批；两个角色的
+// 提示词段都以 complete 独占系统提示词正文；不相关会话不被碰；重复 agent/created
+// 不重复注册；agent 销毁时注册全部卸载。
 
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -110,6 +111,7 @@ describe('createAgentDecorator', () => {
     const agent = host.sessions.get('session-router')?.agent
     expect(agent?.sections).toHaveLength(1)
     expect(agent?.sections[0]?.name).toBe('personal-agent/router')
+    expect(agent?.sections[0]?.complete).toBe(true)
     expect(sectionText(agent!.sections[0]!)).toBe('路由角色提示词')
     expect(agent?.toolNames).toEqual([
       'pa_ticket_dispatch',
@@ -133,6 +135,7 @@ describe('createAgentDecorator', () => {
 
     const agent = host.sessions.get(WORKER_SESSION)?.agent
     expect(agent?.sections[0]?.name).toBe('personal-agent/worker')
+    expect(agent?.sections[0]?.complete).toBe(true)
     expect(sectionText(agent!.sections[0]!)).toBe('执行角色提示词')
     expect(agent?.toolNames).toEqual(['pa_approval_submit'])
     expect(agent?.restrictions).toEqual([{ deny: ['ask_user_question', 'present'] }])

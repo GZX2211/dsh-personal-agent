@@ -20,6 +20,8 @@ export interface FakeSection {
   order: number
   /** 真实宿主接受静态文本或装配时求值的函数；替身原样保存。 */
   text: string | ((context: unknown) => string)
+  /** complete 段会成为唯一系统提示词正文；替身原样保存供断言。 */
+  complete?: boolean
 }
 
 /** 求值一个 section 的文本；动态 section 才算得出装配时的真实内容。 */

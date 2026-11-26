@@ -29,7 +29,7 @@ export interface RolePromptSource {
   composePrompt(role: SessionRole): string
 }
 
-/** 角色提示词的 section 位置：第一方 section 在 0~10000 之间稀疏分配，900 不冲突。 */
+/** 角色提示词的 section 位置：唯一 complete 段，order 只作占位，与其他段不冲突。 */
 const ROLE_SECTION_ORDER = 900
 
 /**
@@ -110,6 +110,9 @@ export function createAgentDecorator(options: AgentDecoratorOptions): AgentDecor
         agent.ctx.systemPrompt.section({
           name: `personal-agent/${role}`,
           order: ROLE_SECTION_ORDER,
+          // 只保留本段作为系统提示词：宿主人设、工具指导与其他插件段不再进入正文。
+          // 工具 schema 与运行时 context 走独立通道，不受 complete 影响。
+          complete: true,
           // 文本在每次装配时求值：保存提示词或规则后，下一次请求即可读到新内容。
           text: () => options.settings.composePrompt(role),
         }),
